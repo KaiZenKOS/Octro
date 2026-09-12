@@ -1,5 +1,7 @@
 # Documentation Octro
 
+La [préparation de l'infrastructure](infra/backend-configuration.md) décrit les services fournis, les variables sans secrets et les raccordements S3/S5/S6 encore à réaliser ; voir aussi l'[ADR des adaptateurs](adr/0001-provided-infrastructure.md).
+
 **Version active unique : Octro v2.2 — particuliers, indépendants et entreprises — Track 1 Loaded.** Les archives ne sont pas des instructions de développement.
 
 ## Références normatives

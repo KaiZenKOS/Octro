@@ -28,6 +28,9 @@ jobs:
       - name: Secret scan (SEC-04)
         run: bash scripts/scan-secrets.sh
 
+      - name: Backend configuration tests (offline; no provider credentials)
+        run: npm run config:test
+
       - name: Typecheck (project references, tsc -b)
         run: npm run typecheck
 
