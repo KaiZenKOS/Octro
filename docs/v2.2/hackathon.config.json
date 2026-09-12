@@ -18,8 +18,8 @@
     "single_asset_vault": "verified",
     "credentials": "verified_deny_then_accept_then_expire",
     "permissioned_domains": "verified_vault_gating_via_share_mpt_domain_id",
-    "sponsorship": "amendment_enabled_sp0_not_run",
-    "did": "amendment_enabled_unused"
+    "sponsorship": "verified_sp0_fee_sponsorship_via_prefunded_sponsor",
+    "did": "verified_publish_resolve_wrong_network_and_wrong_signer_rejected"
   },
   "primary_loaded": [
     "credentials",

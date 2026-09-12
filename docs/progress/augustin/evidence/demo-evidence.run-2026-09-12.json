@@ -1,6 +1,6 @@
 {
   "spec_version": "2.2",
-  "status": "lending_v1_and_credentials_domains_full_cycle_run_2026-09-12",
+  "status": "lending_v1_credentials_domains_and_sp0_sponsorship_full_cycle_run_2026-09-12",
   "commit": null,
   "network_snapshot": {
     "network": "custom-hackathon-devnet",
@@ -140,12 +140,13 @@
     },
     {
       "id": "sponsorship_success",
-      "status": "not_run",
-      "tx_hash": null,
-      "validated": null,
-      "result_code": null,
-      "explorer_url": null,
-      "evidence_refs": []
+      "status": "validated",
+      "tx_hash": "B186A401257646F0501DF3504806404BEFB40127B0D7F04A3B2CE121104B9AC5",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/B186A401257646F0501DF3504806404BEFB40127B0D7F04A3B2CE121104B9AC5",
+      "evidence_refs": ["a6-sponsorship-sp0.json"],
+      "note": "SP0: a sponsee Payment (7 XRP to a third account) had its 12-drop fee paid entirely by a separate sponsor account (addPreFundedSponsor + signAsSponsor, xrpl.js 5.2.0). Confirmed by balance deltas, not just a validated submit: sponsor balance -12 drops exactly, sponsee balance -7000000 drops exactly (no fee taken from the sponsee)."
     },
     {
       "id": "sponsorship_budget_rejection",
@@ -154,7 +155,8 @@
       "validated": null,
       "result_code": null,
       "explorer_url": null,
-      "evidence_refs": []
+      "evidence_refs": [],
+      "note": "Applicative budget/policy rejection (SPON-02, SPON-03) is Samet's S7, not run here. Native fee sponsorship itself (this file's sponsorship_success entry) is verified."
     }
   ]
 }

@@ -1,0 +1,27 @@
+{
+  "sponsor": "rGkJ1f6ZE7Te41ybstuGJwvNegNsZi3Cpj",
+  "sponsee": "r97y7uLNxh6UDSUFdWdJ5WX6J1tsSyDmcy",
+  "destination": "rL547Rw6NQxABAhSWW88eUKw45gJBPjeMj",
+  "fee_charged_drops": "12",
+  "payment_amount_drops": "7000000",
+  "sponsor_balance_before_drops": "1000000000",
+  "sponsor_balance_after_drops": "999999988",
+  "sponsor_balance_decrease_drops": "12",
+  "sponsee_balance_before_drops": "1000000000",
+  "sponsee_balance_after_drops": "993000000",
+  "sponsee_balance_decrease_drops": "7000000",
+  "steps": [
+    {
+      "id": "sponsorship_success",
+      "tx_type": "Payment",
+      "tx_hash": "B186A401257646F0501DF3504806404BEFB40127B0D7F04A3B2CE121104B9AC5",
+      "submit_preliminary_result": "tesSUCCESS",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "ledger_index": 68029,
+      "fee_amount_drops": "12",
+      "payment_amount_drops": "7000000",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/B186A401257646F0501DF3504806404BEFB40127B0D7F04A3B2CE121104B9AC5"
+    }
+  ]
+}

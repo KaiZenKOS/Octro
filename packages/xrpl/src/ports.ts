@@ -113,12 +113,46 @@ export interface CredentialsAndDomainsPort {
   }>;
 }
 
-/** P1, gated by SP0 (SPON-01). Every method must stay unavailable until SP0 passes. */
+/** P1, gated by SP0 (SPON-01). */
 export interface SponsorshipPort {
+  /**
+   * Applicative budget/quote (SPON-02, SPON-03 — Samet): a reservation
+   * against a policy stored in Postgres. Not implemented here; stays
+   * unavailable until that policy layer exists.
+   */
   quoteSponsoredOperation(params: {
     beneficiaryAddress: string;
     transactionType: string;
   }): Promise<PortResult<{ maxAmountDrops: string; expiresAt: string }>>;
+
+  /**
+   * Verified 2026-09-12 (SP0, SPON-01): submits a plain XRP Payment
+   * whose transaction fee is paid by the sponsor instead of the
+   * sponsee, using xrpl.js's pre-funded sponsor co-signing
+   * (addPreFundedSponsor + signAsSponsor). No prior SponsorshipSet/
+   * SponsorshipTransfer ledger object is required for this per-
+   * transaction fee sponsorship.
+   */
+  sponsorPaymentFee(params: {
+    sponsorSeed: string;
+    sponseeSeed: string;
+    destinationAddress: string;
+    amountDrops: string;
+  }): Promise<PortResult<{ txHash: string; feeDrops: string }>>;
+}
+
+/** DID, optional P1 (DID-01). Never sufficient proof of solvency or eligibility on its own. */
+export interface DidPort {
+  publishDid(params: {
+    subjectSeed: string;
+    didDocumentUtf8: string;
+    uri?: string;
+  }): Promise<PortResult<{ didLedgerIndex: string }>>;
+
+  resolveDid(params: { subjectAddress: string }): Promise<
+    | { found: true; didDocumentUtf8: string; ledgerIndex: string }
+    | { found: false }
+  >;
 }
 
 /** Wallet contract shared with Kevin's UI (WAL-01). Signature stays client-side; this

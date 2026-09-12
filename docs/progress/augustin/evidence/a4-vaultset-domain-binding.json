@@ -1,0 +1,49 @@
+{
+  "owner": "rNBvsGLUwtHAbzqd77b42NWKyn9g78Tzp2",
+  "issuer": "r3Sr3Fspsv7zhDFbgbyqq4G3eqChhKEhyb",
+  "subject": "rMknyNbov4QCXZLdZPKd61Tea23qguA1oY",
+  "vaultId": "3C08F92315B32D327922B782DE75786596E9D9DDC9ED0F8824EC908785D532D1",
+  "domainId": "9E350DDF608F0F74A72F7384E84F8709B6332D812008357C94C4D4B156F332E7",
+  "steps": [
+    {
+      "id": "plain_vault_create",
+      "tx_type": "VaultCreate",
+      "tx_hash": "BE71B5025BB50DE5D5685F3E642ACE24E3B398BDC7DCF9B8124DAAB8375FA601",
+      "submit_preliminary_result": "tesSUCCESS",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "ledger_index": 68156,
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/BE71B5025BB50DE5D5685F3E642ACE24E3B398BDC7DCF9B8124DAAB8375FA601"
+    },
+    {
+      "id": "deposit_before_domain_attached",
+      "tx_type": "VaultDeposit",
+      "tx_hash": "3B4B07644E7B7D53B7774D88D97A2C7359759667A9E6AC8C681FC4A2ADC00F2E",
+      "submit_preliminary_result": "tesSUCCESS",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "ledger_index": 68158,
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/3B4B07644E7B7D53B7774D88D97A2C7359759667A9E6AC8C681FC4A2ADC00F2E"
+    },
+    {
+      "id": "domain_set",
+      "tx_type": "PermissionedDomainSet",
+      "tx_hash": "CD26796412FE544E4A4894B7D6301B751C8B4ED6AAF62612344BC896F155B99C",
+      "submit_preliminary_result": "tesSUCCESS",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "ledger_index": 68160,
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/CD26796412FE544E4A4894B7D6301B751C8B4ED6AAF62612344BC896F155B99C"
+    },
+    {
+      "id": "vault_set_domain",
+      "tx_type": "VaultSet",
+      "tx_hash": "6C50EA54AC253A56B94E77AFE8B6CD06E64C9A171700523767CC5A02BE783E9C",
+      "submit_preliminary_result": "tecNO_PERMISSION",
+      "validated": true,
+      "result_code": "tecNO_PERMISSION",
+      "ledger_index": 68162,
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/6C50EA54AC253A56B94E77AFE8B6CD06E64C9A171700523767CC5A02BE783E9C"
+    }
+  ]
+}

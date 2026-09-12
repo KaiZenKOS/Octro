@@ -161,12 +161,23 @@ n'affecte pas la coherence comptable du cycle final (verifiee ci-dessus).
 testes (voir le header du fichier pour le detail des deux frictions
 `temBAD_SIGNER`/`tecKILLED` et leur solution).
 
-**Reste a faire sur A3** : rejouer le cycle avec un vrai calendrier de
-paiements multiples (`PaymentTotal > 1`) pour couvrir explicitement
-`ENG-05`/le cas H72 sur reseau reel (actuellement seul `services/
-optimizer` le couvre en deterministe) ; explorer si `tfLoanFullPayment`
-fonctionne avec le montant non arrondi exact plutot que conclure
-definitivement qu'il faut l'eviter.
+**Calendrier de paiements multiples, verifie reellement** (voir
+`docs/progress/augustin/evidence/a3-multipayment-schedule.json`) : un
+second pret independant avec `PaymentTotal: 3` a ete accepte
+(`tesSUCCESS`), puis un seul des trois paiements programmes a ete
+regle. Le `Loan` montre `PaymentRemaining` passer de `3` a `2` et
+`PrincipalOutstanding` passer de `30000000` a `20000058` drops — la
+dette restante ne disparait jamais, elle est correctement decrementee
+(`ENG-05` observe sur reseau reel, pas seulement en deterministe dans
+`services/optimizer`). Friction reelle rencontree au passage :
+`PaymentInterval: 60` (le minimum accepte cote client par
+`validateLoanSet` dans xrpl.js) a ete rejete par rippled lui-meme avec
+`temINVALID` ; `PaymentInterval: 3600` a fonctionne. Le minimum reel
+appliqué par ce build est donc plus eleve que le minimum verifie
+cote SDK — a traiter comme non normatif tant que confirme autrement.
+
+**`tfLoanFullPayment` avec le montant non arrondi** : non re-teste
+(reste ouvert, priorite plus basse que ce qui precede).
 
 ## A4 — Credentials et Domains : FAIT, cycle complet reellement execute
 
@@ -224,12 +235,24 @@ seule, verifie si le deposant detient une attestation acceptee et non
 expiree correspondant au domaine du vault — pre-controle applicatif,
 distinct du controle ledger que `VaultDeposit` applique de toute facon).
 
-**Reste a faire sur A4** : re-tester `bindDomainToVault` sur un vault
-deja existant (au lieu du `DomainID` pose a la creation) ; multiples
-emetteurs/types acceptes sur un meme domaine ; coordination avec S5 de
-Samet pour que la decision d'eligibilite emprunteur (distincte de
-l'eligibilite deposant testee ici) soit elle aussi separee ledger vs
-application (LOAD-02/AC-L06, hors perimetre Augustin).
+**`bindDomainToVault` via `VaultSet` sur un vault deja existant,
+verifie reellement** (voir `docs/progress/augustin/evidence/
+a4-vaultset-domain-binding.json`) : creer d'abord un vault PUBLIC
+(sans `DomainID`) puis lui attacher un domaine par `VaultSet` a echoue
+avec `tecNO_PERMISSION`. Isole la cause par un second essai : creer un
+vault PRIVE (`Flags: tfVaultPrivate`) sans depot prealable, puis
+`VaultSet` avec `DomainID` a reussi (`tesSUCCESS`), et un depot sans
+attestation a ensuite ete refuse `tecNO_AUTH` comme attendu. Conclusion
+verifiee (pas supposee) : attacher un domaine a un vault, que ce soit a
+la creation ou via `VaultSet`, exige que le vault soit prive. L'effet
+du depot prealable sur un `VaultSet` de domaine n'a pas ete isole
+separement (variable non testee).
+
+**Reste a faire sur A4** : multiples emetteurs/types acceptes sur un
+meme domaine ; coordination avec S5 de Samet pour que la decision
+d'eligibilite emprunteur (distincte de l'eligibilite deposant testee
+ici) soit elle aussi separee ledger vs application (LOAD-02/AC-L06,
+hors perimetre Augustin).
 
 ## A5 — Reconciliation et preuves : PARTIEL
 
@@ -242,26 +265,81 @@ construit sur le meme schema que `docs/v2.2/demo-evidence.template.json`
 reellement observes ; toutes les etapes non executees restent `not_run`.
 Le contrat wallet avec Kevin (WAL-01) n'a pas encore ete discute.
 
-## A6 — Extensions P1 : NON DEMARRE, comme prevu
+## A6 — Extensions P1 : FAIT (SP0 et DID-01), reellement execute
 
-DID et sponsoring restent P1. G0 confirme les amendements `Sponsor` et
-`DID` actifs, mais SP0 (test reel de sponsoring) n'a pas ete lance —
-conformement au plan, A2/A3/A4/A5 restent prioritaires. Non fait pour
-ne pas retarder le reste.
+Demarre seulement une fois A2/A3/A4/A5 securises, comme prevu par le
+plan. Les deux volets P1 sont verifies pour de vrai.
+
+### SP0 et sponsoring (SPON-01)
+
+Voir `docs/progress/augustin/evidence/a6-sponsorship-sp0.json`. Un
+`Payment` de 7 XRP soumis par un sponsee, avec ses frais entierement
+pris en charge par un compte sponsor distinct :
+
+- Construction/`autofill` normaux du `Payment` par le sponsee.
+- `xrpl.addPreFundedSponsor(tx, sponsorAddress, SponsorFlags.spfSponsorFee)`
+  ajoute les champs `Sponsor`/`SponsorFlags` **avant** signature (pas de
+  `SponsorshipSet`/`SponsorshipTransfer` prealable necessaire pour ce
+  parrainage de frais ponctuel).
+- Le sponsee signe (`wallet.sign`, couvre aussi les champs sponsor).
+- Le sponsor co-signe avec `xrpl.signAsSponsor` (meme mecanique que la
+  co-signature `LoanSet`, mais pour `SponsorSignature`).
+- Soumission : `tesSUCCESS`, hash
+  `B186A401257646F0501DF3504806404BEFB40127B0D7F04A3B2CE121104B9AC5`.
+
+Preuve verifiee par delta de solde, pas seulement par le statut de
+soumission (chapitre 30 : « Une simple alimentation XRP depuis le
+faucet n'est pas une preuve de sponsoring natif ») : le sponsor a perdu
+exactement `12` drops (le frais reseau) et le sponsee a perdu
+exactement `7000000` drops (le montant du paiement, **zero** frais
+preleve sur son compte). C'est un vrai sponsoring de frais natif au
+niveau protocole.
+
+`quoteSponsoredOperation` (budget/plafond applicatif, SPON-02/SPON-03)
+reste `unavailable` : cette politique vit dans PostgreSQL sous le S7 de
+Samet, hors perimetre Augustin. Le sponsoring natif lui-meme
+(`sponsorPaymentFee`) est verifie et implemente dans
+`packages/xrpl/src/sponsorship.ts`.
+
+### DID (DID-01, facultatif)
+
+Voir `docs/progress/augustin/evidence/a6-did-resolution-and-replay.json`.
+Cycle complet reel :
+
+| Etape | Resultat |
+| --- | --- |
+| `DIDSet` (publication) | `tesSUCCESS` |
+| Resolution (`ledger_entry` par `did:<adresse>`) | document identique a celui publie |
+| Rejeu avec un `NetworkID` errone | **`telWRONG_NETWORK`** (rejete) |
+| Rejeu signe par un compte tiers (mauvais signataire) | **`tefBAD_AUTH`** (rejete) |
+| Etat du DID apres les deux rejets | toujours present, inchange |
+
+Couvre exactement DID-01 : « Resolution valide ; replay mauvais reseau
+et mauvais signataire refuses. » Un premier essai avec un document
+W3C complet (`verificationMethod`, `@context`, etc.) a ete rejete
+`temMALFORMED` : `DIDDocument`/`URI` sont des champs Blob a taille
+maximale reelle limitee sur ce build (non documentee dans les types du
+SDK), reduits a un document minimal qui passe. Aucun DID ne prouve a
+lui seul une solvabilite ou une eligibilite (chapitre 17) ; cet
+adaptateur ne fait que publier/resoudre.
+
+`packages/xrpl/src/did.ts` (nouveau) implemente `publishDid` et
+`resolveDid` sur cette base verifiee.
 
 ## Ce qui est reellement bloque
 
 - **Humain requis** : confirmation mentor que le reseau reste V1 pour
-  les nouveaux prets (G0, chapitre 16). Seul point encore ouvert sur A1.
-- **Travail restant, pas un acces manquant** : SP0 sponsoring (A6, P1,
-  volontairement non demarre pour ne pas retarder les P0). La
-  coordination multi-signature `LoanSet` (A3) et le cycle
-  Credentials/Domains (A4) sont maintenant faits.
+  les nouveaux prets (G0, chapitre 16). Seul point technique encore
+  ouvert sur l'ensemble A1-A6.
 - **Dependance externe, hors perimetre Augustin** : le port de calcul
   reel depuis `packages/application/` (S3, Samet), le contrat wallet
   avec Kevin (K3, pas encore demarre cote Kevin d'apres
-  `docs/progress/kevin.md`), et l'eligibilite emprunteur applicative
-  (S5, Samet, LOAD-02).
+  `docs/progress/kevin.md`), l'eligibilite emprunteur applicative (S5,
+  Samet, LOAD-02) et le budget/plafond de sponsoring applicatif
+  (SPON-02/03, Samet, S7).
+- **Reste, priorite basse, non bloquant** : `tfLoanFullPayment` avec le
+  montant non arrondi exact (A3) ; multiples emetteurs/types sur un
+  meme domaine (A4).
 
 ## Fichiers changes
 
@@ -271,8 +349,8 @@ ne pas retarder le reste.
   `package.json` suit la convention des paquets freres, imports
   relatifs en `.js` pour la resolution `NodeNext`)
 - `docs/v2.2/hackathon.config.json` (champs G0 puis capacites
-  Credentials/Domains/Lending V1 completes, structure et decisions de
-  perimetre inchangees)
+  Credentials/Domains/Lending V1/Sponsorship/DID completes, structure
+  et decisions de perimetre inchangees)
 - `docs/progress/augustin.md` (ce fichier) et
   `docs/progress/augustin/evidence/*.json` (preuves reseau reelles,
   sans secret)
@@ -288,17 +366,20 @@ ne pas retarder le reste.
   Samet restent verts, `scripts/scan-secrets.sh` ne trouve rien.
 - Transactions reseau listees ci-dessus, chacune avec son hash et son
   lien d'explorateur dans `docs/progress/augustin/evidence/`, y compris
-  le cycle de pret complet (`a3-loan-full-cycle.json`) et le cycle
-  Credentials/Domains complet (`a4-credentials-domains-full-cycle.json`).
+  le cycle de pret complet (`a3-loan-full-cycle.json`), le calendrier
+  de paiements multiples (`a3-multipayment-schedule.json`), le cycle
+  Credentials/Domains complet (`a4-credentials-domains-full-cycle.json`),
+  la liaison de domaine via `VaultSet` (`a4-vaultset-domain-binding.json`),
+  le sponsoring SP0 (`a6-sponsorship-sp0.json`) et le cycle DID
+  (`a6-did-resolution-and-replay.json`).
 
 ## Prochain lot pret
 
-A1 (sauf confirmation mentor), A2, A3 et A4 P0 sont maintenant
-complets et verifies reellement. Ce qui reste explicitement cote
-Augustin : re-tester `bindDomainToVault` sur un vault deja existant
-(voie `VaultSet`, pas encore exercee) ; A6 (P1, sponsoring/DID) si le
-temps le permet apres coordination S4/S5/K3 avec Samet et Kevin. Sinon,
-prochaine etape naturelle est la revue croisee avec Samet (branchement
-reel de `packages/xrpl` derriere les ports de `packages/application/`)
-et avec Kevin (contrat wallet WAL-01) plutot que du nouveau travail
-reseau solo.
+A1 (sauf confirmation mentor), A2, A3, A4, A5 (dans la mesure du
+perimetre Augustin) et A6 sont maintenant complets et verifies
+reellement — plus rien de nouveau, executable en solo, ne reste dans
+`docs/TEAM_TASKS.md` section 5 pour Augustin. La suite naturelle est la
+revue croisee, pas du nouveau travail reseau solo : avec Samet
+(branchement reel de `packages/xrpl` derriere les ports de
+`packages/application/`, coordination S5 pour LOAD-02, S7 pour
+SPON-02/03) et avec Kevin (contrat wallet WAL-01, des que K3 demarre).

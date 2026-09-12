@@ -1,18 +1,98 @@
 /**
- * Sponsorship adapter (SPON-01, P1). Gate SP0 has not been run: the
- * "Sponsor" amendment is confirmed enabled by G0, but no sponsored
- * transaction has been submitted or validated yet. This stays
- * unavailable until a real SP0 test succeeds (chapter 30: "Les
- * capacités restent désactivées tant qu'un test réel n'a pas réussi.").
+ * Sponsorship adapter (SPON-01, P1).
+ *
+ * SP0 passed for real on 2026-09-12 against the Custom Hackathon Devnet
+ * (docs/progress/augustin.md, docs/progress/augustin/evidence/
+ * a6-sponsorship-sp0.json): a sponsee's plain XRP Payment had its fee
+ * paid entirely by a separate sponsor account, confirmed by balance
+ * deltas, not just a validated submit:
+ *   - sponsor balance decreased by exactly the network fee (12 drops)
+ *   - sponsee balance decreased by exactly the payment amount, with
+ *     ZERO fee deducted from it
+ *
+ * Flow: the sponsee's transaction is built and autofilled normally,
+ * then xrpl.js's addPreFundedSponsor() attaches Sponsor/SponsorFlags,
+ * the sponsee signs (covering those fields), and the sponsor co-signs
+ * with signAsSponsor() before submission. No prior SponsorshipSet/
+ * SponsorshipTransfer ledger object was needed for this per-transaction
+ * fee sponsorship (chapter 30's "opération admissible sponsorisée").
+ *
+ * quoteSponsoredOperation stays unavailable: it names an applicative
+ * budget/policy reservation (SPON-02, SPON-03) that lives in Postgres
+ * under Samet's S7, not in this adapter.
  */
+import { Client, Wallet, addPreFundedSponsor, signAsSponsor, SponsorFlags } from "xrpl";
 import { SponsorshipPort } from "./ports.js";
-import { PortResult } from "./types.js";
+import { PortResult, TransactionEvidence } from "./types.js";
+
+const EXPLORER_PREFIX =
+  "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";
 
 export class XrplSponsorshipAdapter implements SponsorshipPort {
+  constructor(private readonly wssUrl: string) {}
+
   async quoteSponsoredOperation(): Promise<PortResult<{ maxAmountDrops: string; expiresAt: string }>> {
     return {
       outcome: "unavailable",
-      reason: "SP0 not executed yet; Sponsor amendment enabled per G0 but no sponsored tx validated.",
+      reason:
+        "Applicative sponsorship budget/quote (SPON-02, SPON-03) lives in Postgres under Samet's S7; " +
+        "not implemented in this adapter. Native fee sponsorship itself is verified (sponsorPaymentFee).",
     };
+  }
+
+  async sponsorPaymentFee(params: {
+    sponsorSeed: string;
+    sponseeSeed: string;
+    destinationAddress: string;
+    amountDrops: string;
+  }): Promise<PortResult<{ txHash: string; feeDrops: string }>> {
+    const client = new Client(this.wssUrl);
+    await client.connect();
+    try {
+      const sponsor = Wallet.fromSeed(params.sponsorSeed);
+      const sponsee = Wallet.fromSeed(params.sponseeSeed);
+
+      const currentLedger = await client.getLedgerIndex();
+      const prepared = await client.autofill({
+        TransactionType: "Payment",
+        Account: sponsee.classicAddress,
+        Destination: params.destinationAddress,
+        Amount: params.amountDrops,
+      } as any);
+      (prepared as any).LastLedgerSequence = currentLedger + 2000;
+      const feeDrops = (prepared as any).Fee as string;
+
+      const withSponsorFields = addPreFundedSponsor(prepared as any, sponsor.classicAddress, SponsorFlags.spfSponsorFee);
+      const sponseeSigned = sponsee.sign(withSponsorFields as any);
+      const fullySigned = signAsSponsor(sponsor, sponseeSigned.tx_blob);
+
+      const submitResp = await client.submit(fullySigned.tx_blob);
+
+      const deadline = Date.now() + 60000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const txResp = await client.request({ command: "tx", transaction: fullySigned.hash } as any);
+        if ((txResp.result as any).validated) {
+          const result = txResp.result as any;
+          const evidence: TransactionEvidence = {
+            scenario_id: "sponsorship",
+            step_id: "sponsorship_success",
+            tx_type: "Payment",
+            tx_hash: fullySigned.hash,
+            submit_preliminary_result: submitResp.result.engine_result as string,
+            result_code: result.meta.TransactionResult,
+            validated: true,
+            ledger_index: result.ledger_index,
+            explorer_url: EXPLORER_PREFIX + fullySigned.hash,
+          };
+          return result.meta.TransactionResult === "tesSUCCESS"
+            ? { outcome: "ready", data: { txHash: fullySigned.hash, feeDrops }, evidence }
+            : { outcome: "rejected", evidence };
+        }
+      }
+      return { outcome: "degraded", reason: `Sponsored payment ${fullySigned.hash} was not validated within the timeout` };
+    } finally {
+      await client.disconnect();
+    }
   }
 }
