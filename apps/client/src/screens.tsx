@@ -774,7 +774,7 @@ export function Screen({ screen }: {
         return <><Title>{t('Données indisponibles', 'Data unavailable')}</Title><Card><T accessibilityRole="alert">{t('Impossible de charger les données. Aucun solde n’a été modifié.', 'Could not load data. No balance has changed.')}</T><Button onPress={() => { setState('ready'); void query.refetch(); }}>{t('Réessayer', 'Try again')}</Button></Card></>;
     if (state === 'empty')
         return <><Title>{t('Commençons simplement.', 'Let’s start simply.')}</Title><Card><T>{t('Aucune donnée dans cet aperçu. Ajoutez une échéance ou découvrez le scénario de Lina, sans wallet ni compte bancaire connecté.', 'No data in this preview. Add a due date or explore Lina’s scenario, without a wallet or connected bank account.')}</T><Button onPress={() => { setState('ready'); router.push('/add'); }}>{t('Ajouter une échéance', 'Add a due date')}</Button><Button variant="secondary" onPress={() => setState('ready')}>{t('Découvrir avec Lina', 'Explore with Lina')}</Button></Card></>;
-    if (persona !== 'personal')
+    if (persona !== 'personal' && (screen === 'home' || !screen))
         return <Audience />;
     if (state === 'no-solution' && ['proposal', 'calendar', 'home'].includes(screen))
         return <Diagnostic />;
