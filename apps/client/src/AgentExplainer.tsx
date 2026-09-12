@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Card, Typography as T, tokens } from '@octro/ui';
 import { Icon } from './Icon';
 import { useClientData, useSession } from './session';
-import { BoundedOrchestrator } from '@octro/agents';
+import { BoundedOrchestrator, LiveModelGateway } from '@octro/agents';
 
 export function AgentExplainerModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
     const { t, language } = useSession();
@@ -12,8 +12,9 @@ export function AgentExplainerModal({ visible, onClose }: { visible: boolean; on
     const [response, setResponse] = useState<string | null>(null);
     const [riskInfo, setRiskInfo] = useState<string | null>(null);
     const [callCount, setCallCount] = useState<number>(0);
-
-    const orchestrator = new BoundedOrchestrator();
+    const [deepseekKey, setDeepseekKey] = useState<string>('');
+    const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
+    const [customQuestion, setCustomQuestion] = useState<string>('');
 
     const askAgent = async (question: string) => {
         setLoading(true);
@@ -23,6 +24,9 @@ export function AgentExplainerModal({ visible, onClose }: { visible: boolean; on
             const defBal = proj ? Math.max(0, -proj.lowestBalanceWithoutAction).toFixed(2) : '130.00';
             const recAction = proj ? `own_funds_transfer: ${proj.recommendedTransfer.toFixed(2)} EUR` : 'own_funds_transfer: 230.00 EUR';
             const horiz = proj ? proj.horizonDays : 30;
+
+            const gateway = deepseekKey.trim() ? new LiveModelGateway(deepseekKey.trim()) : new LiveModelGateway();
+            const orchestrator = new BoundedOrchestrator(gateway);
 
             const res = await orchestrator.explainCashflow({
                 workspaceId: 'ws-personal-lina',
@@ -52,22 +56,54 @@ export function AgentExplainerModal({ visible, onClose }: { visible: boolean; on
                     <ScrollView contentContainerStyle={{ gap: 16 }}>
                         <View style={s.header}>
                             <View style={s.titleRow}>
-                                <Icon name="shield" color={tokens.color.success} size={24} />
+                                <Icon name="sparkles" color={tokens.color.accent} size={24} />
                                 <T variant="title" style={{ fontSize: 22 }}>
                                     {t('Octro Explainer · Agent borné', 'Octro Explainer · Bounded Agent')}
                                 </T>
                             </View>
                             <Pressable onPress={onClose} accessibilityRole="button">
-                                <T style={{ color: tokens.color.muted }}>✕</T>
+                                <T style={{ color: tokens.color.muted, fontSize: 18 }}>✕</T>
                             </Pressable>
                         </View>
 
                         <T variant="muted" style={{ fontSize: 13 }}>
                             {t(
-                                'L’agent analyse et vulgarise le plan financier calculé de façon déterministe. Il n’a aucun pouvoir de signature ou de soumission financière (limite stricte de 12 tours).',
-                                'The agent analyzes and explains the deterministically computed financial plan. It has no signing or execution authority (strict 12 tool call bound).'
+                                'L’agent vulgarise le plan calculé déterministement. Il n’a aucune autorité de signature (limite stricte : 12 tours max). Compatible DeepSeek, OpenAI et Gemini.',
+                                'The agent explains the deterministically computed plan. It has no signing authority (strict 12-turn bound). Compatible with DeepSeek, OpenAI and Gemini.'
                             )}
                         </T>
+
+                        <View style={{ gap: 8 }}>
+                            <View style={[s.between, { flexWrap: 'wrap' }]}>
+                                <T style={{ fontFamily: tokens.font.medium, fontSize: 13 }}>
+                                    {t('Configuration du modèle :', 'Model configuration:')}
+                                </T>
+                                <Pressable onPress={() => setShowKeyInput(!showKeyInput)}>
+                                    <T style={{ fontSize: 12, color: tokens.color.accent }}>
+                                        {showKeyInput ? t('Masquer la clé', 'Hide key') : t('⚙️ Entrer clé DeepSeek / LLM', '⚙️ Enter DeepSeek / LLM key')}
+                                    </T>
+                                </Pressable>
+                            </View>
+
+                            {showKeyInput && (
+                                <View style={{ gap: 6, backgroundColor: '#1A171D', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#3F353C' }}>
+                                    <T style={{ fontSize: 12, color: tokens.color.muted }}>
+                                        {t('Clé API DeepSeek (ex. sk-...) ou variable DEEPSEEK_API_KEY :', 'DeepSeek API key (e.g. sk-...) or DEEPSEEK_API_KEY:')}
+                                    </T>
+                                    <TextInput
+                                        value={deepseekKey}
+                                        onChangeText={setDeepseekKey}
+                                        placeholder="sk-..."
+                                        placeholderTextColor="#666"
+                                        secureTextEntry
+                                        style={s.input}
+                                    />
+                                    <T style={{ fontSize: 11, color: deepseekKey ? tokens.color.success : tokens.color.muted }}>
+                                        {deepseekKey ? t('✓ Clé DeepSeek prête pour les réponses live', '✓ DeepSeek key ready for live queries') : t('Sans clé : moteur déterministe hors-ligne actif', 'Without key: offline deterministic engine active')}
+                                    </T>
+                                </View>
+                            )}
+                        </View>
 
                         <View style={{ gap: 8 }}>
                             <T style={{ fontFamily: tokens.font.medium, fontSize: 14 }}>
@@ -93,9 +129,36 @@ export function AgentExplainerModal({ visible, onClose }: { visible: boolean; on
                             </Button>
                         </View>
 
+                        <View style={{ gap: 8 }}>
+                            <T style={{ fontFamily: tokens.font.medium, fontSize: 13 }}>
+                                {t('Poser une question libre :', 'Ask a custom question:')}
+                            </T>
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <TextInput
+                                    value={customQuestion}
+                                    onChangeText={setCustomQuestion}
+                                    placeholder={t('Ex. Puis-je reporter le loyer ?', 'e.g. Can I postpone rent?')}
+                                    placeholderTextColor="#666"
+                                    style={[s.input, { flex: 1 }]}
+                                />
+                                <Button
+                                    busy={loading}
+                                    disabled={!customQuestion.trim()}
+                                    onPress={() => {
+                                        if (customQuestion.trim()) {
+                                            void askAgent(customQuestion.trim());
+                                        }
+                                    }}
+                                    style={{ minHeight: 44, paddingHorizontal: 16 }}
+                                >
+                                    {t('Envoyer', 'Send')}
+                                </Button>
+                            </View>
+                        </View>
+
                         {loading && (
                             <Card style={{ padding: 16 }}>
-                                <T>{t('Analyse en cours par l’agent (Analyst & Explainer)…', 'Agent analysis in progress (Analyst & Explainer)…')}</T>
+                                <T>{t('Analyse en cours par l’agent (Orchestrateur borné)…', 'Agent analysis in progress (Bounded orchestrator)…')}</T>
                             </Card>
                         )}
 
@@ -104,7 +167,7 @@ export function AgentExplainerModal({ visible, onClose }: { visible: boolean; on
                                 <View style={s.between}>
                                     <View style={s.badge}>
                                         <T style={{ fontSize: 11, color: tokens.color.accent }}>
-                                            {t('ANALYSE DÉTERMINISTE', 'DETERMINISTIC ANALYSIS')}
+                                            {deepseekKey ? 'DEEPSEEK LIVE' : t('ANALYSE DÉTERMINISTE', 'DETERMINISTIC ANALYSIS')}
                                         </T>
                                     </View>
                                     <T style={{ fontSize: 11, color: tokens.color.muted }}>
@@ -139,4 +202,5 @@ const s = StyleSheet.create({
     quickBtn: { minHeight: 44, paddingVertical: 8, justifyContent: 'flex-start' },
     badge: { backgroundColor: tokens.color.raised, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
     riskBox: { backgroundColor: '#211D22', padding: 10, borderRadius: 10, borderLeftWidth: 3, borderLeftColor: tokens.color.warning },
+    input: { backgroundColor: '#121015', borderWidth: 1, borderColor: tokens.color.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: tokens.color.text, fontSize: 13 },
 });

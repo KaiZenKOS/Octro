@@ -36,29 +36,90 @@ export class DeterministicModelGateway implements ModelGateway {
 
 export class LiveModelGateway implements ModelGateway {
     private fallback = new DeterministicModelGateway();
+    private customKey?: string | undefined;
+
+    constructor(apiKey?: string) {
+        this.customKey = apiKey;
+    }
 
     async generate(messages: ModelMessage[]): Promise<ModelGatewayResponse> {
-        const apiKey = typeof process !== 'undefined' ? (process.env?.OCTRO_LLM_API_KEY || process.env?.GEMINI_API_KEY || process.env?.OPENAI_API_KEY) : undefined;
-        if (!apiKey) {
-            return this.fallback.generate(messages);
+        const deepseekKey = this.customKey || (typeof process !== 'undefined' ? (process.env?.DEEPSEEK_API_KEY || process.env?.EXPO_PUBLIC_DEEPSEEK_API_KEY || process.env?.OCTRO_LLM_API_KEY) : undefined);
+        const geminiKey = typeof process !== 'undefined' ? (process.env?.GEMINI_API_KEY || process.env?.EXPO_PUBLIC_GEMINI_API_KEY) : undefined;
+        const openaiKey = typeof process !== 'undefined' ? (process.env?.OPENAI_API_KEY || process.env?.EXPO_PUBLIC_OPENAI_API_KEY) : undefined;
+
+        // 1. DeepSeek API (OpenAI-compatible)
+        if (deepseekKey && (deepseekKey.startsWith('sk-') || deepseekKey.length > 10)) {
+            try {
+                const res = await fetch('https://api.deepseek.com/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${deepseekKey}`,
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek-chat',
+                        messages: messages.map(m => ({ role: m.role, content: m.content })),
+                        temperature: 0.3,
+                        max_tokens: 500,
+                    }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json() as any;
+                    const text = data?.choices?.[0]?.message?.content;
+                    if (text) return { content: text };
+                }
+            } catch {
+                // Fall through to fallback
+            }
         }
 
-        try {
-            const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-            if (process.env?.GEMINI_API_KEY) {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        // 2. Gemini API
+        if (geminiKey) {
+            try {
+                const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
                     })
                 });
-                const data = await res.json() as any;
-                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) return { content: text };
+                if (res.ok) {
+                    const data = await res.json() as any;
+                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) return { content: text };
+                }
+            } catch {
+                // Fall through to fallback
             }
-        } catch {
-            // Safe fallback
+        }
+
+        // 3. OpenAI API
+        if (openaiKey) {
+            try {
+                const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${openaiKey}`,
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o-mini',
+                        messages: messages.map(m => ({ role: m.role, content: m.content })),
+                        temperature: 0.3,
+                        max_tokens: 500,
+                    }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json() as any;
+                    const text = data?.choices?.[0]?.message?.content;
+                    if (text) return { content: text };
+                }
+            } catch {
+                // Fall through to fallback
+            }
         }
 
         return this.fallback.generate(messages);

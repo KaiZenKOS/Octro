@@ -1,5 +1,5 @@
 import type { ModelGateway } from './model-gateway.js';
-import { DeterministicModelGateway } from './model-gateway.js';
+import { DeterministicModelGateway, LiveModelGateway } from './model-gateway.js';
 
 export interface AgentContext {
     workspaceId: string;
@@ -12,7 +12,7 @@ export interface AgentContext {
 export class BoundedOrchestrator {
     private readonly maxToolCalls = 12; // AGT-01: Maximum 12 appels d'outils
 
-    constructor(private readonly gateway: ModelGateway = new DeterministicModelGateway()) {}
+    constructor(private readonly gateway: ModelGateway = new LiveModelGateway()) {}
 
     async explainCashflow(context: AgentContext, userQuestion?: string): Promise<{
         summary: string;
