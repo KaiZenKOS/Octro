@@ -39,4 +39,9 @@ export class PgLendingPoolRepository implements LendingPoolRepository {
     const { rows } = await this.pool.query<LendingPoolRow>("SELECT * FROM lending_pool WHERE asset_id = $1", [assetId]);
     return rows[0] ? toRecord(rows[0]) : null;
   }
+
+  async listAll(): Promise<LendingPoolRecord[]> {
+    const { rows } = await this.pool.query<LendingPoolRow>("SELECT * FROM lending_pool ORDER BY created_at ASC");
+    return rows.map(toRecord);
+  }
 }

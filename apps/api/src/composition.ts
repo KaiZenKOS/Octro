@@ -23,6 +23,9 @@ import {
   GetCurrentUserUseCase,
   GetKycStatusUseCase,
   GetLatestCreditAssessmentUseCase,
+  GetLendingPositionsUseCase,
+  GetWalletUseCase,
+  ListLendingAssetsUseCase,
   GetPersonalProjectionUseCase,
   GetWorkspaceUseCase,
   InMemoryBufferLedgerRepository,
@@ -116,6 +119,9 @@ export interface AppDependencies {
   listOdooCompanies: ListOdooCompaniesUseCase;
   requestCreditAssessment: RequestCreditAssessmentUseCase;
   getLatestCreditAssessment: GetLatestCreditAssessmentUseCase;
+  listLendingAssets: ListLendingAssetsUseCase;
+  getLendingPositions: GetLendingPositionsUseCase;
+  getWallet: GetWalletUseCase;
   lenderDeposit: LenderDepositUseCase;
   borrowerLoanRequest: BorrowerLoanRequestUseCase;
   repayLoan: RepayLoanUseCase;
@@ -320,6 +326,9 @@ export function buildDependencies(): AppDependencies {
       ids,
     ),
     getLatestCreditAssessment: new GetLatestCreditAssessmentUseCase(creditAssessments),
+    listLendingAssets: new ListLendingAssetsUseCase(lendingPools),
+    getLendingPositions: new GetLendingPositionsUseCase(lenderDeposits, loanPositions, withdrawalRequests),
+    getWallet: new GetWalletUseCase(wallets),
     lenderDeposit: new LenderDepositUseCase(
       kycStatuses,
       wallets,

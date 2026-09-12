@@ -17,4 +17,8 @@ export interface LendingPoolRecord {
 export interface LendingPoolRepository {
   save(pool: LendingPoolRecord): Promise<void>;
   getByAssetId(assetId: string): Promise<LendingPoolRecord | null>;
+  // Integration xrpl-lending-sim (client) : liste des actifs disponibles a
+  // la depose/emprunt (asset_id + vault_id, jamais la seed chiffree du
+  // proprietaire) — alimente le selecteur d'actif du frontend.
+  listAll(): Promise<LendingPoolRecord[]>;
 }

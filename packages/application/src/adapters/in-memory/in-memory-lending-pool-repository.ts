@@ -10,4 +10,8 @@ export class InMemoryLendingPoolRepository implements LendingPoolRepository {
   async getByAssetId(assetId: string): Promise<LendingPoolRecord | null> {
     return this.byAssetId.get(assetId) ?? null;
   }
+
+  async listAll(): Promise<LendingPoolRecord[]> {
+    return [...this.byAssetId.values()];
+  }
 }

@@ -18,6 +18,34 @@ const RepayBody = z.object({ loan_id: z.string().uuid(), amount_drops: PositiveD
 const WithdrawBody = z.object({ amount_drops: PositiveDecimalStringSchema, asset_id: AssetIdSchema.optional() });
 
 export async function lendingRoutes(app: FastifyInstance, deps: AppDependencies): Promise<void> {
+  // Alimente le selecteur d'actif du client (XRP toujours present ; RLUSD
+  // simule des qu'un second pool a ete amorce, integration
+  // xrpl-lending-sim). Ne renvoie jamais la seed chiffree du proprietaire.
+  app.get("/v1/lending/assets", async (request, reply) => {
+    const userId = await requireSession(request, reply, deps);
+    if (!userId) return reply;
+    try {
+      const assets = await deps.listLendingAssets.execute();
+      return reply.send(assets);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  // Vue agregee (depots, prets, retraits) de l'utilisateur courant, toute
+  // classe d'actif confondue — permet au client de relire ses positions
+  // apres un rechargement de page, sans les garder uniquement en memoire.
+  app.get("/v1/lending/positions", async (request, reply) => {
+    const userId = await requireSession(request, reply, deps);
+    if (!userId) return reply;
+    try {
+      const positions = await deps.getLendingPositions.execute({ userId });
+      return reply.send(positions);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.post("/v1/lending/deposit", async (request, reply) => {
     const userId = await requireSession(request, reply, deps);
     if (!userId) return reply;

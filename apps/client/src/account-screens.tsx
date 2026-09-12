@@ -1,9 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, View } from 'react-native';
 import { Badge, Button, Card, Field, Typography as T, tokens } from '@octro/ui';
+import { Icon } from './Icon';
 import { useAuth } from './auth';
-import { useLendingApi } from './lending-data';
-import type { CreditAssessment, KycStatus, OdooCompany, OdooConnection } from './lending-data';
+import {
+  assetSymbol,
+  formatAmount,
+  isNativeXrp,
+  NATIVE_ASSET_ID,
+  toLedgerAmount,
+  useLendingApi,
+} from './lending-data';
+import type {
+  CreditAssessment,
+  KycStatus,
+  LendingAsset,
+  LendingPositions,
+  OdooCompany,
+  OdooConnection,
+  Wallet,
+} from './lending-data';
 
 const c = tokens.color;
 
@@ -118,7 +134,10 @@ function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void })
     <Modal visible transparent animationType="none">
       <View style={{ flex: 1, backgroundColor: '#000B', padding: 24, justifyContent: 'center', alignItems: 'center' }}>
         <Card style={{ maxWidth: 480, width: '100%', gap: 16 }}>
-          <T variant="title">Vérification d'identité (KYC)</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Icon name="shield" size={22} color={c.text} />
+            <T variant="title">Vérification d'identité (KYC)</T>
+          </View>
           <T variant="muted">
             Simulation pour le hackathon — aucun vrai fournisseur d'identité n'est appelé. Cette décision détermine
             l'accès aux instruments financiers (dépôt, prêt, retrait).
@@ -231,6 +250,8 @@ function CreditAssessmentPanel({
 
   const decisionTone = (decision: CreditAssessment['decision']) =>
     decision === 'approve' ? 'success' : decision === 'approve_with_conditions' ? 'warning' : 'error';
+  const decisionLabel = (decision: CreditAssessment['decision']) =>
+    decision === 'approve' ? 'Approuvé' : decision === 'approve_with_conditions' ? 'Approuvé sous conditions' : 'Refusé';
 
   const requestAssessment = async () => {
     setBusy(true);
@@ -254,9 +275,9 @@ function CreditAssessmentPanel({
       </Button>
       {assessment && (
         <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <Badge tone={decisionTone(assessment.decision)}>Grade {assessment.grade}</Badge>
-            <Badge tone={decisionTone(assessment.decision)}>{assessment.decision}</Badge>
+            <Badge tone={decisionTone(assessment.decision)}>{decisionLabel(assessment.decision)}</Badge>
           </View>
           <T>Score composite : {assessment.composite_score}/100</T>
           <T>
@@ -278,21 +299,130 @@ function CreditAssessmentPanel({
   );
 }
 
+// Selecteur d'actif (integration xrpl-lending-sim) : n'affiche des boutons
+// que s'il existe reellement plus d'un pool amorce — jamais un choix
+// factice quand un seul actif (XRP) est disponible.
+function AssetSelector({
+  assets,
+  selected,
+  onSelect,
+}: {
+  assets: LendingAsset[];
+  selected: string;
+  onSelect: (assetId: string) => void;
+}) {
+  if (assets.length <= 1) return null;
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+      {assets.map((asset) => (
+        <Button
+          key={asset.asset_id}
+          variant={selected === asset.asset_id ? 'primary' : 'secondary'}
+          onPress={() => onSelect(asset.asset_id)}
+          style={{ minHeight: 40, paddingVertical: 8, paddingHorizontal: 16 }}
+        >
+          {assetSymbol(asset.asset_id)}
+        </Button>
+      ))}
+    </View>
+  );
+}
+
+function depositStatusTone(status: string): 'neutral' | 'success' | 'warning' | 'error' {
+  return status === 'confirmed' ? 'success' : status === 'rejected' ? 'error' : 'neutral';
+}
+function loanStatusTone(status: string): 'neutral' | 'success' | 'warning' | 'error' {
+  return status === 'active' ? 'success' : status === 'defaulted' ? 'error' : status === 'repaid' ? 'success' : 'neutral';
+}
+function withdrawalStatusTone(status: string, fundedFrom: string): 'neutral' | 'success' | 'warning' | 'error' {
+  if (status === 'failed') return 'error';
+  return fundedFrom === 'vault' ? 'success' : 'warning';
+}
+function fundedFromLabel(fundedFrom: string): string {
+  return fundedFrom === 'vault' ? 'depuis le vault' : fundedFrom === 'buffer' ? 'avancé par le buffer' : 'partiellement avancé';
+}
+
+// Vue agregee (depots, prets, retraits) — persiste au refresh via
+// GET /v1/lending/positions, plutot que de ne montrer que le dernier
+// resultat d'action dans la session courante.
+function PositionsSection({ positions }: { positions: LendingPositions | null }) {
+  if (!positions) return null;
+  const { deposits, loans, withdrawals } = positions;
+  if (deposits.length === 0 && loans.length === 0 && withdrawals.length === 0) {
+    return <T variant="muted">Aucune position pour l'instant — déposez, empruntez ou retirez ci-dessus.</T>;
+  }
+  return (
+    <View style={{ gap: 16 }}>
+      {deposits.length > 0 && (
+        <View style={{ gap: 8 }}>
+          <T variant="label">Dépôts</T>
+          {deposits.map((d) => (
+            <View key={d.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <T>{formatAmount(d.asset_id, d.amount_drops)}</T>
+              <Badge tone={depositStatusTone(d.status)}>{d.status}</Badge>
+            </View>
+          ))}
+        </View>
+      )}
+      {loans.length > 0 && (
+        <View style={{ gap: 8 }}>
+          <T variant="label">Prêts</T>
+          {loans.map((l) => (
+            <View key={l.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <T>
+                {formatAmount(l.asset_id, l.principal_drops)} · {(l.interest_rate_hundred_thousandths / 1000).toFixed(2)}%
+              </T>
+              <Badge tone={loanStatusTone(l.status)}>{l.status}</Badge>
+            </View>
+          ))}
+        </View>
+      )}
+      {withdrawals.length > 0 && (
+        <View style={{ gap: 8 }}>
+          <T variant="label">Retraits</T>
+          {withdrawals.map((w) => (
+            <View key={w.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <T>
+                {formatAmount(w.asset_id, w.fulfilled_amount_drops)} / {formatAmount(w.asset_id, w.requested_amount_drops)} demandés
+              </T>
+              <Badge tone={withdrawalStatusTone(w.status, w.funded_from)}>{fundedFromLabel(w.funded_from)}</Badge>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
   const api = useLendingApi();
+  const [assets, setAssets] = useState<LendingAsset[]>([{ asset_id: NATIVE_ASSET_ID, vault_id: '' }]);
+  const [asset, setAsset] = useState(NATIVE_ASSET_ID);
+  const [positions, setPositions] = useState<LendingPositions | null>(null);
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lastResult, setLastResult] = useState<string | null>(null);
+  const [lastMessage, setLastMessage] = useState<string | null>(null);
 
-  const run = async (label: string, action: () => Promise<unknown>) => {
+  const refresh = useCallback(() => {
+    api.listLendingAssets().then((list) => list.length > 0 && setAssets(list)).catch(() => {});
+    api.getLendingPositions().then(setPositions).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(refresh, [refresh]);
+
+  const canBorrow = assessment && (assessment.decision === 'approve' || assessment.decision === 'approve_with_conditions');
+
+  const run = async (label: string, action: () => Promise<unknown>, onDone: () => void) => {
     setBusy(label);
     setError(null);
-    setLastResult(null);
+    setLastMessage(null);
     try {
-      const result = await action();
-      setLastResult(JSON.stringify(result, null, 2));
+      await action();
+      onDone();
+      refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');
     } finally {
@@ -300,26 +430,71 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
     }
   };
 
+  const unit = assetSymbol(asset);
+
   return (
     <Card style={{ gap: 16 }}>
-      <T variant="title">Lending V1 — vault ouvert partagé</T>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Icon name="coins" size={22} color={c.text} />
+        <T variant="title">Lending V1 — vault ouvert partagé</T>
+      </View>
       <T variant="muted">
-        Dépôts et prêts passent par le même vault et le même loan broker, partagés par tous les lenders/borrowers
-        (adaptateur XRPL déjà vérifié en réel).
+        Dépôts et prêts passent par le vault et le loan broker partagés de l'actif choisi (adaptateur XRPL déjà
+        vérifié en réel). Le retrait avance depuis le buffer de liquidité si le vault n'est pas encore liquide.
       </T>
+
+      <AssetSelector assets={assets} selected={asset} onSelect={setAsset} />
 
       <View style={{ gap: 8 }}>
         <T variant="label">Lender — déposer dans le vault</T>
-        <Field label="Montant (drops)" value={depositAmount} onChangeText={setDepositAmount} keyboardType="number-pad" />
-        <Button busy={busy === 'deposit'} disabled={!depositAmount} onPress={() => run('deposit', () => api.deposit(depositAmount))}>
+        <Field
+          label={`Montant (${unit})`}
+          value={depositAmount}
+          onChangeText={setDepositAmount}
+          keyboardType="decimal-pad"
+          placeholder={isNativeXrp(asset) ? '10' : '10.00'}
+        />
+        <Button
+          busy={busy === 'deposit'}
+          disabled={!depositAmount}
+          onPress={() =>
+            run(
+              'deposit',
+              () => api.deposit(asset, toLedgerAmount(asset, depositAmount)),
+              () => {
+                setLastMessage(`Dépôt confirmé : ${depositAmount} ${unit}`);
+                setDepositAmount('');
+              },
+            )
+          }
+        >
           Déposer
         </Button>
       </View>
 
       <View style={{ gap: 8 }}>
-        <T variant="label">Lender — retirer (avance buffer si le vault est illiquide)</T>
-        <Field label="Montant (drops)" value={withdrawAmount} onChangeText={setWithdrawAmount} keyboardType="number-pad" />
-        <Button busy={busy === 'withdraw'} disabled={!withdrawAmount} onPress={() => run('withdraw', () => api.withdraw(withdrawAmount))}>
+        <T variant="label">Lender — retirer</T>
+        <Field
+          label={`Montant (${unit})`}
+          value={withdrawAmount}
+          onChangeText={setWithdrawAmount}
+          keyboardType="decimal-pad"
+          placeholder={isNativeXrp(asset) ? '10' : '10.00'}
+        />
+        <Button
+          busy={busy === 'withdraw'}
+          disabled={!withdrawAmount}
+          onPress={() =>
+            run(
+              'withdraw',
+              () => api.withdraw(asset, toLedgerAmount(asset, withdrawAmount)),
+              () => {
+                setLastMessage(`Retrait demandé : ${withdrawAmount} ${unit}`);
+                setWithdrawAmount('');
+              },
+            )
+          }
+        >
           Retirer
         </Button>
       </View>
@@ -328,21 +503,49 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
         <T variant="label">Borrower — emprunter jusqu'au plafond recommandé</T>
         <Button
           busy={busy === 'loan-request'}
-          disabled={!assessment || (assessment.decision !== 'approve' && assessment.decision !== 'approve_with_conditions')}
-          onPress={() => run('loan-request', () => api.requestLoan())}
+          disabled={!canBorrow}
+          onPress={() =>
+            run(
+              'loan-request',
+              () => api.requestLoan(asset),
+              () => setLastMessage('Prêt accordé.'),
+            )
+          }
         >
           Demander un prêt
         </Button>
         {!assessment && <T variant="muted">Demandez d'abord une évaluation de crédit approuvée.</T>}
+        {assessment && !canBorrow && <T variant="muted">Votre dernière évaluation de crédit a été refusée.</T>}
       </View>
 
       <ErrorNote message={error} />
-      {lastResult && (
-        <T variant="muted" style={{ fontFamily: tokens.font.regular }}>
-          {lastResult}
-        </T>
-      )}
+      {lastMessage && <Badge tone="success">{lastMessage}</Badge>}
+
+      <View style={{ height: 1, backgroundColor: c.border }} />
+      <T variant="label">Vos positions</T>
+      <PositionsSection positions={positions} />
     </Card>
+  );
+}
+
+function WalletBadge() {
+  const api = useLendingApi();
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+
+  useEffect(() => {
+    api.getWallet().then(setWallet).catch(() => setWallet(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!wallet) return null;
+  const short = `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <Icon name="wallet" size={16} color={c.muted} />
+      <T variant="muted" style={{ fontSize: 13 }}>
+        {short}
+      </T>
+    </View>
   );
 }
 
@@ -351,7 +554,7 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
 // composes a cote via une route separee (app/account.tsx), sans passer par
 // le commutateur d'etats de demo existant (SessionProvider).
 export function AccountScreen() {
-  const { user, token, ready } = useAuth();
+  const { user, token, ready, logout } = useAuth();
   const api = useLendingApi();
   const [kyc, setKyc] = useState<KycStatus | null>(null);
   const [odooConnection, setOdooConnection] = useState<OdooConnection | null>(null);
@@ -379,7 +582,15 @@ export function AccountScreen() {
 
   return (
     <View style={{ gap: 24 }}>
-      <T variant="title">Bonjour, {user.email}</T>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <View style={{ gap: 4 }}>
+          <T variant="title">Bonjour, {user.email}</T>
+          <WalletBadge />
+        </View>
+        <Button variant="ghost" onPress={logout} style={{ minHeight: 40, paddingVertical: 8, paddingHorizontal: 12 }}>
+          Se déconnecter
+        </Button>
+      </View>
       {kyc.status !== 'valid' && (
         <KycGateModal
           onDecided={(status) => {

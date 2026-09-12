@@ -60,4 +60,18 @@ export async function authRoutes(app: FastifyInstance, deps: AppDependencies): P
       return sendError(reply, err);
     }
   });
+
+  // Adresse publique du wallet XRPL provisionne a l'inscription (jamais la
+  // seed) — n'existait sur aucune route jusqu'ici, le client ne pouvait pas
+  // afficher l'adresse que l'utilisateur possede reellement.
+  app.get("/v1/wallet", async (request, reply) => {
+    const userId = await requireSession(request, reply, deps);
+    if (!userId) return reply;
+    try {
+      const wallet = await deps.getWallet.execute({ userId });
+      return reply.send(wallet);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
 }

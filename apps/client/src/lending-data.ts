@@ -7,6 +7,13 @@ export interface KycStatus {
   decided_at: string | null;
 }
 
+export interface Wallet {
+  id: string;
+  address: string;
+  network: string;
+  created_at: string;
+}
+
 export interface OdooConnection {
   id: string;
   odoo_url: string;
@@ -30,24 +37,83 @@ export interface CreditAssessment {
   risk_notes: string[];
 }
 
+// "xrpl:XRP" (natif) ou "xrpl:RLUSD:<issuer>" (IOU simule, integration
+// xrpl-lending-sim) — un pool par actif, amorce par un script d'admin.
+export interface LendingAsset {
+  asset_id: string;
+  vault_id: string;
+}
+
 export interface LenderDeposit {
   id: string;
+  asset_id: string;
   amount_drops: string;
-  status: string;
+  status: 'submitted' | 'confirmed' | 'rejected';
+  created_at: string;
 }
 
 export interface LoanPosition {
   id: string;
   loan_id: string | null;
+  asset_id: string;
   principal_drops: string;
-  status: string;
+  interest_rate_hundred_thousandths: number;
+  status: 'requested' | 'active' | 'repaid' | 'defaulted';
+  created_at: string;
 }
 
-export interface WithdrawalResult {
-  funded_from: 'vault' | 'buffer' | 'partial';
+export interface WithdrawalRequest {
+  id: string;
+  asset_id: string;
   requested_amount_drops: string;
   fulfilled_amount_drops: string;
-  status: string;
+  funded_from: 'vault' | 'buffer' | 'partial';
+  status: 'fulfilled' | 'partial' | 'failed';
+  created_at: string;
+}
+
+export interface LendingPositions {
+  deposits: LenderDeposit[];
+  loans: LoanPosition[];
+  withdrawals: WithdrawalRequest[];
+}
+
+export const NATIVE_ASSET_ID = 'xrpl:XRP';
+const DROPS_PER_XRP = 1_000_000n;
+
+// Un code lisible pour l'utilisateur ("XRP", "RLUSD") depuis un asset_id
+// (convention @octro/contracts "namespace:code[:issuer]").
+export function assetSymbol(assetId: string): string {
+  if (assetId === NATIVE_ASSET_ID) return 'XRP';
+  return assetId.split(':')[1] ?? assetId;
+}
+
+export function isNativeXrp(assetId: string): boolean {
+  return assetId === NATIVE_ASSET_ID;
+}
+
+// Le champ ledger est en drops pour XRP (entier, 1 XRP = 1 000 000 drops)
+// et en valeur decimale directe pour un IOU (ex. RLUSD simule) — jamais un
+// flottant, arithmetique de chaine via BigInt.
+export function toLedgerAmount(assetId: string, humanAmount: string): string {
+  if (!isNativeXrp(assetId)) return humanAmount;
+  const trimmed = humanAmount.trim();
+  const [intPart, fracPart = ''] = trimmed.split('.');
+  const paddedFrac = (fracPart + '000000').slice(0, 6);
+  const drops = BigInt(intPart || '0') * DROPS_PER_XRP + BigInt(paddedFrac || '0');
+  return drops.toString();
+}
+
+export function fromLedgerAmount(assetId: string, ledgerAmount: string): string {
+  if (!isNativeXrp(assetId)) return ledgerAmount;
+  const value = BigInt(ledgerAmount);
+  const whole = value / DROPS_PER_XRP;
+  const frac = (value % DROPS_PER_XRP).toString().padStart(6, '0').replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : whole.toString();
+}
+
+export function formatAmount(assetId: string, ledgerAmount: string): string {
+  return `${fromLedgerAmount(assetId, ledgerAmount)} ${assetSymbol(assetId)}`;
 }
 
 async function parseJsonOrThrow(response: Response): Promise<any> {
@@ -74,6 +140,7 @@ export function useLendingApi() {
   );
 
   return {
+    getWallet: useCallback(async (): Promise<Wallet> => parseJsonOrThrow(await authed('/v1/wallet')), [authed]),
     simulateKyc: useCallback(
       async (result: 'valid' | 'invalid'): Promise<KycStatus> =>
         parseJsonOrThrow(await authed('/v1/kyc/simulate', { method: 'POST', body: JSON.stringify({ result }) })),
@@ -106,17 +173,27 @@ export function useLendingApi() {
       [authed],
     ),
     getLatestCreditAssessment: useCallback(async (): Promise<CreditAssessment> => parseJsonOrThrow(await authed('/v1/credit/assessment')), [authed]),
+    listLendingAssets: useCallback(
+      async (): Promise<LendingAsset[]> => parseJsonOrThrow(await authed('/v1/lending/assets')),
+      [authed],
+    ),
+    getLendingPositions: useCallback(
+      async (): Promise<LendingPositions> => parseJsonOrThrow(await authed('/v1/lending/positions')),
+      [authed],
+    ),
     deposit: useCallback(
-      async (amountDrops: string): Promise<LenderDeposit> =>
-        parseJsonOrThrow(await authed('/v1/lending/deposit', { method: 'POST', body: JSON.stringify({ amount_drops: amountDrops }) })),
+      async (assetId: string, amountDrops: string): Promise<LenderDeposit> =>
+        parseJsonOrThrow(
+          await authed('/v1/lending/deposit', { method: 'POST', body: JSON.stringify({ amount_drops: amountDrops, asset_id: assetId }) }),
+        ),
       [authed],
     ),
     requestLoan: useCallback(
-      async (requestedPrincipalDrops?: string): Promise<LoanPosition> =>
+      async (assetId: string, requestedPrincipalDrops?: string): Promise<LoanPosition> =>
         parseJsonOrThrow(
           await authed('/v1/lending/loan-request', {
             method: 'POST',
-            body: JSON.stringify(requestedPrincipalDrops ? { requested_principal_drops: requestedPrincipalDrops } : {}),
+            body: JSON.stringify({ asset_id: assetId, ...(requestedPrincipalDrops ? { requested_principal_drops: requestedPrincipalDrops } : {}) }),
           }),
         ),
       [authed],
@@ -129,8 +206,10 @@ export function useLendingApi() {
       [authed],
     ),
     withdraw: useCallback(
-      async (amountDrops: string): Promise<WithdrawalResult> =>
-        parseJsonOrThrow(await authed('/v1/lending/withdraw', { method: 'POST', body: JSON.stringify({ amount_drops: amountDrops }) })),
+      async (assetId: string, amountDrops: string): Promise<WithdrawalRequest> =>
+        parseJsonOrThrow(
+          await authed('/v1/lending/withdraw', { method: 'POST', body: JSON.stringify({ amount_drops: amountDrops, asset_id: assetId }) }),
+        ),
       [authed],
     ),
   };
