@@ -3,8 +3,8 @@ body,
 #root {
   min-height: 100%;
   margin: 0;
-  background: #f5f2e8;
-  color: #20271f;
+  background: #0d0c12;
+  color: #fbfafc;
   font-family: Inter, "Segoe UI", sans-serif;
   font-variant-numeric: tabular-nums;
 }
@@ -12,8 +12,8 @@ body,
 * { box-sizing: border-box; }
 
 :focus-visible {
-  outline: 3px solid #456c4c !important;
-  outline-offset: 3px;
+  outline: 2px solid #d8e78c !important;
+  outline-offset: 4px;
 }
 
 #octro-skip:focus,
@@ -25,13 +25,36 @@ body,
 [role="button"],
 [role="link"] {
   -webkit-tap-highlight-color: transparent;
-  transition: transform 180ms cubic-bezier(0.2, 0.75, 0.25, 1), opacity 180ms ease-out;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease-out,
+    filter 180ms ease-out,
+    background-color 220ms ease-out;
 }
 
 [role="button"]:active,
 [role="link"]:active { transform: scale(0.985); }
 
-::selection { background: #d9e1cc; color: #20271f; }
+@media (hover: hover) and (pointer: fine) {
+  [role="button"]:hover,
+  [role="link"]:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+  }
+}
+
+[aria-busy="true"] { animation: octro-pulse 1.35s ease-in-out infinite; }
+
+@keyframes octro-pulse {
+  0%, 100% { opacity: 0.66; }
+  50% { opacity: 1; }
+}
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: #0d0c12; }
+::-webkit-scrollbar-thumb { background: #4d434b; border: 3px solid #0d0c12; border-radius: 999px; }
+
+::selection { background: #4d434b; color: #fbfafc; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

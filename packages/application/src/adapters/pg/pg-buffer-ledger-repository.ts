@@ -1,0 +1,33 @@
+import type { Pool } from "pg";
+import type { BufferLedgerEntryRecord, BufferLedgerRepository } from "../../ports/buffer-ledger-repository.js";
+
+interface BufferLedgerRow {
+  balance_after_drops: string;
+}
+
+export class PgBufferLedgerRepository implements BufferLedgerRepository {
+  constructor(private readonly pool: Pool) {}
+
+  async save(entry: BufferLedgerEntryRecord): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO buffer_ledger (id, withdrawal_request_id, entry_type, amount_drops, balance_after_drops, tx_evidence, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        entry.id,
+        entry.withdrawalRequestId,
+        entry.entryType,
+        entry.amountDrops,
+        entry.balanceAfterDrops,
+        entry.txEvidence ? JSON.stringify(entry.txEvidence) : null,
+        entry.createdAt,
+      ],
+    );
+  }
+
+  async getCurrentBalanceDrops(): Promise<bigint | null> {
+    const { rows } = await this.pool.query<BufferLedgerRow>(
+      "SELECT balance_after_drops FROM buffer_ledger ORDER BY created_at DESC LIMIT 1",
+    );
+    return rows[0] ? BigInt(rows[0].balance_after_drops) : null;
+  }
+}

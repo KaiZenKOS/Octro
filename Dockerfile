@@ -1,8 +1,9 @@
 # Image de dev/demo pour apps/api. Construit les workspaces TypeScript et
 # embarque le moteur Python déterministe appelé par l'adaptateur API.
 #
-# Les repositories API restent en mémoire (voir apps/api/src/composition.ts) :
-# le package PostgreSQL présent dans le monorepo n'est pas encore composé ici.
+# La composition peut activer PostgreSQL et les adaptateurs lending lorsque la
+# configuration correspondante est présente ; le calcul reste délégué au
+# moteur Python déterministe inclus dans l'image.
 FROM node:22-bookworm-slim
 
 WORKDIR /app
@@ -19,6 +20,10 @@ COPY packages ./packages
 COPY apps ./apps
 COPY services ./services
 COPY docs/v2.2/hackathon.config.json ./docs/v2.2/hackathon.config.json
+# Certificat public (pas une cle privee) epingle pour la verification TLS du
+# Postgres distant (PGSSLROOTCERT dans .env) — sans lui l'API ne peut pas
+# ouvrir de connexion chiffree verifiee au demarrage en conteneur.
+COPY .certs/octro-postgres-ca.pem ./.certs/octro-postgres-ca.pem
 
 RUN npm ci
 

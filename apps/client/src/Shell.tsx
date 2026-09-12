@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { router, usePathname } from 'expo-router';
-import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Button, Typography as T, tokens } from '@octro/ui';
 import { Icon } from './Icon';
 import { useSession } from './session';
@@ -9,12 +10,10 @@ import type { DemoState } from './session';
 import { WalletModal } from './Wallet';
 import { AgentExplainerModal } from './AgentExplainer';
 
-const logoSource = require('../assets/logo.png');
-
 export function useDesktop() { return useWindowDimensions().width >= 1100; }
 
 const destinations = [
-    ['/', 'home', 'Accueil', 'Home'],
+    ['/demo', 'home', 'Accueil', 'Home'],
     ['/calendar', 'calendar', 'Calendrier', 'Calendar'],
     ['/sources', 'sources', 'Sources', 'Sources'],
     ['/tracking', 'tracking', 'Suivi', 'Tracking'],
@@ -29,13 +28,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
     const [walletOpen, setWalletOpen] = useState(false);
     const [agentOpen, setAgentOpen] = useState(false);
     const scroll = useRef<ScrollView>(null);
-    const normalizedPath = (!path || path === '/' || path === '/home' || path === '/index' || path === '/undefined') ? '/' : path;
+    const isRealFlow = path === '/' || path === '/account';
+    const normalizedPath = (!path || path === '/home' || path === '/index' || path === '/undefined') ? '/demo' : path;
     const activePath = ['/proposal', '/options'].includes(normalizedPath) ? '/calendar' : ['/add', '/import'].includes(normalizedPath) ? '/sources' : normalizedPath;
 
     useEffect(() => {
         scroll.current?.scrollTo({ y: 0, animated: false });
         if (Platform.OS === 'web') {
-            if (path === '/undefined') router.replace('/');
+            if (path === '/undefined') router.replace('/demo');
             document.documentElement.lang = language;
             document.title = `Octro — ${t('vos prévisions', 'your forecast')}`;
             window.requestAnimationFrame(() => document.getElementById('screen-title')?.focus());
@@ -53,7 +53,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         const color = selected ? tokens.color.accent : tokens.color.muted;
         return <Pressable
             key={href}
-            onPress={() => href === '/' ? router.replace('/') : router.push(href as never)}
+            onPress={() => router.push(href as never)}
             accessibilityLabel={t(fr, en)}
             accessibilityRole="button"
             accessibilityState={{ selected }}
@@ -76,14 +76,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         {desktop && <View style={s.sidebar}>
             <View style={s.brandRow}>
-                <Image source={logoSource} style={s.desktopLogo} resizeMode="contain" accessibilityLabel="Octro" />
                 <T style={s.wordmark}>octro</T>
             </View>
-            <Pressable onPress={() => setSettings(true)} accessibilityRole="button" accessibilityLabel={t('Choisir le scénario de démonstration', 'Choose demo scenario')} style={s.selector}>
+            {!isRealFlow && <Pressable onPress={() => setSettings(true)} accessibilityRole="button" accessibilityLabel={t('Choisir le scénario de démonstration', 'Choose demo scenario')} style={s.selector}>
                 <T style={s.small}>{profile}</T><Icon name="down" size={16} />
-            </Pressable>
+            </Pressable>}
             <View accessibilityRole="none" accessibilityLabel={t('Navigation principale', 'Main navigation')} style={{ gap: 8 }}>{nav(false)}</View>
             <View style={s.sidebarTools}>
+                <Button variant="secondary" onPress={() => router.push('/account')} style={s.toolButton}>
+                    <Icon name="shield" size={18} color={tokens.color.accent} />
+                    <T style={s.toolText}>{t('Compte & crédit', 'Account & credit')}</T>
+                </Button>
                 <Button variant="secondary" onPress={() => setAgentOpen(true)} style={s.toolButton}>
                     <Icon name="file" size={18} color={tokens.color.accent} />
                     <T style={s.toolText}>{t('Comprendre', 'Understand')}</T>
@@ -100,31 +103,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         <View style={{ flex: 1, minWidth: 0 }}>
             <ScrollView ref={scroll} contentContainerStyle={[s.scrollContent, { paddingBottom: desktop ? 32 : 100 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-                <View style={[s.canvas, desktop ? s.desktopCanvas : s.mobileCanvas]}>
+                <LinearGradient colors={['#0D0C12', '#0D0C12', '#2E201E']} locations={[0, 0.72, 1]} style={[s.canvas, desktop ? s.desktopCanvas : s.mobileCanvas]}>
                     {!desktop && <View style={s.mobileHeader}>
                         <View style={s.brandRow}>
-                            <Image source={logoSource} style={s.mobileLogo} resizeMode="contain" accessibilityLabel="Octro" />
                             <T style={s.mobileWordmark}>octro</T>
                         </View>
                         <View style={s.mobileTools}>
-                            <Pressable onPress={() => setAgentOpen(true)} accessibilityRole="button" accessibilityLabel={t('Comprendre mes prévisions', 'Understand my forecast')} style={s.iconAction}>
-                                <Icon name="file" size={18} color={tokens.color.accent} />
-                            </Pressable>
-                            <Pressable onPress={() => setWalletOpen(true)} accessibilityRole="button" accessibilityLabel={t('Centre de preuves XRPL', 'XRPL evidence center')} style={s.iconAction}>
-                                <Icon name="shield" size={18} color={tokens.color.accent} />
-                            </Pressable>
-                            <Pressable onPress={() => setSettings(true)} accessibilityRole="button" accessibilityLabel={t('Choisir le scénario', 'Choose a scenario')} style={s.profileAction}>
+                            {!isRealFlow && <Pressable onPress={() => setSettings(true)} accessibilityRole="button" accessibilityLabel={t('Choisir le scénario', 'Choose a scenario')} style={s.profileAction}>
                                 <T style={s.profileActionText}>{persona === 'personal' ? 'Lina' : persona === 'independent' ? t('Activité', 'Business') : t('Équipe', 'Team')}</T>
                                 <Icon name="down" size={14} />
-                            </Pressable>
+                            </Pressable>}
                         </View>
                     </View>}
 
                     <View style={s.demoBar}>
-                        <View style={s.demoTag}>
+                        {!isRealFlow && <View style={s.demoTag}>
                             <View style={s.dot} />
                             <T style={s.tiny}>{t('Données synthétiques', 'Synthetic data')}</T>
-                        </View>
+                        </View>}
                         {!isOnline && <View style={[s.demoTag, s.offlineTag]}>
                             <View style={[s.dot, { backgroundColor: tokens.color.warning }]} />
                             <T style={[s.tiny, { color: tokens.color.warning }]}>{t('Hors ligne', 'Offline')}</T>
@@ -142,8 +138,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
                         style={s.main}
                     >{children}</View>
 
-                    <T style={s.footer}>{t('Démo sur données synthétiques · aucun transfert exécuté', 'Synthetic data demo · no transfer executed')}</T>
-                </View>
+                    <T style={s.footer}>{isRealFlow ? t('Compte, KYC simulé et lending · toute opération réseau reste soumise aux capacités observées.', 'Account, simulated KYC and lending · every network operation remains gated by observed capabilities.') : t('Démo sur données synthétiques · aucun transfert exécuté', 'Synthetic data demo · no transfer executed')}</T>
+                </LinearGradient>
             </ScrollView>
             {!desktop && <View style={[s.mobileNavContainer, { paddingBottom: Math.max(10, insets.bottom) }]}>
                 <View accessibilityRole="none" accessibilityLabel={t('Navigation principale', 'Main navigation')} style={s.mobileNav}>{nav(true)}</View>
@@ -183,10 +179,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
 const s = StyleSheet.create({
     root: { flex: 1, flexDirection: 'row', backgroundColor: tokens.color.canvas, minHeight: '100%' },
-    sidebar: { width: 248, padding: 28, paddingTop: 34, gap: 28, backgroundColor: tokens.color.surface, borderRightWidth: 1, borderRightColor: tokens.color.border },
+    sidebar: { width: 228, padding: 28, paddingTop: 34, gap: 26, backgroundColor: '#121015', borderRightWidth: 1, borderRightColor: '#211D22' },
     brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
-    desktopLogo: { width: 36, height: 36 },
-    mobileLogo: { width: 28, height: 28 },
     wordmark: { fontSize: 27, lineHeight: 34, letterSpacing: -1.2, fontFamily: tokens.font.semibold, color: tokens.color.text },
     mobileWordmark: { fontSize: 24, lineHeight: 32, letterSpacing: -0.7, fontFamily: tokens.font.semibold, color: tokens.color.text },
     selector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 48, flexShrink: 1, paddingHorizontal: 12, borderWidth: 1, borderColor: tokens.color.border, borderRadius: tokens.radius.control, backgroundColor: tokens.color.surface },
@@ -196,29 +190,29 @@ const s = StyleSheet.create({
     small: { fontSize: 13, lineHeight: 20, color: tokens.color.muted },
     tiny: { fontSize: 12, lineHeight: 18, color: tokens.color.text },
     navLink: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12 },
-    selected: { backgroundColor: tokens.color.accentSoft },
+    selected: { backgroundColor: tokens.color.raised },
     pressed: { opacity: 0.74, transform: [{ scale: 0.99 }] },
     scrollContent: { minHeight: '100%', flexGrow: 1 },
     canvas: { flex: 1, minWidth: 0, width: '100%', alignSelf: 'center', maxWidth: 1440, gap: 28 },
-    desktopCanvas: { paddingHorizontal: 48, paddingTop: 40, paddingBottom: 32 },
-    mobileCanvas: { paddingTop: 16, paddingHorizontal: 22, paddingBottom: 32, gap: 22 },
+    desktopCanvas: { paddingHorizontal: 40, paddingTop: 32, paddingBottom: 40 },
+    mobileCanvas: { paddingTop: 16, paddingHorizontal: 20, paddingBottom: 32, gap: 20 },
     main: { gap: 22, minWidth: 0 },
     mobileHeader: { minHeight: 48, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
     mobileTools: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    iconAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border },
+    iconAction: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: tokens.color.raised, borderWidth: 1, borderColor: '#3F353C' },
     profileAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, borderRadius: 14, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border },
     profileActionText: { fontSize: 13, lineHeight: 18, color: tokens.color.text, fontFamily: tokens.font.medium },
     demoBar: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 10 },
-    demoTag: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 32, paddingHorizontal: 10, borderRadius: tokens.radius.pill, backgroundColor: tokens.color.accentSoft },
-    offlineTag: { backgroundColor: '#F4EBDD' },
-    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: tokens.color.accent },
+    demoTag: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 32, paddingHorizontal: 10, borderRadius: tokens.radius.pill, backgroundColor: tokens.color.raised },
+    offlineTag: { backgroundColor: '#382B2E' },
+    dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.color.warning },
     language: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
     languageText: { fontSize: 12, fontFamily: tokens.font.semibold, color: tokens.color.muted },
     footer: { color: tokens.color.muted, fontSize: 12, lineHeight: 18, marginTop: 8 },
-    mobileNavContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: tokens.color.surface, borderTopWidth: 1, borderTopColor: tokens.color.border, paddingHorizontal: 8, paddingTop: 7, minHeight: 76 },
+    mobileNavContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#151217', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderTopColor: '#40373D', paddingHorizontal: 8, paddingTop: 7, minHeight: 78 },
     mobileNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
     mobileLink: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 12, paddingVertical: 4, marginHorizontal: 2 },
-    mobileSelected: { backgroundColor: tokens.color.accentSoft },
+    mobileSelected: { backgroundColor: tokens.color.raised },
     navLabel: { fontSize: 12, lineHeight: 16 },
     skipLink: { position: 'absolute', top: -80, left: 16, zIndex: 100, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: tokens.color.accent },
     scrim: { flex: 1, backgroundColor: tokens.color.overlay, padding: 20, justifyContent: 'center', alignItems: 'center' },
