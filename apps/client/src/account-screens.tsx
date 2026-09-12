@@ -351,7 +351,7 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
 // composes a cote via une route separee (app/account.tsx), sans passer par
 // le commutateur d'etats de demo existant (SessionProvider).
 export function AccountScreen() {
-  const { user, token } = useAuth();
+  const { user, token, ready } = useAuth();
   const api = useLendingApi();
   const [kyc, setKyc] = useState<KycStatus | null>(null);
   const [odooConnection, setOdooConnection] = useState<OdooConnection | null>(null);
@@ -371,6 +371,7 @@ export function AccountScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  if (!ready) return <T>Chargement…</T>;
   if (!user) return <SignUpOrLogIn />;
   if (!user.email_verified_at) return <VerifyEmail />;
   if (!token) return <SignUpOrLogIn />;

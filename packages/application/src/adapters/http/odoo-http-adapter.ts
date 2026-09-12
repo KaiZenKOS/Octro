@@ -1,4 +1,5 @@
 import type { AccountMoveLineRow, AccountMoveRow, CreditAssessmentRawFinancials, SaleOrderRow } from "@octro/credit";
+import { OdooRequestFailedError } from "../../errors.js";
 import type { OdooCompany, OdooCredentials, OdooPort } from "../../ports/odoo-port.js";
 
 // X-Odoo-Database n'est envoye que si explicitement fourni : sur un Odoo
@@ -17,8 +18,18 @@ async function rpc<T>(baseUrl: string, apiKey: string, database: string | null |
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Odoo ${model}/${method} failed (${response.status}): ${detail}`);
+    const body = await response.text();
+    // Odoo repond en JSON avec un champ "message" concis (ex. "Invalid
+    // apikey", "the model 'sale.order' does not exist") — jamais la trace
+    // complete au client, jamais un 500 opaque non plus.
+    let detail = body;
+    try {
+      const parsed = JSON.parse(body) as { message?: string };
+      if (parsed.message) detail = parsed.message;
+    } catch {
+      // corps non-JSON : garder le texte brut, tronque
+    }
+    throw new OdooRequestFailedError(response.status, `${model}/${method}: ${detail.slice(0, 300)}`);
   }
   return (await response.json()) as T;
 }
@@ -82,7 +93,7 @@ export class OdooHttpAdapter implements OdooPort {
       ],
       fields: ["name", "date_order", "partner_id", "state", "amount_total"],
     }).catch((err) => {
-      if (err instanceof Error && err.message.includes("404") && /does not exist/i.test(err.message)) return [];
+      if (err instanceof OdooRequestFailedError && err.odooStatus === 404 && /does not exist/i.test(err.message)) return [];
       throw err;
     });
 

@@ -13,6 +13,7 @@ import {
   InvalidCredentialsError,
   LendingOperationFailedError,
   NotFoundError,
+  OdooRequestFailedError,
   VerificationCodeInvalidError,
 } from "@octro/application";
 import type { FastifyReply } from "fastify";
@@ -76,6 +77,11 @@ export function sendError(reply: FastifyReply, err: unknown): FastifyReply {
       return reply.code(503).send({ code: "LEDGER_OUTCOME_UNKNOWN", message: err.message, retryable: true, details: { reason: err.detail } });
     }
     return reply.code(409).send({ code: "LEDGER_OUTCOME_UNKNOWN", message: err.message, retryable: false, details: { reason: err.detail } });
+  }
+  if (err instanceof OdooRequestFailedError) {
+    // Cle API invalide/expiree, modele non installe, etc. : jamais un 500
+    // opaque — le client doit pouvoir afficher pourquoi.
+    return reply.code(422).send({ code: "INVALID_REQUEST", message: err.message, retryable: false });
   }
   reply.log.error(err);
   return reply.code(500).send({ code: "INTERNAL", message: "unexpected error" });

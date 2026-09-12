@@ -58,3 +58,13 @@ export class LendingOperationFailedError extends Error {
     this.name = "LendingOperationFailedError";
   }
 }
+
+// Extension Lending/KYC/Credit — Phase D. Odoo a refuse la requete (cle API
+// invalide/expiree, permission manquante, modele non installe) : jamais un
+// 500 generique opaque, un message exploitable par le client.
+export class OdooRequestFailedError extends Error {
+  constructor(public readonly odooStatus: number, detail: string) {
+    super(`Odoo request failed (${odooStatus}): ${detail}`);
+    this.name = "OdooRequestFailedError";
+  }
+}
