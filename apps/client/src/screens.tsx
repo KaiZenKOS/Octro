@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Button, Card, Field, Typography as T, tokens } from '@octro/ui';
 import { DecimalStringSchema } from '@octro/contracts';
 import { demoFixture as fixture, designReference as reference, euro } from './data';
-import { useAcknowledge, useClientData, useCreateEvent, useSession } from './session';
+import { useAcknowledge, useClientData, useCreateEvent, useRemoveEvent, useResetEvents, useSession } from './session';
 import { useDesktop } from './Shell';
 import { Icon } from './Icon';
 const c = tokens.color;
@@ -36,51 +36,128 @@ function Notice({ title, children, tone = 'warning' }: {
     children: React.ReactNode;
     tone?: 'warning' | 'success' | 'error';
 }) { return <View style={s.notice}><T style={{ color: c[tone] }}>{title}</T><Note>{children}</Note></View>; }
-function Row({ title, detail, value, icon = 'circle', positive = false }: {
+function Row({ title, detail, value, icon = 'circle', positive = false, onRemove }: {
     title: string;
     detail: string;
     value?: string;
     icon?: string;
     positive?: boolean;
-}) { return <View style={s.row}><Icon name={icon}/><View style={{ flex: 1, minWidth: 0, gap: 5 }}><T>{title}</T><Note>{detail}</Note></View>{value && <T style={{ color: positive ? c.success : c.text, fontFamily: tokens.font.medium, textAlign: 'right', maxWidth: '42%' }}>{value}</T>}</View>; }
-function EventRows({ short = false }: {
+    onRemove?: () => void;
+}) {
+    return <View style={s.row}>
+        <Icon name={icon}/>
+        <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+            <T>{title}</T>
+            <Note>{detail}</Note>
+        </View>
+        {value && <T style={{ color: positive ? c.success : c.text, fontFamily: tokens.font.medium, textAlign: 'right', maxWidth: '42%' }}>{value}</T>}
+        {onRemove && (
+            <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Supprimer ${title}`} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+                <T style={{ color: c.muted, fontSize: 13 }}>✕</T>
+            </Pressable>
+        )}
+    </View>;
+}
+function EventRows({ short = false, allowDelete = false }: {
     short?: boolean;
+    allowDelete?: boolean;
 }) {
     const { t, language } = useSession();
     const { data } = useClientData();
-    const labels: Record<string, string> = { loyer: t('Loyer', 'Rent'), courses: t('Courses', 'Groceries'), transport: t('Transport', 'Transport'), salaire: t('Salaire', 'Salary') };
-    const icons: Record<string, string> = { loyer: 'rent', courses: 'groceries', transport: 'transport', salaire: 'salary' };
-    return <View>{data?.events.filter(event => !short || ['loyer', 'salaire'].includes(event.label)).map(event => { const day = event.expected_settlement_at ? Math.round((Date.parse(event.expected_settlement_at) - Date.parse(data.provenance.asOf)) / 86400000) : null; return <Row key={event.id} title={labels[event.label] ?? event.label} detail={`${day === null ? '—' : `J+${day}`} · ${event.direction === 'inflow' ? t('Attendu', 'Expected') : t('Déclaré', 'Declared')}`} value={`${event.direction === 'inflow' ? '+' : '−'}${euro(event.amount.amount_decimal, language)}`} positive={event.direction === 'inflow'} icon={icons[event.label] ?? 'calendar'}/>; })}</View>;
+    const removeEvent = useRemoveEvent();
+    const labels: Record<string, string> = { loyer: t('Loyer', 'Rent'), courses: t('Courses', 'Groceries'), transport: t('Transport', 'Transport'), salaire: t('Salaire', 'Salary'), imprévu: t('Imprévu', 'Unexpected') };
+    const icons: Record<string, string> = { loyer: 'rent', courses: 'groceries', transport: 'transport', salaire: 'salary', imprévu: 'warning' };
+    return <View>{data?.events.filter(event => !short || ['loyer', 'salaire'].includes(event.label)).map(event => {
+        const day = event.expected_settlement_at ? Math.round((Date.parse(event.expected_settlement_at) - Date.parse(data.provenance.asOf)) / 86400000) : null;
+        return <Row
+            key={event.id}
+            title={labels[event.label] ?? event.label}
+            detail={`${day === null ? '—' : `J+${day}`} · ${event.direction === 'inflow' ? t('Attendu', 'Expected') : t('Déclaré', 'Declared')}`}
+            value={`${event.direction === 'inflow' ? '+' : '−'}${euro(event.amount.amount_decimal, language)}`}
+            positive={event.direction === 'inflow'}
+            icon={icons[event.label] ?? 'calendar'}
+            onRemove={allowDelete ? () => removeEvent.mutate(event.id) : undefined}
+        />;
+    })}</View>;
 }
 function Chart() {
     const { t, language } = useSession();
+    const { data } = useClientData();
+    const proj = data?.computedProjection;
+    const withoutActionPath = proj?.svg.withoutActionPath ?? reference.chartPaths[0]!.geometry;
+    const withActionPath = proj?.svg.withActionPath ?? reference.chartPaths[1]!.geometry;
+    const reserveY = proj?.svg.reserveY ?? 162.4;
+    const gridLines = proj?.svg.gridY ?? [40, 80, 120, 160];
+    const pointsWithout = proj ? proj.pointsWithoutAction.map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithoutAction.map(v => euro(v, language)).join(' · ');
+    const pointsWith = proj ? proj.pointsWithProposal.map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithProposal.map(v => euro(v, language)).join(' · ');
+
     return <View style={{ gap: 18 }}>
   <View style={[s.inline, { flexWrap: 'wrap' }]}><View style={s.inline}><View style={{ width: 24, height: 2, backgroundColor: c.text }}/><Note>{t('━━ Sans action', '━━ Without action')}</Note></View><View style={s.inline}><View style={{ width: 24, borderTopColor: c.success, borderTopWidth: 2, borderStyle: 'dashed' }}/><Note>{t('┄┄ Avec le plan proposé', '┄┄ With the proposed plan')}</Note></View></View>
   <Svg width="100%" height={196} viewBox="0 0 736 196" preserveAspectRatio="none" accessibilityRole="image" accessibilityLabel={t('Illustration synthétique de la prévision. Les valeurs détaillées figurent sous la courbe.', 'Synthetic forecast illustration. Detailed values appear below the chart.')}>
-    {[40, 80, 120, 160].map(y => <Line key={y} x1={0} y1={y} x2={736} y2={y} stroke={c.border} strokeWidth={.7}/>)}
-    <Line x1={0} y1={162.4} x2={736} y2={162.4} stroke={c.warning} strokeWidth={1}/>
-    {reference.chartPaths.map((p, i) => <Path key={i} d={p.geometry} fill="none" stroke={p.stroke === '$success' ? c.success : c.text} strokeWidth={p.strokeWidth}/>)}
+    {gridLines.map(y => <Line key={y} x1={0} y1={y} x2={736} y2={y} stroke={c.border} strokeWidth={.7}/>)}
+    <Line x1={0} y1={reserveY} x2={736} y2={reserveY} stroke={c.warning} strokeWidth={1}/>
+    <Path d={withoutActionPath} fill="none" stroke={c.text} strokeWidth={2}/>
+    <Path d={withActionPath} fill="none" stroke={c.success} strokeWidth={2} strokeDasharray="6 6"/>
   </Svg>
   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>{['Auj.', 'J+2', 'J+4', 'J+6', 'J+10'].map(day => <Note key={day}>{day}</Note>)}</View>
   <Note>{t('Repère ambre : réserve à préserver de ', 'Amber line: protected reserve of ')}{euro(fixture.current_reserve, language)}</Note>
-  <Note>{t('Sans action : 650 → 50 → −50 → −130 → 1 470 €. Avec le plan : 880 → 280 → 180 → 100 → 1 700 €.', 'Without action: 650 → 50 → −50 → −130 → 1,470 €. With the plan: 880 → 280 → 180 → 100 → 1,700 €.')}</Note>
+  <Note>{t('Sans action : ', 'Without action: ')}{pointsWithout}{t('. Avec le plan : ', '. With the plan: ')}{pointsWith}.</Note>
   </View>;
 }
-function TransferSummary() { const { t, language } = useSession(); const { data } = useClientData(); const action = data?.plan.proposed_actions.find(a => a.type === 'own_funds_transfer'); if (!action)
-    return <T>{t('Aucune proposition disponible', 'No proposal available')}</T>; return <Rail><Note>{t('ACTION PROPOSÉE', 'PROPOSED ACTION')}</Note><Money value={action.amount_decimal} size={48}/><T style={{ fontSize: 18 }}>{t('Épargne → Compte courant', 'Savings → Current account')}</T><T>{t('Votre courant resterait à ', 'Your current account would remain at ')}{euro(fixture.expected.current_before_salary, language)}{t(' avant le salaire. Votre épargne serait de ', ' before payday. Your savings would be ')}{euro(fixture.expected.savings_remaining, language)}.</T><Notice title={t('Sans nouvelle dette', 'No new debt')} tone="success">{t('Les avoirs restent inchangés au moment du transfert.', 'Total assets remain unchanged at the time of transfer.')}</Notice><Button onPress={() => router.push('/proposal')}>{t('Voir la proposition', 'View proposal')}</Button><Note>{t('Projection, aucun transfert effectué.', 'Forecast, no transfer made.')}</Note></Rail>; }
+
+function TransferSummary() {
+    const { t, language } = useSession();
+    const { data } = useClientData();
+    const proj = data?.computedProjection;
+    const action = data?.plan.proposed_actions.find(a => a.type === 'own_funds_transfer');
+    const transferAmount = proj ? proj.recommendedTransfer.toFixed(2) : (action?.amount_decimal ?? '230.00');
+    const currentRemaining = proj ? proj.currentBeforeSalaryWithPlan.toFixed(2) : fixture.expected.current_before_salary;
+    const savingsRemaining = proj ? proj.savingsRemaining.toFixed(2) : fixture.expected.savings_remaining;
+
+    if (!action && (!proj || proj.recommendedTransfer <= 0))
+        return <T>{t('Aucune proposition nécessaire · réserve préservée', 'No proposal needed · reserve preserved')}</T>;
+
+    return <Rail>
+        <Note>{t('ACTION PROPOSÉE', 'PROPOSED ACTION')}</Note>
+        <Money value={transferAmount} size={48}/>
+        <T style={{ fontSize: 18 }}>{t('Épargne → Compte courant', 'Savings → Current account')}</T>
+        <T>{t('Votre courant resterait à ', 'Your current account would remain at ')}{euro(currentRemaining, language)}{t(' avant le salaire. Votre épargne serait de ', ' before payday. Your savings would be ')}{euro(savingsRemaining, language)}.</T>
+        <Notice title={t('Sans nouvelle dette', 'No new debt')} tone="success">{t('Les avoirs restent inchangés au moment du transfert.', 'Total assets remain unchanged at the time of transfer.')}</Notice>
+        <Button onPress={() => router.push('/proposal')}>{t('Voir la proposition', 'View proposal')}</Button>
+        <Note>{t('Projection réactive en temps réel.', 'Real-time reactive projection.')}</Note>
+    </Rail>;
+}
+
 function Home() {
     const { t, language } = useSession();
     const desktop = useDesktop();
+    const { data } = useClientData();
+    const proj = data?.computedProjection;
+    const currentVal = proj ? proj.openingCurrent.toFixed(2) : fixture.opening_balances.current;
+    const savingsVal = proj ? proj.openingSavings.toFixed(2) : fixture.opening_balances.savings;
+    const totalVal = (parseFloat(currentVal) + parseFloat(savingsVal)).toFixed(2);
+    const lowestVal = proj ? proj.lowestBalanceWithoutAction.toFixed(2) : reference.pointsWithoutAction[3]!;
+    const transferVal = proj ? proj.recommendedTransfer.toFixed(2) : '230.00';
+    const lowestDay = proj ? proj.lowestDayWithoutAction : 6;
+
     return <><Title>{t('Bonjour, Lina.', 'Hello, Lina.')}</Title><Split main={<>
-  <Card warm style={[s.hero, desktop && { padding: 32 }]}><T>{t('Argent disponible sur le courant', 'Money available in your current account')}</T><Money value={fixture.opening_balances.current} size={desktop ? 72 : 64}/>{desktop ? <T>{t('Épargne : ', 'Savings: ')}{euro(fixture.opening_balances.savings, language)} · {t('Total déclaré : ', 'Declared total: ')}{euro(reference.totalBefore, language)}</T> : <View style={s.between}><T>{t('Épargne', 'Savings')}</T><T>{euro(fixture.opening_balances.savings, language)}</T></View>}<Note>{t('Saisie manuelle · exemple synthétique', 'Manual entry · synthetic example')}</Note></Card>
-  {!desktop && <><View style={{ gap: 8, paddingVertical: 4 }}><Heading>{t('Votre loyer arrive avant le salaire', 'Your rent is due before payday')}</Heading><T>{t('À J+6, le courant serait à −130 €. Un transfert de 230 € peut préserver votre réserve.', 'On day 6, the account would reach −€130. A €230 transfer can preserve your reserve.')}</T></View><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button></>}
+  <Card warm style={[s.hero, desktop && { padding: 32 }]}><T>{t('Argent disponible sur le courant', 'Money available in your current account')}</T><Money value={currentVal} size={desktop ? 72 : 64}/>{desktop ? <T>{t('Épargne : ', 'Savings: ')}{euro(savingsVal, language)} · {t('Total déclaré : ', 'Declared total: ')}{euro(totalVal, language)}</T> : <View style={s.between}><T>{t('Épargne', 'Savings')}</T><T>{euro(savingsVal, language)}</T></View>}<Note>{t('Saisie réactive · mise à jour en temps réel', 'Reactive entry · real-time update')}</Note></Card>
+  {!desktop && <><View style={{ gap: 8, paddingVertical: 4 }}><Heading>{t('Votre loyer arrive avant le salaire', 'Your rent is due before payday')}</Heading><T>{t(`À J+${lowestDay}, le courant serait à `, `On day ${lowestDay}, the account would reach `)}{euro(lowestVal, language)}{t('. Un transfert de ', '. A ')}{euro(transferVal, language)}{t(' peut préserver votre réserve.', ' transfer can preserve your reserve.')}</T></View><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button></>}
   {desktop && <Chart />}<View><Heading>{t('Vos prochaines échéances', 'Your upcoming payments')}</Heading><EventRows short/></View>
   {!desktop && <><View style={[s.inline, { paddingVertical: 16 }]}><Icon name="shield"/><T>{euro(fixture.current_reserve, language)}{t(' à préserver sur le courant', ' to preserve in your current account')}</T></View><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button></>}
-  </>} aside={desktop ? <Rail><Notice title={t('Une attention nécessaire', 'Something needs your attention')}>{t('Le loyer arrive avant le salaire. Le point bas prévu est de −130 €.', 'Rent is due before payday. The forecast low is −€130.')}</Notice><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button><Note>{t('Date de référence synthétique : 12 septembre 2026.', 'Synthetic reference date: September 12, 2026.')}</Note></Rail> : undefined}/></>;
+  </>} aside={desktop ? <Rail><Notice title={t('Une attention nécessaire', 'Something needs your attention')}>{t('Le loyer arrive avant le salaire. Le point bas prévu est de ', 'Rent is due before payday. The forecast low is ')}{euro(lowestVal, language)}.</Notice><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button><Note>{t('Date de référence synthétique : 12 septembre 2026.', 'Synthetic reference date: September 12, 2026.')}</Note></Rail> : undefined}/></>;
 }
+
 function Calendar() {
-    const { t } = useSession();
+    const { t, language } = useSession();
     const desktop = useDesktop();
+    const { data } = useClientData();
+    const createEvent = useCreateEvent();
+    const resetEvents = useResetEvents();
+    const proj = data?.computedProjection;
+    const lowestVal = proj ? proj.lowestBalanceWithoutAction.toFixed(2) : reference.pointsWithoutAction[3]!;
+    const lowestDay = proj ? proj.lowestDayWithoutAction : 6;
+    const currentWithPlan = proj ? proj.currentBeforeSalaryWithPlan.toFixed(2) : fixture.expected.current_before_salary;
     const [selectedPeriod, setSelectedPeriod] = useState(2);
     const periods = [
         { key: '7J', label: t('7 J', '7 D') },
@@ -90,9 +167,19 @@ function Calendar() {
         { key: '1AN', label: t('1 AN', '1 Y') },
     ];
 
+    const handleAddSimulatedExpense = () => {
+        createEvent.mutate({
+            direction: 'outflow',
+            amount_decimal: '150.00',
+            asset_id: 'EUR',
+            label: 'imprévu',
+            expected_settlement_at: '2026-09-15T10:00:00Z',
+        });
+    };
+
     return <><Title>{t('Calendrier', 'Calendar')}</Title><Split main={<>
   <T style={{ fontSize: desktop ? 20 : 16 }}>{t('SOLDE PRÉVU DU COURANT', 'PROJECTED CURRENT ACCOUNT BALANCE')}</T>
-  <View style={[s.between, { alignItems: 'flex-end', gap: 16 }]}><View style={{ flex: 1 }}><Money value={reference.pointsWithoutAction[3]!} size={desktop ? 56 : 52}/><Note>{t('Au plus bas à J+6, avant le salaire', 'Lowest at day 6, before payday')}</Note></View><View style={{ maxWidth: '45%', gap: 6 }}><Money value={fixture.expected.current_before_salary} size={30}/><Note>{t('avec le plan', 'with the plan')}</Note></View></View>
+  <View style={[s.between, { alignItems: 'flex-end', gap: 16 }]}><View style={{ flex: 1 }}><Money value={lowestVal} size={desktop ? 56 : 52}/><Note>{t(`Au plus bas à J+${lowestDay}, avant le salaire`, `Lowest at day ${lowestDay}, before payday`)}</Note></View><View style={{ maxWidth: '45%', gap: 6 }}><Money value={currentWithPlan} size={30}/><Note>{t('avec le plan', 'with the plan')}</Note></View></View>
   <View style={s.periods}>{periods.map((p, idx) => {
       const isSelected = selectedPeriod === idx;
       return (
@@ -108,10 +195,56 @@ function Calendar() {
       );
   })}</View>
   {selectedPeriod !== 2 && <Note>{t('Horizon calculé dans cette démo : 30 jours (les autres horizons utilisent cette projection).', 'Calculated horizon in this demo: 30 days (other horizons reference this projection).')}</Note>}
-  <Chart />{!desktop && <TransferSummary />}<View><Heading>{t('Vos échéances', 'Your scheduled payments')}</Heading><EventRows /></View>
+  <Chart />
+
+  <Card style={{ gap: 12, backgroundColor: '#1E1920', borderColor: '#483942' }}>
+      <View style={[s.between, { flexWrap: 'wrap', gap: 8 }]}>
+          <View style={{ gap: 4, flex: 1, minWidth: 200 }}>
+              <T style={{ fontFamily: tokens.font.medium, fontSize: 14 }}>{t('⚡ Recalcul réactif en direct', '⚡ Live reactive recalculation')}</T>
+              <Note>{t('Modifiez les échéances : la courbe SVG, le point bas et le plan s’adaptent instantanément.', 'Update events: SVG curve, lowest point and plan adapt immediately.')}</Note>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              <Button variant="secondary" busy={createEvent.isPending} onPress={handleAddSimulatedExpense}>
+                  {t('+ Imprévu 150 €', '+ Expense 150 €')}
+              </Button>
+              <Button variant="ghost" busy={resetEvents.isPending} onPress={() => resetEvents.mutate()}>
+                  {t('↺ Réinitialiser', '↺ Reset')}
+              </Button>
+          </View>
+      </View>
+  </Card>
+
+  {!desktop && <TransferSummary />}
+  <View>
+      <View style={[s.between, { marginBottom: 8 }]}>
+          <Heading>{t('Vos échéances', 'Your scheduled payments')}</Heading>
+          <Note>{t('(Cliquer sur ✕ pour supprimer)', '(Click ✕ to delete)')}</Note>
+      </View>
+      <EventRows allowDelete />
+  </View>
   </>} aside={desktop ? <TransferSummary /> : undefined}/></>;
 }
-function Comparison() { const { t, language } = useSession(); const rows = [[t('Compte courant', 'Current account'), fixture.opening_balances.current, reference.pointsWithProposal[0]!], [t('Épargne', 'Savings'), fixture.opening_balances.savings, fixture.expected.savings_remaining], [t('Total des avoirs', 'Total assets'), reference.totalBefore, reference.totalBefore], [t('Avant le salaire', 'Before payday'), reference.pointsWithoutAction[3]!, fixture.expected.current_before_salary]]; return <View><Heading>{t('Avant / avec le plan', 'Before / with the plan')}</Heading>{rows.map(([label, before, after]) => <View key={label} style={[s.row, { flexWrap: 'wrap', justifyContent: 'space-between' }]}><T>{label}</T><View style={s.inline}><T style={{ color: c.muted }}>{euro(before!, language)}</T><Icon name="arrow" size={16}/><T style={{ fontFamily: tokens.font.medium }}>{euro(after!, language)}</T></View></View>)}</View>; }
+
+function Comparison() {
+    const { t, language } = useSession();
+    const { data } = useClientData();
+    const proj = data?.computedProjection;
+    const currentOpen = proj ? proj.openingCurrent.toFixed(2) : fixture.opening_balances.current;
+    const currentAfter = proj ? proj.pointsWithProposal[0]!.toFixed(2) : reference.pointsWithProposal[0]!;
+    const savingsOpen = proj ? proj.openingSavings.toFixed(2) : fixture.opening_balances.savings;
+    const savingsAfter = proj ? proj.savingsRemaining.toFixed(2) : fixture.expected.savings_remaining;
+    const total = (parseFloat(currentOpen) + parseFloat(savingsOpen)).toFixed(2);
+    const lowestBefore = proj ? proj.lowestBalanceWithoutAction.toFixed(2) : reference.pointsWithoutAction[3]!;
+    const lowestAfter = proj ? proj.currentBeforeSalaryWithPlan.toFixed(2) : fixture.expected.current_before_salary;
+
+    const rows = [
+        [t('Compte courant', 'Current account'), currentOpen, currentAfter],
+        [t('Épargne', 'Savings'), savingsOpen, savingsAfter],
+        [t('Total des avoirs', 'Total assets'), total, total],
+        [t('Avant le salaire', 'Before payday'), lowestBefore, lowestAfter]
+    ];
+    return <View><Heading>{t('Avant / avec le plan', 'Before / with the plan')}</Heading>{rows.map(([label, before, after]) => <View key={label} style={[s.row, { flexWrap: 'wrap', justifyContent: 'space-between' }]}><T>{label}</T><View style={s.inline}><T style={{ color: c.muted }}>{euro(before!, language)}</T><Icon name="arrow" size={16}/><T style={{ fontFamily: tokens.font.medium }}>{euro(after!, language)}</T></View></View>)}</View>;
+}
 function Proposal() {
     const { t, language, state } = useSession();
     const { data } = useClientData();

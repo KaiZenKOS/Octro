@@ -69,3 +69,21 @@ export function useCreateEvent() {
         onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
     });
 }
+
+export function useRemoveEvent() {
+    const { source } = useSession();
+    const cache = useQueryClient();
+    return useMutation({
+        mutationFn: (eventId: string) => source.removeEvent?.(eventId) ?? Promise.resolve(),
+        onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
+    });
+}
+
+export function useResetEvents() {
+    const { source } = useSession();
+    const cache = useQueryClient();
+    return useMutation({
+        mutationFn: () => source.resetEvents?.() ?? Promise.resolve(),
+        onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
+    });
+}

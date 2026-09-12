@@ -4,6 +4,7 @@ import fixture from '../../../docs/v2.2/personal.fixture.json';
 import proposal from '../../../docs/v2.2/plan.example.json';
 import reference from './pencil-reference.json';
 import { apiClient, type EconomicEventPayload } from './api';
+import { computeProjection, type ProjectionResult } from './projection';
 
 export interface ClientSnapshot {
     workspace: Workspace;
@@ -11,6 +12,7 @@ export interface ClientSnapshot {
     events: EconomicEvent[];
     executions: Execution[];
     projection: Projection | null;
+    computedProjection: ProjectionResult;
     provenance: {
         synthetic: boolean;
         fixtureId: string;
@@ -23,6 +25,8 @@ export interface ClientDataSource {
     read(signal?: AbortSignal): Promise<ClientSnapshot>;
     acknowledge(plan: ActionPlan): Promise<ActionPlan>;
     addEvent?(event: EconomicEventPayload): Promise<void>;
+    removeEvent?(eventId: string): Promise<void>;
+    resetEvents?(): Promise<void>;
 }
 
 const tenant = 'a1000000-0000-4000-8000-000000000001';
@@ -77,13 +81,44 @@ export function createFixtureSource(): ClientDataSource {
                 // Mode autonome
             }
 
+            const projectionEvents = dynamicEvents.map(e => {
+                const day = e.expected_settlement_at ? Math.max(0, Math.round((Date.parse(e.expected_settlement_at) - Date.parse(asOf)) / 86400000)) : 0;
+                return {
+                    id: e.id,
+                    label: e.label,
+                    amount: parseFloat(e.amount.amount_decimal),
+                    day,
+                    direction: e.direction,
+                };
+            });
+
+            const computed = computeProjection(
+                parseFloat(fixture.opening_balances.current),
+                parseFloat(fixture.opening_balances.savings),
+                parseFloat(fixture.current_reserve),
+                projectionEvents
+            );
+
+            if (computed.deficit > 0) {
+                plan.proposed_actions = [{
+                    type: 'own_funds_transfer',
+                    source_account_ref: 'savings-demo',
+                    destination_account_ref: 'current-demo',
+                    asset_id: 'fiat:EUR',
+                    amount_decimal: computed.recommendedTransfer.toFixed(2),
+                }];
+            } else {
+                plan.proposed_actions = [];
+            }
+
             return {
                 workspace,
                 plan: { ...plan },
                 executions: [],
                 projection: null,
+                computedProjection: computed,
                 events: [...dynamicEvents],
-                provenance: { synthetic: true, fixtureId: fixture.id, mode: 'live-fallback', asOf },
+                provenance: { synthetic: true, fixtureId: fixture.id, mode: 'live-reactive', asOf },
             };
         },
         async acknowledge(expected) {
@@ -111,6 +146,19 @@ export function createFixtureSource(): ClientDataSource {
             };
             dynamicEvents.push(newEvt);
             await apiClient.addEvent(event, workspace.id);
+        },
+        async removeEvent(eventId: string) {
+            dynamicEvents = dynamicEvents.filter(e => e.id !== eventId);
+        },
+        async resetEvents() {
+            dynamicEvents = fixture.events.map((event, i) => ({
+                id: `a4000000-0000-4000-8000-00000000000${i + 1}`,
+                tenant_id: tenant, source_event_id: `${fixture.id}:${i}`,
+                direction: ('inflow' in event ? 'inflow' : 'outflow') as 'inflow' | 'outflow',
+                amount: { amount_decimal: ('inflow' in event ? event.inflow : event.outflow)!, asset_id: fixture.asset_id },
+                status: 'expected' as const, verification: 'declared' as const, label: event.label,
+                observed_at: asOf, expected_settlement_at: new Date(Date.parse(asOf) + event.day * 86400000).toISOString(),
+            }));
         }
     };
 }
