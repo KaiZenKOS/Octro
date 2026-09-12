@@ -1,0 +1,178 @@
+{
+    "source":  "untitled.pen",
+    "totalBefore":  "950.00",
+    "purpose":  "Pencil illustration supplied by Kevin, not optimizer output",
+    "pointsWithoutAction":  [
+                                "650.00",
+                                "50.00",
+                                "-50.00",
+                                "-130.00",
+                                "1470.00"
+                            ],
+    "synthetic":  true,
+    "chartPaths":  [
+                       {
+                           "geometry":  "M4 110.68852l144.8 56.39345 144.8 9.3989 144.8 7.51913 289.6-150.38251",
+                           "stroke":  "$text",
+                           "strokeWidth":  2.5,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M4 89.07104l36.75692 14.31526",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M59.69231 110.76082l36.75692 14.31526",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M115.38462 132.45061l36.75692 13.23077",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M171.07692 146.91047l36.75693 2.38587",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M226.76923 150.52543l36.75692 2.38588",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M282.46154 154.1404l36.75692 2.05329",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M338.15385 157.17697l36.75692 1.9087",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M393.84615 160.06894l36.75693 1.9087",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M449.53846 156.59857l36.75692-19.08701",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M505.23077 127.67886l36.75692-19.08701",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M560.92308 98.75914l36.75692-19.08701",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M616.61538 69.83943l36.75693-19.08701",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       },
+                       {
+                           "geometry":  "M672.30769 40.91971l36.75693-19.08701",
+                           "stroke":  "$success",
+                           "strokeWidth":  2,
+                           "viewBox":  [
+                                           0,
+                                           0,
+                                           736,
+                                           196
+                                       ]
+                       }
+                   ],
+    "planHash":  "c972793d2f26e3625b199358d7f4fffcffcd4b6ed9f87da88713b74937f5ec78",
+    "sourceSha256":  "22cad5352b2fdf3c0d464b09e322ae2943609f9b862065ad9aa2f3be05ac17b4",
+    "pointsWithProposal":  [
+                               "880.00",
+                               "280.00",
+                               "180.00",
+                               "100.00",
+                               "1700.00"
+                           ]
+}

@@ -1,6 +1,8 @@
 # Kevin — K1 et préparation du raccordement K2
 
-État au 12 septembre 2026 : **préparation indépendante livrée ; K1 exécutable et K2 réel bloqués par S1/C1**. La v2.2 reste l'unique référence active. Aucun K3–K6 implémenté dans cette session.
+Mise à jour après intégration S1/C1 : **client K1 sur fixtures implémenté depuis le Pencil de Kevin**, sur `feat/kevin-k1-pencil` basée sur main `9d1ccb6`. Voir [livraison Pencil et demande d'intégration](kevin/pencil-integration.md) et [lancement du client](../../apps/client/README.md). Les cinq écrans existent en React Native/Expo ; K2 réel, le lockfile commun et la recette visuelle restent à compléter. Aucun K3–K6 implémenté.
+
+Le reste de cette note décrit la préparation initiale du 12 septembre avant l'intégration S1/C1 ; son constat de socle absent est historique, remplacé par la mise à jour ci-dessus.
 
 ## Livrables
 
