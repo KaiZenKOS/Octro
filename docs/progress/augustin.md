@@ -1,6 +1,9 @@
 # Progress — Augustin (Octro v2.2)
 
-Branche : `augustin`. Reference : `docs/TEAM_TASKS.md` section 5.
+Reference : `docs/TEAM_TASKS.md` section 5. A1/A2/A3 furent developpes
+sur la branche `augustin` (fusionnee, PR #3). A4 est developpe sur
+`feat/augustin-a4-credentials`, a partir de `main` a jour (qui inclut
+aussi le socle S1/S2 de Samet, merge #1).
 
 ## A1 — G0 et capacites reseau : FAIT
 
@@ -165,17 +168,68 @@ optimizer` le couvre en deterministe) ; explorer si `tfLoanFullPayment`
 fonctionne avec le montant non arrondi exact plutot que conclure
 definitivement qu'il faut l'eviter.
 
-## A4 — Credentials et Domains : NON EXECUTE (bloque, identifie)
+## A4 — Credentials et Domains : FAIT, cycle complet reellement execute
 
-G0 confirme les amendements `Credentials`, `PermissionedDomains` et
-`SingleAssetVault` actifs, et que xrpl.js 5.2.0 expose
-`CredentialCreate`, `CredentialAccept`, `PermissionedDomainSet`. Le
-cycle refus/acceptation/expiration (chapitre 29, AC-L05/L06/L07) n'a
-pas ete execute : il faut un compte emetteur dedie et la coordination
-avec l'eligibilite applicative de Samet (S5), qui n'existe pas encore
-dans ce depot. `packages/xrpl/src/credentials-domains.ts` retourne
-`unavailable` avec une raison explicite sur chaque methode plutot que
-d'inventer un resultat.
+Contrairement a l'estimation initiale, ceci n'attendait pas S5 (Samet) :
+le controle applicatif d'eligibilite (S5) et le controle ledger
+Credentials/Domains (A4) sont separables, exactement comme le chapitre
+29 le distingue ("enforcement = application ou ledger"). Execute pour
+de vrai le 2026-09-12 avec un emetteur, un sujet et un proprietaire de
+vault, tous finances par le faucet (voir
+`docs/progress/augustin/evidence/a4-credentials-domains-full-cycle.json`) :
+
+| Etape | Transaction | Resultat |
+| --- | --- | --- |
+| Domaine cree | `PermissionedDomainSet` (`AcceptedCredentials` = emetteur + type) | `tesSUCCESS` |
+| Vault prive gate par ce domaine | `VaultCreate` (`Flags=tfVaultPrivate`, `DomainID`) | `tesSUCCESS` |
+| Depot refuse sans attestation | `VaultDeposit` par un sujet sans credential | **`tecNO_AUTH`** |
+| Attestation emise | `CredentialCreate` (emetteur -> sujet, `Expiration` a +90s) | `tesSUCCESS` |
+| Attestation acceptee | `CredentialAccept` (sujet) | `tesSUCCESS` |
+| Depot accepte avec attestation | meme `VaultDeposit`, rejoue | **`tesSUCCESS`** |
+| Nouveau depot apres expiration | `VaultDeposit` (1 XRP) apres passage de `Expiration` | **`tecEXPIRED`** |
+| Retrait des parts existantes apres expiration | `VaultWithdraw` des parts obtenues avant expiration | **`tesSUCCESS`** |
+
+Cela couvre exactement LOAD-01 (refus sans attestation puis acceptation
+avec attestation reconnue) et LOAD-03 (expiration observee, sortie des
+parts existantes non bloquee — chapitre 29 : « Ne pas bloquer
+arbitrairement la sortie »), avec des codes reseau distincts et
+authentiques pour chaque cas (`tecNO_AUTH`, `tesSUCCESS`, `tecEXPIRED`).
+
+**Decouverte de mapping de champ non documentee** : le champ `DomainID`
+de `VaultCreate` n'apparait PAS sur l'entite ledger `Vault` elle-meme.
+Verifie via `vault_info` et `ledger_entry` des deux cotes : `DomainID`
+se retrouve sur l'objet `MPTokenIssuance` des **parts** du vault
+(`vault.shares.DomainID`). Gater un vault par domaine revient en realite
+a gater l'emission des parts (MPT) du vault, ce que `VaultDeposit`
+exige ensuite implicitement. Ce n'est pas suppose depuis le CDC : c'est
+observe directement sur ce build, conformement a AGENTS.md (« Les noms
+de champs non verifies ne sont pas des contrats normatifs »).
+
+**Friction reseau reelle rencontree et corrigee** : la toute premiere
+tentative de `PermissionedDomainSet` est restee bloquee indefiniment
+(`submit` preliminaire `tesSUCCESS`, jamais validee). Cause : le compte
+venait d'etre finance par le faucet et `autofill` a lu son `Sequence`
+avant que le paiement de financement lui-meme soit valide, choisissant
+un `Sequence` desormais impossible a atteindre (le compte a demarre a
+la sequence suivante). Corrige en attendant la confirmation du compte
+sur le ledger valide (`account_info` avec `ledger_index:'validated'`)
+avant toute premiere transaction depuis un compte fraichement finance.
+
+`packages/xrpl/src/credentials-domains.ts` implemente desormais
+`issueCredential`, `acceptCredential`, `bindDomainToVault` (via
+`VaultSet`, cible sur un vault existant — non re-teste sous cette forme
+precise cette session, contrairement au chemin `VaultCreate` ci-dessus
+qui l'a ete integralement) et `evaluateDepositEligibility` (lecture
+seule, verifie si le deposant detient une attestation acceptee et non
+expiree correspondant au domaine du vault — pre-controle applicatif,
+distinct du controle ledger que `VaultDeposit` applique de toute facon).
+
+**Reste a faire sur A4** : re-tester `bindDomainToVault` sur un vault
+deja existant (au lieu du `DomainID` pose a la creation) ; multiples
+emetteurs/types acceptes sur un meme domaine ; coordination avec S5 de
+Samet pour que la decision d'eligibilite emprunteur (distincte de
+l'eligibilite deposant testee ici) soit elle aussi separee ledger vs
+application (LOAD-02/AC-L06, hors perimetre Augustin).
 
 ## A5 — Reconciliation et preuves : PARTIEL
 
@@ -198,21 +252,27 @@ ne pas retarder le reste.
 ## Ce qui est reellement bloque
 
 - **Humain requis** : confirmation mentor que le reseau reste V1 pour
-  les nouveaux prets (G0, chapitre 16).
-- **Travail restant, pas un acces manquant** : compte emetteur +
-  eligibilite applicative pour Credentials/Domains (A4, depend aussi de
-  S5 chez Samet), SP0 sponsoring (A6, P1). La coordination
-  multi-signature `LoanSet` (A3) est maintenant faite.
-- **Dependance externe** : le port de calcul reel depuis
-  `packages/application/` (S3) et le contrat wallet avec Kevin (K3)
-  ne sont pas dans mon perimetre d'ecriture.
+  les nouveaux prets (G0, chapitre 16). Seul point encore ouvert sur A1.
+- **Travail restant, pas un acces manquant** : SP0 sponsoring (A6, P1,
+  volontairement non demarre pour ne pas retarder les P0). La
+  coordination multi-signature `LoanSet` (A3) et le cycle
+  Credentials/Domains (A4) sont maintenant faits.
+- **Dependance externe, hors perimetre Augustin** : le port de calcul
+  reel depuis `packages/application/` (S3, Samet), le contrat wallet
+  avec Kevin (K3, pas encore demarre cote Kevin d'apres
+  `docs/progress/kevin.md`), et l'eligibilite emprunteur applicative
+  (S5, Samet, LOAD-02).
 
 ## Fichiers changes
 
 - `services/optimizer/octro_optimizer/` (nouveau) + `tests/` + `README.md`
-- `packages/xrpl/src/` (nouveau) + `package.json` + `tsconfig.json`
-- `docs/v2.2/hackathon.config.json` (champs G0 completes, structure et
-  decisions de perimetre inchangees)
+- `packages/xrpl/src/` (nouveau, puis aligne au monorepo reel de Samet
+  apres le merge de main : `tsconfig.json` etend `tsconfig.base.json`,
+  `package.json` suit la convention des paquets freres, imports
+  relatifs en `.js` pour la resolution `NodeNext`)
+- `docs/v2.2/hackathon.config.json` (champs G0 puis capacites
+  Credentials/Domains/Lending V1 completes, structure et decisions de
+  perimetre inchangees)
 - `docs/progress/augustin.md` (ce fichier) et
   `docs/progress/augustin/evidence/*.json` (preuves reseau reelles,
   sans secret)
@@ -221,18 +281,24 @@ ne pas retarder le reste.
 
 - `cd services/optimizer && python3 -m unittest discover -s tests -v`
   -> 26 tests, tous verts.
-- `npx tsc --noEmit` sur `packages/xrpl/src` avec `xrpl@5.2.0` installe
-  a titre de verification (hors depot, pas de lockfile ajoute) -> aucune
-  erreur de type.
+- `npx tsc -p packages/xrpl/tsconfig.json --noEmit` avec le
+  `typescript@^5.6.3` reellement installe par le workspace racine (pas
+  une copie isolee) -> aucune erreur de type.
+- `npm run ci` a la racine apres le merge de main -> les 38 tests de
+  Samet restent verts, `scripts/scan-secrets.sh` ne trouve rien.
 - Transactions reseau listees ci-dessus, chacune avec son hash et son
   lien d'explorateur dans `docs/progress/augustin/evidence/`, y compris
-  le cycle de pret complet dans `a3-loan-full-cycle.json`.
+  le cycle de pret complet (`a3-loan-full-cycle.json`) et le cycle
+  Credentials/Domains complet (`a4-credentials-domains-full-cycle.json`).
 
 ## Prochain lot pret
 
-A3 P0 est maintenant complet (vault, depot, courtier, pret accepte,
-remboursement, retrait avec rendement, tous reels et valides).
-Prochaine priorite : demarrer A4 (Credentials/Domains) des qu'un compte
-emetteur de test est disponible, en coordination avec S5 (Samet) pour
-l'eligibilite applicative. En parallele, obtenir la confirmation
-mentor sur le statut V1 du reseau (seul point A1 encore ouvert).
+A1 (sauf confirmation mentor), A2, A3 et A4 P0 sont maintenant
+complets et verifies reellement. Ce qui reste explicitement cote
+Augustin : re-tester `bindDomainToVault` sur un vault deja existant
+(voie `VaultSet`, pas encore exercee) ; A6 (P1, sponsoring/DID) si le
+temps le permet apres coordination S4/S5/K3 avec Samet et Kevin. Sinon,
+prochaine etape naturelle est la revue croisee avec Samet (branchement
+reel de `packages/xrpl` derriere les ports de `packages/application/`)
+et avec Kevin (contrat wallet WAL-01) plutot que du nouveau travail
+reseau solo.

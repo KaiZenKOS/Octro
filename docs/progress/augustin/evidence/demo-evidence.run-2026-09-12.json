@@ -1,6 +1,6 @@
 {
   "spec_version": "2.2",
-  "status": "lending_v1_full_cycle_run_2026-09-12",
+  "status": "lending_v1_and_credentials_domains_full_cycle_run_2026-09-12",
   "commit": null,
   "network_snapshot": {
     "network": "custom-hackathon-devnet",
@@ -110,30 +110,33 @@
     },
     {
       "id": "credential_denied",
-      "status": "not_run",
-      "tx_hash": null,
-      "validated": null,
-      "result_code": null,
-      "explorer_url": null,
-      "evidence_refs": []
+      "status": "validated",
+      "tx_hash": "90A5F036BBF4826EA6629B951AE997E6CFE327F7234B6A34590D39692EE1B81C",
+      "validated": true,
+      "result_code": "tecNO_AUTH",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/90A5F036BBF4826EA6629B951AE997E6CFE327F7234B6A34590D39692EE1B81C",
+      "evidence_refs": ["a4-credentials-domains-full-cycle.json"],
+      "note": "VaultDeposit from a subject with no credential into a private, domain-gated vault (DomainID lives on the vault's share MPTokenIssuance, confirmed via vault_info)."
     },
     {
       "id": "credential_accepted",
-      "status": "not_run",
-      "tx_hash": null,
-      "validated": null,
-      "result_code": null,
-      "explorer_url": null,
-      "evidence_refs": []
+      "status": "validated",
+      "tx_hash": "21276C9FDAC274E608BAA1F7BE3AD86C2EC9D5EC33846B9658AC2EC733E6403D",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/21276C9FDAC274E608BAA1F7BE3AD86C2EC9D5EC33846B9658AC2EC733E6403D",
+      "evidence_refs": ["a4-credentials-domains-full-cycle.json"],
+      "note": "Same VaultDeposit retried after CredentialCreate (tesSUCCESS) + CredentialAccept (tesSUCCESS) from the matching issuer/type. Full sequence in the evidence file."
     },
     {
       "id": "credential_expired_redemption",
-      "status": "not_run",
-      "tx_hash": null,
-      "validated": null,
-      "result_code": null,
-      "explorer_url": null,
-      "evidence_refs": []
+      "status": "validated",
+      "tx_hash": "8B944426DDC45E2B1E8B4D62125BCEA904DB0D0CC49837DBDC5CCE8AF601043F",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/8B944426DDC45E2B1E8B4D62125BCEA904DB0D0CC49837DBDC5CCE8AF601043F",
+      "evidence_refs": ["a4-credentials-domains-full-cycle.json"],
+      "note": "After the credential's Expiration passed, a NEW VaultDeposit was denied (tecEXPIRED, kept in the evidence file), but VaultWithdraw of the EXISTING shares from the earlier accepted deposit still succeeded: exit rights are not blocked by an expired entry credential."
     },
     {
       "id": "sponsorship_success",
