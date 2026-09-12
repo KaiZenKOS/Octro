@@ -13,13 +13,22 @@
   "sdk_version": "5.2.0",
   "ledger_verified": true,
   "g0_evidence_ref": "docs/progress/augustin/evidence/g0-network-and-payment.json",
+  "checked_at": "2026-09-12T15:13:52Z",
   "capabilities": {
-    "lending_v1": "verified_full_cycle_vault_deposit_broker_loan_accept_repay_withdraw_with_yield",
+    "lending_v1": "verified",
     "single_asset_vault": "verified",
-    "credentials": "verified_deny_then_accept_then_expire",
-    "permissioned_domains": "verified_vault_gating_via_share_mpt_domain_id",
-    "sponsorship": "verified_sp0_fee_sponsorship_via_prefunded_sponsor",
-    "did": "verified_publish_resolve_wrong_network_and_wrong_signer_rejected"
+    "credentials": "verified",
+    "permissioned_domains": "verified",
+    "sponsorship": "verified",
+    "did": "verified"
+  },
+  "capability_notes": {
+    "lending_v1": "full cycle: vault, deposit, broker, coordinated loan accept, repay, withdraw with real accrued yield — docs/progress/augustin/evidence/a3-loan-full-cycle.json, a3-multipayment-schedule.json",
+    "single_asset_vault": "VaultCreate/VaultDeposit/VaultWithdraw/VaultSet all verified — docs/progress/augustin/evidence/a3-vault-broker-loanset-attempt.json, a4-vaultset-domain-binding.json",
+    "credentials": "deny without attestation, accept with attestation, deny again after expiration — docs/progress/augustin/evidence/a4-credentials-domains-full-cycle.json",
+    "permissioned_domains": "vault-gating verified both at VaultCreate time and via VaultSet on an existing private vault (public vault refused with tecNO_PERMISSION) — docs/progress/augustin/evidence/a4-credentials-domains-full-cycle.json, a4-vaultset-domain-binding.json",
+    "sponsorship": "SP0: native fee sponsorship confirmed by balance deltas (sponsor paid the fee, sponsee paid none) — docs/progress/augustin/evidence/a6-sponsorship-sp0.json. Applicative budget/policy (SPON-02/03) is Samet's S7, not covered here",
+    "did": "publish, resolve, wrong-network replay and wrong-signer replay both rejected — docs/progress/augustin/evidence/a6-did-resolution-and-replay.json"
   },
   "primary_loaded": [
     "credentials",

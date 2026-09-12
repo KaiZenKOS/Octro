@@ -326,16 +326,80 @@ adaptateur ne fait que publier/resoudre.
 `packages/xrpl/src/did.ts` (nouveau) implemente `publishDid` et
 `resolveDid` sur cette base verifiee.
 
+## Integration reelle proposee : `NetworkCapabilitiesPort` (pas une modification du fichier de Samet)
+
+`main` a beaucoup avance depuis A6 : S1/S2 de Samet fusionnes,
+K1-K6 de Kevin (dont un vrai K3 wallet d'apres `docs/progress/kevin.md`),
+`packages/agents`/`packages/mcp` ajoutes. `packages/xrpl` est desormais
+reference par le `tsconfig.json` racine et compile dans le graphe
+complet (`npm run build`/`npm run ci` integralement verts, toutes les
+suites de tests du monorepo comprises).
+
+En inspectant `packages/application/src/ports/network-capabilities-port.ts`,
+son propre commentaire dit : « L'adaptateur reel interroge XRPL apres
+G0 (Augustin, A1) ». C'est desormais possible pour de vrai : ce port
+attend un objet `NetworkCapabilities` (`@octro/contracts`) dont le champ
+`capabilities` est un enum strict `verified | unverified | unsupported`
+— mes valeurs precedentes dans `docs/v2.2/hackathon.config.json`
+(chaines descriptives comme `"verified_full_cycle_..."`) ne validaient
+PAS ce schema. Corrige : `capabilities` porte desormais l'enum strict,
+le detail descriptif est deplace dans un nouveau champ
+`capability_notes` (avec reference au fichier de preuve exact pour
+chaque capacite), et un `checked_at` reel est ajoute.
+
+Ajoute `packages/xrpl/src/contract-network-capabilities.ts` :
+`toContractNetworkCapabilities()` (mapping pur) et
+`loadVerifiedNetworkCapabilitiesFromFile()` (lit et valide
+`docs/v2.2/hackathon.config.json` contre `NetworkCapabilitiesSchema`,
+echoue fort plutot que silencieusement si le format derive). Verifie
+reellement : execute contre le vrai fichier du depot, retourne un objet
+valide (`network_id: 4001`, `sdk_version: "5.2.0"`, `ledger_verified:
+true`, les six capacites a `"verified"`, `checked_at` reel).
+
+**Proposition precise pour Samet** (pas une ecriture dans son fichier) :
+dans `apps/api/src/composition.ts`, remplacer
+
+```ts
+const capabilities = new StaticNetworkCapabilitiesAdapter(UNVERIFIED_HACKATHON_CAPABILITIES);
+```
+
+par
+
+```ts
+import { loadVerifiedNetworkCapabilitiesFromFile } from "@octro/xrpl";
+const capabilities = new StaticNetworkCapabilitiesAdapter(
+  loadVerifiedNetworkCapabilitiesFromFile(
+    path.resolve(import.meta.dirname, "../../../docs/v2.2/hackathon.config.json")
+  )
+);
+```
+
+`StaticNetworkCapabilitiesAdapter` n'a besoin d'aucun changement : il
+retourne deja tel quel l'objet `NetworkCapabilities` qu'on lui passe au
+constructeur. Effet sur les consommateurs : `ApproveFinancingActionUseCase`
+(et `isCapabilityUsable`) verraient alors les capacites reellement
+verifiees au lieu de l'etat `unverified` fige — exactement ce que
+`NET-02` demande une fois G0 (et maintenant A2-A6) fait, sans jamais
+fabriquer un succes.
+
+`OptimizerPort.forecastPersonal` n'a pas d'equivalent propose : sa
+forme (`Projection`, marche de solde deterministe) ne correspond pas a
+la sortie de mon moteur A2 (`NoDebtPlan`/`NoDebtDiagnostic`, une
+decision d'action, pas une marche de solde). Brancher reellement A2
+demande soit un nouveau port cote application (proposition a faire a
+Samet avec champs precis, pas une reecriture unilaterale), soit un
+appel du Python depuis Node — non fait ici, notee comme prochaine
+etape de coordination plutot que resolue seule.
+
 ## Ce qui est reellement bloque
 
 - **Humain requis** : confirmation mentor que le reseau reste V1 pour
   les nouveaux prets (G0, chapitre 16). Seul point technique encore
   ouvert sur l'ensemble A1-A6.
-- **Dependance externe, hors perimetre Augustin** : le port de calcul
-  reel depuis `packages/application/` (S3, Samet), le contrat wallet
-  avec Kevin (K3, pas encore demarre cote Kevin d'apres
-  `docs/progress/kevin.md`), l'eligibilite emprunteur applicative (S5,
-  Samet, LOAD-02) et le budget/plafond de sponsoring applicatif
+- **Dependance externe, hors perimetre Augustin** : le vrai branchement
+  d'`OptimizerPort` a A2 (necessite une decision de contrat cote
+  Samet, pas juste un adaptateur), l'eligibilite emprunteur applicative
+  (S5, Samet, LOAD-02) et le budget/plafond de sponsoring applicatif
   (SPON-02/03, Samet, S7).
 - **Reste, priorite basse, non bloquant** : `tfLoanFullPayment` avec le
   montant non arrondi exact (A3) ; multiples emetteurs/types sur un
@@ -349,8 +413,13 @@ adaptateur ne fait que publier/resoudre.
   `package.json` suit la convention des paquets freres, imports
   relatifs en `.js` pour la resolution `NodeNext`)
 - `docs/v2.2/hackathon.config.json` (champs G0 puis capacites
-  Credentials/Domains/Lending V1/Sponsorship/DID completes, structure
-  et decisions de perimetre inchangees)
+  Credentials/Domains/Lending V1/Sponsorship/DID completes ; ensuite
+  corrige pour respecter l'enum strict de `NetworkCapabilitiesSchema`
+  de Samet, detail deplace dans `capability_notes`, `checked_at`
+  ajoute — structure et decisions de perimetre inchangees)
+- `packages/xrpl/src/contract-network-capabilities.ts` (nouveau) :
+  mapping reel vers `@octro/contracts`, propose a Samet pour
+  `apps/api/src/composition.ts` (aucun fichier de Samet modifie)
 - `docs/progress/augustin.md` (ce fichier) et
   `docs/progress/augustin/evidence/*.json` (preuves reseau reelles,
   sans secret)
@@ -362,8 +431,18 @@ adaptateur ne fait que publier/resoudre.
 - `npx tsc -p packages/xrpl/tsconfig.json --noEmit` avec le
   `typescript@^5.6.3` reellement installe par le workspace racine (pas
   une copie isolee) -> aucune erreur de type.
-- `npm run ci` a la racine apres le merge de main -> les 38 tests de
-  Samet restent verts, `scripts/scan-secrets.sh` ne trouve rien.
+- `npm run ci` a la racine apres le merge de main (S1/S2 Samet + K1-K6
+  Kevin + agents/mcp) -> `npm run build` et les 5 suites de tests de
+  l'ensemble du monorepo restent vertes.
+- `loadVerifiedNetworkCapabilitiesFromFile()` execute reellement contre
+  le vrai `docs/v2.2/hackathon.config.json` du depot -> objet
+  `NetworkCapabilities` valide selon `NetworkCapabilitiesSchema` de
+  Samet (verifie par `zod.parse`, pas seulement par inspection).
+- `scripts/scan-secrets.sh` : signale toujours les memes faux positifs
+  preexistants sur des hash `sha512-...` d'integrite npm dans
+  `package-lock.json` (deja presents sur `main` avant ce lot, non
+  introduits ici — signale a Samet separement, fichier hors perimetre
+  Augustin).
 - Transactions reseau listees ci-dessus, chacune avec son hash et son
   lien d'explorateur dans `docs/progress/augustin/evidence/`, y compris
   le cycle de pret complet (`a3-loan-full-cycle.json`), le calendrier
