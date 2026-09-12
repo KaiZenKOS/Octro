@@ -844,22 +844,52 @@ function ImportPreview() {
 function Diagnostic() { const { t, persona, setState } = useSession(); return <><Title>{t('Aucune solution compatible', 'No compatible solution')}</Title><Card><Icon name="shield" color={c.warning} size={32}/><Heading>{persona === 'organization' ? t('Le besoin dépasse la capacité', 'The need exceeds capacity') : t('Votre réserve reste protégée', 'Your reserve remains protected')}</Heading><T>{persona === 'organization' ? t('Besoin : 90 000 €. Plafond : 80 000 €. Résultat de référence : INFEASIBLE.', 'Need: €90,000. Limit: €80,000. Reference result: INFEASIBLE.') : t('Avec 300 € d’épargne protégée, le scénario Lina fourni ne permet pas de solution sans dette.', 'With €300 of protected savings, the supplied Lina scenario has no debt-free solution.')}</T><Note>{t('Diagnostic de démonstration fourni, sans nouvelle action financière. Aucune réserve n’est réduite.', 'Provided demonstration diagnostic, without a new financial action. No reserve is reduced.')}</Note><Button onPress={() => { setState('ready'); router.push('/sources'); }}>{t('Vérifier les données', 'Check data')}</Button></Card></>; }
 function Audience() { const { t, persona, setPersona } = useSession(); if (persona === 'independent') return <IndependentScreen />; if (persona === 'organization') return <OrganizationScreen />; return <Button variant="secondary" onPress={() => { setPersona('personal'); router.push('/'); }}>{t('Revenir à Lina', 'Return to Lina')}</Button>; }
 export function Screen({ screen }: {
-    screen: string;
+    screen?: string;
 }) {
-    const { state, setState, persona, t } = useSession();
+    const { state, setState, persona, isOnline, t } = useSession();
     const query = useClientData();
+
+    // Robust route normalization: strips leading/trailing slashes and handles undefined/empty/home/index
+    const raw = (screen ? String(screen).trim().toLowerCase().replace(/^\/+/, '').replace(/\/+$/, '') : '');
+    const activeScreen = (!raw || raw === 'index' || raw === 'home' || raw === 'accueil' || raw === '[screen]') ? 'home' : raw;
+
     if (state === 'loading' || query.isPending)
         return <><Title>{t('Chargement', 'Loading')}</Title><Card><ActivityIndicator color={c.accent}/><T accessibilityLiveRegion="polite">{t('Chargement des données…', 'Loading data…')}</T>{state === 'loading' && <Button variant="secondary" onPress={() => setState('ready')}>{t('Terminer l’aperçu de chargement', 'Finish loading preview')}</Button>}</Card></>;
     if (state === 'error' || query.isError)
         return <><Title>{t('Données indisponibles', 'Data unavailable')}</Title><Card><T accessibilityRole="alert">{t('Impossible de charger les données. Aucun solde n’a été modifié.', 'Could not load data. No balance has changed.')}</T><Button onPress={() => { setState('ready'); void query.refetch(); }}>{t('Réessayer', 'Try again')}</Button></Card></>;
     if (state === 'empty')
         return <><Title>{t('Commençons simplement.', 'Let’s start simply.')}</Title><Card><T>{t('Aucune donnée dans cet aperçu. Ajoutez une échéance ou découvrez le scénario de Lina, sans wallet ni compte bancaire connecté.', 'No data in this preview. Add a due date or explore Lina’s scenario, without a wallet or connected bank account.')}</T><Button onPress={() => { setState('ready'); router.push('/add'); }}>{t('Ajouter une échéance', 'Add a due date')}</Button><Button variant="secondary" onPress={() => setState('ready')}>{t('Découvrir avec Lina', 'Explore with Lina')}</Button></Card></>;
-    if (persona !== 'personal' && (screen === 'home' || !screen))
+    if (persona !== 'personal' && activeScreen === 'home')
         return <Audience />;
-    if (state === 'no-solution' && ['proposal', 'calendar', 'home'].includes(screen))
+    if (state === 'no-solution' && ['proposal', 'calendar', 'home'].includes(activeScreen))
         return <Diagnostic />;
-    const pages: Record<string, React.ReactNode> = { home: <Home />, calendar: <Calendar />, sources: <Sources />, proposal: <Proposal />, tracking: <Tracking />, options: <Options />, add: <AddEvent />, import: <ImportPreview /> };
-    return <>{state === 'stale' && <Notice title={t('Données anciennes', 'Outdated data')}>{t('Référence synthétique : 12 septembre 2026. Consultation uniquement ; actualisation réelle non raccordée.', 'Synthetic reference: September 12, 2026. Viewing only; live refresh is not connected.')}</Notice>}{state === 'unavailable' && <Notice title={t('Capacité financière indisponible', 'Financial capability unavailable')}>{t('La prévision reste accessible sans wallet, DID, KYC ou crédit.', 'Forecasting remains available without a wallet, DID, KYC or credit.')}</Notice>}{pages[screen] ?? <><Title>{t('Page introuvable', 'Page not found')}</Title><Button onPress={() => router.replace('/')}>{t('Retour à l’accueil', 'Back home')}</Button></>}</>;
+
+    const pages: Record<string, React.ReactNode> = {
+        home: <Home />,
+        calendar: <Calendar />,
+        sources: <Sources />,
+        proposal: <Proposal />,
+        tracking: <Tracking />,
+        options: <Options />,
+        add: <AddEvent />,
+        import: <ImportPreview />
+    };
+
+    const content = pages[activeScreen] ?? <Home />;
+
+    return <>
+        {!isOnline && (
+            <Notice title={t('Mode hors-ligne actif', 'Offline mode active')} tone="warning">
+                {t(
+                    'TanStack Query opère sur le cache local. Vos prévisions et simulations restent entièrement fonctionnelles sans connexion internet (PER-11, NET-02).',
+                    'TanStack Query is operating from local cache. Your forecasts and simulations remain fully functional without an internet connection (PER-11, NET-02).'
+                )}
+            </Notice>
+        )}
+        {state === 'stale' && <Notice title={t('Données anciennes', 'Outdated data')}>{t('Référence synthétique : 12 septembre 2026. Consultation uniquement ; actualisation réelle non raccordée.', 'Synthetic reference: September 12, 2026. Viewing only; live refresh is not connected.')}</Notice>}
+        {state === 'unavailable' && <Notice title={t('Capacité financière indisponible', 'Financial capability unavailable')}>{t('La prévision reste accessible sans wallet, DID, KYC ou crédit.', 'Forecasting remains available without a wallet, DID, KYC or credit.')}</Notice>}
+        {content}
+    </>;
 }
 const s = StyleSheet.create({
     title: { fontSize: 28, lineHeight: 36, letterSpacing: -0.8, fontFamily: tokens.font.regular },

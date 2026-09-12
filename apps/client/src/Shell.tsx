@@ -24,12 +24,13 @@ export function Shell({ children }: {
 }) {
     const desktop = useDesktop();
     const path = usePathname();
-    const { language, setLanguage, t, state, setState, persona, setPersona } = useSession();
+    const { language, setLanguage, t, state, setState, persona, setPersona, isOnline } = useSession();
     const [settings, setSettings] = useState(false);
     const [walletOpen, setWalletOpen] = useState(false);
     const [agentOpen, setAgentOpen] = useState(false);
     const scroll = useRef<ScrollView>(null);
-    const activePath = ['/proposal', '/options'].includes(path) ? '/calendar' : ['/add', '/import'].includes(path) ? '/sources' : path;
+    const normalizedPath = (!path || path === '/' || path === '/home' || path === '/index') ? '/' : path;
+    const activePath = ['/proposal', '/options'].includes(normalizedPath) ? '/calendar' : ['/add', '/import'].includes(normalizedPath) ? '/sources' : normalizedPath;
 
     useEffect(() => {
         scroll.current?.scrollTo({ y: 0, animated: false });
@@ -106,7 +107,23 @@ export function Shell({ children }: {
               <Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable>
             </View>
           </View>}
-          <View style={s.demoBar}><Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.demoTag}><View style={s.dot}/><T style={s.tiny}>{t('Données synthétiques', 'Synthetic data')}</T></Pressable><Pressable onPress={() => setLanguage(language === 'fr' ? 'en' : 'fr')} accessibilityRole="button" accessibilityLabel={t('Passer en anglais', 'Switch to French')} style={s.language}><T style={s.tiny}>{language.toUpperCase()} ↗</T></Pressable></View>
+          <View style={s.demoBar}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.demoTag}>
+                <View style={s.dot}/>
+                <T style={s.tiny}>{t('Données synthétiques', 'Synthetic data')}</T>
+              </Pressable>
+              {!isOnline && (
+                <View style={[s.demoTag, { backgroundColor: '#382B2E', paddingHorizontal: 6, borderRadius: 6 }]}>
+                  <View style={[s.dot, { backgroundColor: tokens.color.warning }]} />
+                  <T style={[s.tiny, { color: tokens.color.warning }]}>{t('Hors-ligne (TanStack Cache)', 'Offline (TanStack Cache)')}</T>
+                </View>
+              )}
+            </View>
+            <Pressable onPress={() => setLanguage(language === 'fr' ? 'en' : 'fr')} accessibilityRole="button" accessibilityLabel={t('Passer en anglais', 'Switch to French')} style={s.language}>
+              <T style={s.tiny}>{language.toUpperCase()} ↗</T>
+            </Pressable>
+          </View>
           {children}
           <T style={[s.tiny, { marginTop: 32, color: tokens.color.muted }]}>{t('Démonstration · aucune connexion bancaire · aucun transfert exécuté', 'Demonstration · no bank connection · no executed transfer')}</T>
         </LinearGradient>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFixtureSource } from './data';
 import type { ClientDataSource } from './data';
@@ -14,6 +14,7 @@ type Session = {
     persona: 'personal' | 'independent' | 'organization';
     setPersona: (v: 'personal' | 'independent' | 'organization') => void;
     source: ClientDataSource;
+    isOnline: boolean;
     t: (fr: string, en: string) => string;
 };
 
@@ -23,15 +24,42 @@ export function SessionProvider({ children, source: provided }: {
     children: React.ReactNode;
     source?: ClientDataSource;
 }) {
-    const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }));
+    const [client] = useState(() => new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: 1,
+                staleTime: 1000 * 60 * 5,
+                gcTime: 1000 * 60 * 60 * 24,
+                networkMode: 'offlineFirst',
+                refetchOnWindowFocus: false,
+            },
+            mutations: {
+                retry: 0,
+                networkMode: 'offlineFirst',
+            },
+        },
+    }));
     const [source] = useState(() => provided ?? createFixtureSource());
     const [language, setLanguage] = useState<'fr' | 'en'>('fr');
     const [state, setState] = useState<DemoState>('ready');
     const [persona, setPersona] = useState<Session['persona']>('personal');
+    const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     return (
         <QueryClientProvider client={client}>
-            <Context.Provider value={{ language, setLanguage, state, setState, persona, setPersona, source, t: (fr, en) => language === 'fr' ? fr : en }}>
+            <Context.Provider value={{ language, setLanguage, state, setState, persona, setPersona, source, isOnline, t: (fr, en) => language === 'fr' ? fr : en }}>
                 {children}
             </Context.Provider>
         </QueryClientProvider>
