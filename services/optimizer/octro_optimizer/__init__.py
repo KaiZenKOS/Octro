@@ -1,6 +1,5 @@
-"""Octro deterministic financial engine (A2).
+"""Octro deterministic financial engine: no HTTP, LLM or XRPL SDK dependency."""
 
-Pure Python, no FastAPI, no LLM, no XRPL SDK dependency (AGENTS.md,
-docs/architecture.md). FastAPI or any other transport may call these
-functions; they must remain callable and testable on their own.
-"""
+from .projection import ENGINE_VERSION, calculate_personal_projection
+
+__all__ = ["ENGINE_VERSION", "calculate_personal_projection"]

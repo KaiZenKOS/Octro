@@ -2,7 +2,7 @@
 
 Octro est un produit de prévision et de coordination financière pour les **particuliers, indépendants et entreprises**, tous publics P0. Une application React Native et un moteur commun permettent de comprendre les échéances, préserver l'essentiel et comparer les actions possibles, y compris sans dette.
 
-**La v2.2 est la seule référence active de développement.** Ce dépôt contient actuellement la documentation et l'arborescence ; cet alignement ne livre aucun code applicatif ni résultat de test réseau.
+**La v2.2 est la seule référence active de développement.** Le dépôt contient maintenant un client, une API, un moteur Python, des packages métier/agents/MCP/XRPL, des tests et des preuves réseau de test. Le degré de raccordement et les limites vérifiées sont résumés dans l'[état d’implémentation](docs/implementation-status.md) ; les preuves réseau ne signifient pas que l’interface soumet des transactions.
 
 ## Références actives
 
@@ -22,7 +22,7 @@ Les [archives v2.0](docs/archive/v2.0/) servent uniquement à l'historique. **Le
 | Trois parcours : personnel, indépendant, organisation | UI-01, PER-10 |
 | Track 1 Loaded, Lending Protocol V1, vault ouvert | HACK-01, HACK-02, HACK-03 |
 | Credentials et Permissioned Domains : extension Loaded principale P0 | LOAD-01, LOAD-02, LOAD-03 |
-| Sponsoring P1, désactivé jusqu'à vérification des capacités réseau et réussite de SP0 | SPON-01, SPON-02, SPON-03 |
+| SP0 de sponsoring natif observé ; politique et budgets applicatifs encore à livrer | SPON-01, SPON-02, SPON-03 |
 | DID facultatif P1, distinct de l'éligibilité | DID-01, DID-02 |
 
 Une capacité financière indisponible ne bloque pas les prévisions. L'IA explique des résultats structurés ; elle ne calcule pas les montants de référence, ne signe pas et ne soumet pas de transactions (UI-02, AGT-02, AGT-03, MCP-02).
@@ -42,15 +42,15 @@ Une capacité financière indisponible ne bloque pas les prévisions. L'IA expli
 | `packages/ui/` | Composants et tokens d'interface |
 | `infra/`, `fixtures/`, `tests/`, `docs/` | Déploiement, données synthétiques, vérifications et documentation |
 
-PostgreSQL, S3, Stripe Identity et XRPL sont des adaptateurs derrière les ports applicatifs. API, workers et MCP n'implémentent pas de chemins métier ou d'autorisation parallèles. FastAPI est une enveloppe de transport éventuelle du calcul Python, pas le moteur de calcul. Voir les [dépendances autorisées](docs/architecture.md).
+L’API et l’interface sont raccordées au moteur Python pour la projection personnelle. Les données API sont encore en mémoire ; les utilitaires PostgreSQL existent mais ne sont pas injectés dans la composition API observée. S3, Stripe Identity et l’exécution XRPL ne sont pas des raccordements produit livrés. Fastify transporte les cas d’usage TypeScript ; le processus d’optimisation Python reste distinct. Voir les [frontières et l’état réel](docs/architecture.md) et la [note d’implémentation](docs/implementation-status.md).
 
 ## État réseau et preuves
 
-Le pack fixe le Custom Hackathon Devnet pour le Track 1 V1. Les adresses publiques et les capacités attendues sont dans [hackathon.config.json](docs/v2.2/hackathon.config.json). `network_id` et la version exacte du SDK restent `null`, `ledger_verified` reste `false` et les capacités restent `unverified` : cet alignement documentaire ne réalise ni G0, ni SP0, ni transaction.
+Le registre de configuration relève le Custom Hackathon Devnet Track 1, `network_id: 4001`, SDK `xrpl` `5.2.0`, ledger observé et capacités indiquées vérifiées. G0 et un Payment validé sont documentés dans [g0-network-and-payment.json](docs/progress/augustin/evidence/g0-network-and-payment.json). La confirmation mentor de V1 est encore marquée manquante dans le registre de démo. Les pièces prouvent des essais XRPL de test, pas un raccordement d’exécution dans l’application.
 
 Le chapitre 16 du CDC énumère les transactions candidates du parcours : `VaultCreate`, `VaultDeposit`, `LoanBrokerSet`, `LoanBrokerCoverDeposit` si applicable, `LoanSet`, `LoanPay`, `VaultWithdraw`. Le mapping exact doit être observé sur la V1 et la version SDK stable verrouillée après smoke test. La liste n'est pas une déclaration d'intégration réussie. Ne pas inventer une transaction `Drawdown` ; constater le décaissement dans les effets ledger.
 
-Le [registre de preuves](docs/v2.2/demo-evidence.template.json) reste un modèle non exécuté. Les [données personnelles d'exemple](docs/v2.2/personal.fixture.json) sont synthétiques et ne constituent pas des preuves réseau. Les rapports DevEx doivent provenir des observations réelles des développeurs (DEVEX-01, DEVEX-02, EVID-01).
+Le [cycle de prêt et le retrait avec rendement](docs/progress/augustin/evidence/a3-loan-full-cycle.json), le [cycle Credentials/Domains](docs/progress/augustin/evidence/a4-credentials-domains-full-cycle.json), le [SP0 sponsoring](docs/progress/augustin/evidence/a6-sponsorship-sp0.json) et le [test DID](docs/progress/augustin/evidence/a6-did-resolution-and-replay.json) ont des fichiers d’observation distincts. Le [registre template](docs/v2.2/demo-evidence.template.json) reste un modèle vierge ; les [données Lina](docs/v2.2/personal.fixture.json) restent synthétiques. Les rapports DevEx doivent provenir des observations réelles des développeurs (DEVEX-01, DEVEX-02, EVID-01).
 
 ## Contrats et préparation du développement
 
@@ -58,4 +58,27 @@ Le [schéma de proposition](docs/v2.2/plan.schema.json) et son [exemple](docs/v2
 
 Chaque tâche doit citer les identifiants existants de [requirements.json](requirements.json), leur priorité, propriétaire et critère d'acceptation. Les invariants, paramètres et exigences proviennent du pack ; seuls les chemins `normative_files` du manifeste racine sont adaptés au dépôt. Sa [copie originale](docs/v2.2/requirements.json) reste inchangée.
 
-Il n'existe pas encore de commande de lancement applicatif ni de lockfile validé à annoncer. Les versions exactes, contrats OpenAPI et procédures de lancement seront ajoutés lors de leur implémentation et vérification. Aucun secret, seed, identité de capture, code d'invitation ou réglage personnel ne doit entrer dans le dépôt.
+## Installation et vérifications
+
+Avec Node.js et Python installés, depuis la racine :
+
+```powershell
+npm ci
+npm run ci
+```
+
+Pour la démo web, lancer d’abord l’API dans un terminal, puis Expo dans un autre :
+
+```powershell
+npm run dev --workspace @octro/api
+$env:EXPO_PUBLIC_API_URL="http://localhost:3000"
+npm run start --workspace @octro/client -- --port 8082 --offline
+```
+
+Ou lancer les deux images vérifiées ensemble ; Nginx relaie alors `/api` vers le service API sans figer une adresse `localhost` dans le bundle :
+
+```powershell
+docker compose up --build
+```
+
+Les projections actuelles portent sur des données déclarées/synthétiques et le client présente les transactions XRPL en replay lecture seule. Les détails d’exécution et les critères ouverts sont dans [docs/implementation-status.md](docs/implementation-status.md). Aucun secret, seed, identité de capture, code d’invitation ou réglage personnel ne doit entrer dans le dépôt.

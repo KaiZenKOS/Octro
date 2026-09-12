@@ -1,45 +1,34 @@
-# services/optimizer — A2 moteur financier (Augustin)
+# Optimiseur Python Octro
 
-Calcul deterministe pur Python, sans FastAPI, sans LLM, sans SDK XRPL
-(voir `docs/architecture.md`). Zero dependance tierce : `Decimal` de la
-stdlib pour tous les montants (`DATA-03`), `unittest` pour les tests.
+Calcul financier déterministe séparé de Fastify, du LLM et du SDK XRPL (`ARCH-LOAD-01`). Les montants manipulés par le moteur sont des chaînes décimales converties en `Decimal`; un `float` est refusé (`DATA-03`). Le transport avec l’API est un processus ponctuel JSON sur stdin/stdout, sans serveur HTTP ni dépendance tierce. Le port Node borne l’exécution à cinq secondes.
+
+## Projection personnelle raccordée
+
+`octro_optimizer.projection` calcule les points quotidiens attendus et confirmés, puis appelle le moteur personnel sans dette. Le contrat partagé avec l’API renvoie l’un des résultats suivants :
+
+- `FEASIBLE` : projection plus `action_plan` structuré, par exemple un transfert de fonds propres après réserve protégée (`PER-01`, `PER-02`).
+- `INFEASIBLE` : projection plus diagnostic et contraintes bloquantes, sans action financière (`ENG-04`, `PER-05`).
+
+Ce chemin couvre actuellement le scénario personnel quotidien. Les parcours professionnels à 72 heures, l’allocation multi-prêteurs et un LP/MPC/CVaR complet ne sont pas raccordés à l’API. `financing.py` compare des financements selon ses règles locales ; sa présence ne prouve ni calcul contractuel XLS-66, ni financement XRPL exécuté, ni calcul de production (`ENG-01` à `ENG-05`).
 
 ## Modules
 
-- `octro_optimizer/money.py` — arrondi decimal explicite, jamais de float.
-- `octro_optimizer/personal_engine.py` — `ENG-01`, `ENG-02`, `PER-01`,
-  `PER-02`, `PER-05` : plan personnel sans dette sur 30 jours a partir
-  d'un snapshot type `docs/v2.2/personal.fixture.json`. Retourne soit un
-  `NoDebtPlan` (transfert de fonds propres ou `no_action`), soit un
-  `NoDebtDiagnostic` quand la reserve protegee ne peut pas etre honoree
-  sans dette — jamais les deux, jamais une action inventee.
-- `octro_optimizer/cvar.py` — `ENG-03` : CVaR_alpha sur un ensemble de
-  scenarios explicites (formulation de Rockafellar-Uryasev, forme
-  fermee pour un ensemble discret).
-- `octro_optimizer/financing.py` — `ENG-04`, `ENG-05` : comparaison de
-  financement (allocation au cout marginal croissant, borne par plafond)
-  et suivi de dette terminale apres l'horizon (aucune dette n'est
-  supprimee a l'issue de l'horizon).
-- `octro_optimizer/schema.py` — construit/valide un
-  `OctroActionPlanProposal` (`docs/v2.2/plan.schema.json`,
-  `schema_version: "2.1"`, `execution_mode: "proposal_only"`) sans
-  dependance a `jsonschema`.
+- `octro_optimizer/money.py` : coercition, précision et arrondis explicites ; refuse `float`.
+- `octro_optimizer/personal_engine.py` : plan personnel sans dette ou diagnostic, sans action inventée.
+- `octro_optimizer/projection.py` : projection normalisée et appel au moteur personnel.
+- `octro_optimizer/cli.py` : point d’entrée JSON consommé par `PythonOptimizerAdapter` de l’API.
+- `octro_optimizer/cvar.py` : calcul déterministe CVaR pour une distribution discrète explicite ; pas encore intégré au parcours API.
+- `octro_optimizer/financing.py` : comparaison simplifiée de financement et suivi de dette terminale ; pas un adapter XLS-66.
+- `octro_optimizer/schema.py` : construction/validation du contrat historique `proposal_only` de `schema_version: "2.1"` conservé dans le pack v2.2.
 
-## Lancer les tests
+Les fixtures officielles se trouvent dans [`docs/v2.2/personal.fixture.json`](../../docs/v2.2/personal.fixture.json) et [`docs/v2.2/plan.example.json`](../../docs/v2.2/plan.example.json). Elles servent aux tests ; elles ne sont pas des observations ledger. Le contrat actif de projection est dans [`packages/contracts`](../../packages/contracts/src/projection-result.ts).
 
-```sh
-cd services/optimizer
-python3 -m unittest discover -s tests -v
+## Tester
+
+Depuis ce répertoire :
+
+```powershell
+python -m unittest discover -s tests -v
 ```
 
-Les tests chargent directement `docs/v2.2/personal.fixture.json` et
-`docs/v2.2/plan.example.json` : ce sont les fixtures et le schema du
-pack, jamais une copie divergente.
-
-## Ce qui reste hors de ce lot
-
-- Le raccordement transport (FastAPI) et son integration a
-  `packages/application/` restent a S1/S3 (Samet).
-- Les horizons professionnels (72h, evenements ordonnes multi-preteurs)
-  et l'appel reel au port de calcul depuis l'application ne sont pas
-  couverts par ces tests ; voir `docs/progress/augustin.md`.
+Pour la vérification complète du monorepo, lancer `npm run ci` depuis la racine ; voir l’[état d’implémentation](../../docs/implementation-status.md) pour les raccordements et critères non livrés.

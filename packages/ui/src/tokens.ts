@@ -1,11 +1,32 @@
-/** Pencil theme; keeps the v2.2 minimum body size and 8 px spacing grid. */
+/** Octro v2.2 design tokens: warm editorial surfaces with semantic state colors. */
 export const tokens = {
     color: {
-        bg: '#0D0C12', surface: '#211D22', raised: '#30282E', border: '#4D434B',
-        text: '#FBFAFC', muted: '#BEB4BC', accent: '#E7DEDA', success: '#D8E78C',
-        warning: '#EDB18D', error: '#F39A98', button: '#FAF9FB', buttonText: '#141118',
+        canvas: '#F5F2E8',
+        bg: '#F5F2E8',
+        surface: '#FFFEF9',
+        raised: '#ECE9DC',
+        border: '#D9D7C9',
+        text: '#20271F',
+        muted: '#596257',
+        accent: '#304B35',
+        accentSoft: '#E7EBDD',
+        success: '#304B35',
+        warning: '#755022',
+        error: '#8C3329',
+        earth: '#9F3F31',
+        matcha: '#B8C98A',
+        button: '#304B35',
+        buttonText: '#FFFEF9',
+        focus: '#456C4C',
+        overlay: 'rgba(21, 29, 22, 0.48)',
     },
-    font: { regular: 'Inter_400Regular', medium: 'Inter_500Medium', semibold: 'Inter_600SemiBold' },
+    font: {
+        regular: 'Inter_400Regular',
+        medium: 'Inter_500Medium',
+        semibold: 'Inter_600SemiBold',
+        display: 'Georgia',
+    },
     space: { xs: 8, sm: 16, md: 24, lg: 32, xl: 48 },
-    radius: { control: 18, card: 24, pill: 999 },
+    radius: { control: 14, card: 20, pill: 999 },
+    motion: { fast: 160, standard: 220, curve: 'cubic-bezier(0.2, 0.75, 0.25, 1)' },
 } as const;

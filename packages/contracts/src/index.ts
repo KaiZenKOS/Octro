@@ -7,6 +7,8 @@ export * from "./primitives.js";
 export * from "./workspace.js";
 export * from "./economic-event.js";
 export * from "./projection.js";
+export * from "./projection-result.js";
+export * from "./optimizer-result.js";
 export * from "./action-plan.js";
 export * from "./approval.js";
 export * from "./execution.js";

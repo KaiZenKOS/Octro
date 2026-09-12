@@ -2,6 +2,8 @@
 
 Cette décision précise les chapitres 9, 23 et 31 du [CDC v2.2](v2.2/Octro_CDC_v2.2.md), sans modifier le pack. Elle s'applique aux trois publics P0 et au Track 1 Loaded. Le [registre d'exigences](../requirements.json) reste inchangé sur ses IDs et critères ; `packages/application/` explicite la frontière entre règles métier et cas d'usage.
 
+Pour l'état réellement raccordé, les commandes et les critères encore ouverts, voir la [note d’implémentation](implementation-status.md). Cette décision décrit les frontières voulues ; un adaptateur présent dans l'arborescence n'implique pas qu'il soit actif dans la composition d'un service.
+
 ## Responsabilités et dépendances
 
 | Couche | Emplacement ou intégration | Responsabilité et limite |
@@ -15,7 +17,7 @@ Cette décision précise les chapitres 9, 23 et 31 du [CDC v2.2](v2.2/Octro_CDC_
 | Agents | `packages/agents/` | Orchestration bornée, appels autorisés et explication du plan ; aucune signature ou soumission. |
 | Contrats | `packages/contracts/` | Schémas partagés, distincts des modèles de persistance et des payloads natifs XRPL. |
 
-Le sens des dépendances est : entrées → application → domaine. Les adaptateurs implémentent les ports de l'application ; leur assemblage appartient à la composition des services, hors domaine. Les emplacements concrets des adaptateurs PostgreSQL, S3 et Stripe Identity seront définis lors de l'implémentation, sans créer ici de code ou de dépendances. Les adaptateurs XRPL se trouvent dans `packages/xrpl/` selon le pack.
+Le sens des dépendances est : entrées → application → domaine. Les adaptateurs implémentent les ports de l'application ; leur assemblage appartient à la composition des services, hors domaine. `packages/postgres/` contient maintenant les repositories/adapters PostgreSQL et l’outbox, avec une migration de schéma ; leur présence ne signifie pas qu’ils soient raccordés à toutes les compositions ni que PostgreSQL ait été démarré ou migré. S3 et Stripe Identity ne sont pas raccordés. Les adapters XRPL se trouvent dans `packages/xrpl/`; le statut de leur raccordement aux services est précisé dans la [note d’implémentation](implementation-status.md).
 
 FastAPI peut exposer le calcul Python par un transport interne. Les fonctions de calcul doivent pouvoir être appelées et testées sans démarrer FastAPI ni joindre un modèle. Le moteur reçoit des capacités normalisées et produit un plan ; l'application reste responsable des autorisations et de toute préparation financière.
 
@@ -47,4 +49,4 @@ Les flèches vers les adaptateurs illustrent les appels à l'exécution ; les d�
 - `DID-01`, `DID-02` : DID facultatif, séparé de l'éligibilité.
 - `XRP-03`, `EVID-01` : après résultat ambigu, réconcilier avant une nouvelle transaction ; aucune preuve synthétique présentée comme observation ledger.
 
-Les adaptateurs `lending-v1`, `credentials`, `domains`, `sponsorship` et `wallet-interface` décrits par le pack sont des frontières d'implémentation futures. Ce changement ajoute seulement `packages/application/.gitkeep` et de la documentation ; aucune intégration ni capacité réseau n'est déclarée opérationnelle.
+Le dépôt comprend maintenant des adaptateurs et contrats dans `packages/xrpl/`, une API TypeScript, une composition `packages/application/`, un client et un port qui appelle l'optimiseur Python. À l'état vérifié pour cette note, la composition API utilise encore des dépôts en mémoire ; son snapshot de capacités provient du fichier Track 1 validé, avec comportement fail-closed si le fichier manque ou n’est pas valide, sans contrôle RPC live. Les opérations XRPL ne sont pas exposées au client. Les capacités testées sur le Custom Devnet sont documentées séparément avec leurs preuves ; leur présence ne signifie pas qu'elles soient raccordées au parcours applicatif. Les limites exactes sont suivies dans la [note d’implémentation](implementation-status.md).

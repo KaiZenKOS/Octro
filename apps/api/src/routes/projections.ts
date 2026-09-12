@@ -1,41 +1,36 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { z } from "zod";
+import { ProjectionRequestSchema, TenantIdSchema } from "@octro/contracts";
 import type { AppDependencies } from "../composition.js";
 import { sendError } from "../http-errors.js";
 
 function requireTenantHeader(request: FastifyRequest, reply: FastifyReply): string | null {
-  const value = request.headers["x-dev-tenant-id"];
-  if (typeof value !== "string" || value.length === 0) {
-    reply.code(401).send({ code: "UNAUTHENTICATED", message: "x-dev-tenant-id header required (placeholder auth, S1)" });
+  const parsed = TenantIdSchema.safeParse(request.headers["x-dev-tenant-id"]);
+  if (!parsed.success) {
+    reply.code(401).send({ code: "UNAUTHENTICATED", message: "x-dev-tenant-id header required (placeholder auth)" });
     return null;
   }
-  return value;
+  return parsed.data;
 }
 
-const ProjectionBody = z.object({
-  workspace_id: z.string().uuid(),
-  asset_id: z.string(),
-  opening_balance: z.string(),
-  horizon: z.object({ steps: z.number().int().min(1).max(366), unit: z.enum(["day", "hour"]) }),
-});
-
-// ACC-02, PER-11 : cette route ne consulte jamais NetworkCapabilitiesPort, ni
-// Stripe, ni un wallet. La comparaison de financement (bloquee par NET-02)
-// vit dans une route separee (approvals), jamais ici.
+// ACC-02/PER-11/NET-02: baseline forecasting never reads network capabilities,
+// wallet connection or KYC state. The shared schema rejects floats and extra
+// fields before the application calls the Python optimizer port.
 export async function projectionRoutes(app: FastifyInstance, deps: AppDependencies): Promise<void> {
   app.post("/v1/projections", async (request, reply) => {
     const tenantId = requireTenantHeader(request, reply);
     if (!tenantId) return reply;
     try {
-      const body = ProjectionBody.parse(request.body);
-      const projection = await deps.getPersonalProjection.execute({
+      const body = ProjectionRequestSchema.parse(request.body);
+      const result = await deps.getPersonalProjection.execute({
         requestingTenantId: tenantId,
         workspaceId: body.workspace_id,
         assetId: body.asset_id,
-        openingBalance: body.opening_balance,
+        openingBalances: body.opening_balances,
+        currentReserve: body.current_reserve,
+        savingsProtectedReserve: body.savings_protected_reserve,
         horizon: body.horizon,
       });
-      return reply.send(projection);
+      return reply.send(result);
     } catch (err) {
       return sendError(reply, err);
     }

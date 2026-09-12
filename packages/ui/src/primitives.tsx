@@ -1,7 +1,6 @@
-import React, { forwardRef, useId, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { forwardRef, useEffect, useId, useRef, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { PressableProps, StyleProp, TextInputProps, TextProps, ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { tokens } from './tokens';
 type TypographyVariant = 'title' | 'body' | 'muted' | 'label' | 'amount';
 export function Typography({ variant = 'body', style, ...props }: TextProps & {
@@ -14,9 +13,39 @@ export function Card({ children, warm = false, style }: {
     warm?: boolean;
     style?: StyleProp<ViewStyle>;
 }) {
-    return warm
-        ? <LinearGradient colors={['#51352D', '#30252B', '#17141B']} locations={[0, 0.42, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.42, y: 1 }} style={[styles.card, styles.warmCard, style]}>{children}</LinearGradient>
-        : <View style={[styles.card, style]}>{children}</View>;
+    return <View style={[styles.card, warm && styles.warmCard, style]}>{children}</View>;
+}
+
+/** A restrained, interruptible entrance for route content. */
+export function PageTransition({ children }: { children: React.ReactNode }) {
+    const opacity = useRef(new Animated.Value(0)).current;
+    const offset = useRef(new Animated.Value(7)).current;
+
+    useEffect(() => {
+        let active = true;
+        void AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
+            if (!active) return;
+            if (reduceMotion) {
+                opacity.setValue(1);
+                offset.setValue(0);
+                return;
+            }
+            Animated.parallel([
+                Animated.timing(opacity, { toValue: 1, duration: tokens.motion.standard, useNativeDriver: true }),
+                Animated.timing(offset, { toValue: 0, duration: tokens.motion.standard, useNativeDriver: true }),
+            ]).start();
+        }).catch(() => {
+            opacity.setValue(1);
+            offset.setValue(0);
+        });
+        return () => {
+            active = false;
+            opacity.stopAnimation();
+            offset.stopAnimation();
+        };
+    }, [opacity, offset]);
+
+    return <Animated.View style={{ opacity, transform: [{ translateY: offset }] }}>{children}</Animated.View>;
 }
 export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
     children: React.ReactNode;
@@ -29,7 +58,7 @@ export function Button({ children, variant = 'primary', busy = false, disabled, 
     const [focused, setFocused] = useState(false);
     const unavailable = Boolean(disabled || busy);
     const foreground = variant === 'primary' ? tokens.color.buttonText : tokens.color.text;
-    return <Pressable {...props} accessibilityRole="button" accessibilityState={{ ...accessibilityState, disabled: unavailable, busy }} disabled={unavailable} onFocus={(event) => { setFocused(true); onFocus?.(event); }} onBlur={(event) => { setFocused(false); onBlur?.(event); }} style={({ pressed }) => [styles.button, buttonVariants[variant], style, focused && styles.focused, (unavailable || pressed) && styles.dimmed]}>
+    return <Pressable {...props} accessibilityRole="button" accessibilityState={{ ...accessibilityState, disabled: unavailable, busy }} disabled={unavailable} onFocus={(event) => { setFocused(true); onFocus?.(event); }} onBlur={(event) => { setFocused(false); onBlur?.(event); }} style={({ pressed }) => [styles.button, buttonVariants[variant], style, focused && styles.focused, unavailable && styles.dimmed, pressed && styles.pressed]}>
     {busy && <ActivityIndicator color={foreground} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"/>}
     <Typography variant="label" style={{ color: foreground, textAlign: 'center', flexShrink: 1, fontSize: 15, fontWeight: '500' }}>{children}</Typography>
   </Pressable>;
@@ -39,7 +68,7 @@ export function Badge({ children, tone = 'neutral' }: {
     children: React.ReactNode;
     tone?: Tone;
 }) {
-    return <View style={styles.badge}><Typography variant="label" style={{ color: tone === 'neutral' ? tokens.color.accent : tokens.color[tone] }}>{children}</Typography></View>;
+    return <View style={[styles.badge, badgeTones[tone]]}><Typography variant="label" style={{ color: badgeTextTones[tone] }}>{children}</Typography></View>;
 }
 export type FieldProps = TextInputProps & {
     label: string;
@@ -57,25 +86,39 @@ export const Field = forwardRef<TextInput, FieldProps>(function Field({ label, e
 const styles = StyleSheet.create({
     text: { fontFamily: tokens.font.regular, fontSize: 16, lineHeight: 24, color: tokens.color.text, flexShrink: 1 },
     card: { backgroundColor: tokens.color.surface, borderColor: tokens.color.border, borderWidth: 1, borderRadius: tokens.radius.card, padding: 24, gap: 16, minWidth: 0, overflow: 'hidden' },
-    warmCard: { borderColor: '#5B454C', borderWidth: 1 },
-    button: { minHeight: 56, borderRadius: tokens.radius.control, paddingHorizontal: 20, paddingVertical: 16, borderWidth: 1.5, borderColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-    focused: { borderColor: tokens.color.success },
-    dimmed: { opacity: 0.6 },
-    badge: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: tokens.radius.pill, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: tokens.color.raised },
+    warmCard: { backgroundColor: '#EDF0E5', borderColor: '#CDD4C2' },
+    button: { minHeight: 48, borderRadius: tokens.radius.control, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    focused: { borderColor: tokens.color.focus },
+    dimmed: { opacity: 0.52 },
+    pressed: { opacity: 0.82, transform: [{ scale: 0.985 }] },
+    badge: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: tokens.radius.pill, paddingVertical: 6, paddingHorizontal: 10 },
     fieldGroup: { gap: 8, minWidth: 0 },
     input: { minHeight: 56, padding: 16, borderRadius: tokens.radius.control, borderWidth: 1.5, borderColor: tokens.color.border, backgroundColor: tokens.color.surface, color: tokens.color.text, fontFamily: tokens.font.regular, fontSize: 16, lineHeight: 24 },
     invalid: { borderColor: tokens.color.error },
 });
 const typography = StyleSheet.create({
-    title: { fontSize: 32, lineHeight: 40, letterSpacing: -1 },
+    title: { fontFamily: tokens.font.display, fontSize: 32, lineHeight: 40, letterSpacing: -0.5, color: tokens.color.text },
     body: {},
     muted: { color: tokens.color.muted },
     label: { fontFamily: tokens.font.medium },
-    amount: { fontSize: 48, lineHeight: 58, letterSpacing: -2 },
+    amount: { fontSize: 48, lineHeight: 58, letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
 });
 const buttonVariants = StyleSheet.create({
-    primary: { backgroundColor: tokens.color.button, borderColor: 'transparent', shadowColor: '#EDBA79', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 4 } },
+    primary: { backgroundColor: tokens.color.button, borderColor: 'transparent' },
     secondary: { backgroundColor: tokens.color.surface, borderColor: tokens.color.border },
     ghost: { backgroundColor: 'transparent', borderColor: 'transparent' },
 });
+
+const badgeTones = StyleSheet.create({
+    neutral: { backgroundColor: tokens.color.raised },
+    success: { backgroundColor: tokens.color.accentSoft },
+    warning: { backgroundColor: '#F4EBDD' },
+    error: { backgroundColor: '#F7E8E3' },
+});
+const badgeTextTones = {
+    neutral: tokens.color.text,
+    success: tokens.color.success,
+    warning: tokens.color.warning,
+    error: tokens.color.error,
+} as const;
 

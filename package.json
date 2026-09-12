@@ -12,9 +12,14 @@
   ],
   "scripts": {
     "build": "tsc -b tsconfig.json",
-    "typecheck": "tsc -b tsconfig.json",
+    "build:client": "npm run build --workspace @octro/client",
+    "typecheck": "tsc -b tsconfig.json && npm run typecheck --workspace @octro/client",
     "test": "npm run build && npm run test --workspaces --if-present",
-    "ci": "npm run config:test && npm run typecheck && npm run test --workspaces --if-present",
+    "test:optimizer": "node scripts/test-optimizer.mjs",
+    "security:scan": "node scripts/scan-secrets.mjs",
+    "security:audit": "npm audit --audit-level=high",
+    "traceability:check": "node scripts/check-traceability.mjs",
+    "ci": "npm run config:test && npm run security:scan && npm run security:audit && npm run traceability:check && npm run typecheck && npm run test --workspaces --if-present && npm run test:optimizer && npm run build:client",
     "config:check": "node --env-file=.env scripts/check-backend-config.mjs",
     "config:test": "node --test infra/config/environment.test.mjs"
   },

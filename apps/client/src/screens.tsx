@@ -1,771 +1,467 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import Svg, { Line, Path } from 'react-native-svg';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Button, Card, Field, Typography as T, tokens } from '@octro/ui';
+import { Badge, Button, Card, Field, PageTransition, Typography as T, tokens } from '@octro/ui';
 import { DecimalStringSchema } from '@octro/contracts';
-import { demoFixture as fixture, designReference as reference, euro } from './data';
+import type { EconomicEvent, Projection, ProjectionResult, ProposedAction } from '@octro/contracts';
+import { demoFixture, euro } from './data';
 import { useAcknowledge, useClientData, useCreateEvent, useRemoveEvent, useResetEvents, useSetHorizon, useUpdateBalances, useSession } from './session';
 import { useDesktop } from './Shell';
 import { Icon } from './Icon';
+import { WalletModal } from './Wallet';
+
 const c = tokens.color;
-function Title({ children }: {
-    children: React.ReactNode;
-}) { return <T nativeID="screen-title" accessibilityRole="header" {...(Platform.OS === 'web' ? { tabIndex: -1 } : {})} style={s.title}>{children}</T>; }
-function Heading({ children }: {
-    children: React.ReactNode;
-}) { return <T accessibilityRole="header" style={s.heading}>{children}</T>; }
-function Note({ children, tone = 'muted' }: {
-    children: React.ReactNode;
-    tone?: 'muted' | 'warning' | 'success' | 'error';
-}) { return <T style={[s.note, { color: c[tone] }]}>{children}</T>; }
-function Money({ value, size = 64 }: {
-    value: string;
-    size?: number;
-}) { const { language } = useSession(); return <T style={[s.money, { fontSize: size, lineHeight: size * 1.15 }]}>{euro(value, language)}</T>; }
-function Split({ main, aside }: {
-    main: React.ReactNode;
-    aside?: React.ReactNode;
-}) { const desktop = useDesktop(); return <View style={[s.split, desktop && { flexDirection: 'row' }]}><View style={[s.main, desktop && { flex: 1 }]}>{main}</View>{aside && <View style={[s.aside, desktop && { width: 360 }]}>{aside}</View>}</View>; }
-function Rail({ children }: {
-    children: React.ReactNode;
-}) { return <LinearGradient colors={['#382B2E', '#18151B']} style={s.rail}>{children}</LinearGradient>; }
-function Notice({ title, children, tone = 'warning' }: {
-    title: string;
-    children: React.ReactNode;
-    tone?: 'warning' | 'success' | 'error';
-}) { return <View style={s.notice}><T style={{ color: c[tone] }}>{title}</T><Note>{children}</Note></View>; }
-function Row({ title, detail, value, icon = 'circle', positive = false, onRemove }: {
-    title: string;
-    detail: string;
-    value?: string;
-    icon?: string;
-    positive?: boolean;
-    onRemove?: () => void;
-}) {
-    return <View style={s.row}>
-        <Icon name={icon}/>
-        <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-            <T>{title}</T>
-            <Note>{detail}</Note>
-        </View>
-        {value && <T style={{ color: positive ? c.success : c.text, fontFamily: tokens.font.medium, textAlign: 'right', maxWidth: '42%' }}>{value}</T>}
-        {onRemove && (
-            <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Supprimer ${title}`} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
-                <T style={{ color: c.muted, fontSize: 13 }}>✕</T>
-            </Pressable>
-        )}
+const DEMO_EXPENSE = '150.00';
+const PERIODS = [7, 14, 30] as const;
+
+function Title({ children }: { children: React.ReactNode }) {
+    return <T nativeID="screen-title" accessibilityRole="header" {...(Platform.OS === 'web' ? { tabIndex: -1 } : {})} style={s.title}>{children}</T>;
+}
+function Heading({ children }: { children: React.ReactNode }) { return <T accessibilityRole="header" style={s.heading}>{children}</T>; }
+function Note({ children, tone = 'muted' }: { children: React.ReactNode; tone?: 'muted' | 'warning' | 'success' | 'error' }) {
+    return <T style={[s.note, { color: c[tone] }]}>{children}</T>;
+}
+function Money({ value, size = 56 }: { value: string; size?: number }) {
+    const { language } = useSession();
+    return <T variant="amount" style={[s.money, { fontSize: size, lineHeight: size * 1.1 }]}>{euro(value, language)}</T>;
+}
+function Split({ main, aside }: { main: React.ReactNode; aside?: React.ReactNode }) {
+    const desktop = useDesktop();
+    return <View style={[s.split, desktop && s.splitDesktop]}><View style={[s.main, desktop && s.mainDesktop]}>{main}</View>{aside && <View style={[s.aside, desktop && s.asideDesktop]}>{aside}</View>}</View>;
+}
+function Rail({ children }: { children: React.ReactNode }) { return <View style={s.rail}>{children}</View>; }
+function Notice({ title, children, tone = 'warning' }: { title: string; children: React.ReactNode; tone?: 'warning' | 'success' | 'error' }) {
+    return <View style={[s.notice, tone === 'error' && s.noticeError, tone === 'success' && s.noticeSuccess]}>
+        <T style={{ fontFamily: tokens.font.medium, color: c[tone] }}>{title}</T>
+        <T style={{ color: c.text, lineHeight: 23 }}>{children}</T>
     </View>;
 }
-function EventRows({ short = false, allowDelete = false }: {
-    short?: boolean;
-    allowDelete?: boolean;
-}) {
-    const { t, language } = useSession();
-    const { data } = useClientData();
-    const removeEvent = useRemoveEvent();
-    const labels: Record<string, string> = { loyer: t('Loyer', 'Rent'), courses: t('Courses', 'Groceries'), transport: t('Transport', 'Transport'), salaire: t('Salaire', 'Salary'), imprévu: t('Imprévu', 'Unexpected') };
-    const icons: Record<string, string> = { loyer: 'rent', courses: 'groceries', transport: 'transport', salaire: 'salary', imprévu: 'warning' };
-    return <View>{data?.events.filter(event => !short || ['loyer', 'salaire'].includes(event.label)).map(event => {
-        const day = event.expected_settlement_at ? Math.round((Date.parse(event.expected_settlement_at) - Date.parse(data.provenance.asOf)) / 86400000) : null;
-        return <Row
-            key={event.id}
-            title={labels[event.label] ?? event.label}
-            detail={`${day === null ? '—' : `J+${day}`} · ${event.direction === 'inflow' ? t('Attendu', 'Expected') : t('Déclaré', 'Declared')}`}
-            value={`${event.direction === 'inflow' ? '+' : '−'}${euro(event.amount.amount_decimal, language)}`}
-            positive={event.direction === 'inflow'}
-            icon={icons[event.label] ?? 'calendar'}
-            onRemove={allowDelete ? () => removeEvent.mutate(event.id) : undefined}
-        />;
-    })}</View>;
+function CardTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
+    return <View style={{ gap: 6 }}>{eyebrow && <T style={s.eyebrow}>{eyebrow}</T>}<Heading>{title}</Heading></View>;
 }
+
+function units(value: string): bigint {
+    const negative = value.startsWith('-');
+    const [whole, fraction = ''] = value.replace('-', '').split('.');
+    const scaled = BigInt(`${whole}${fraction.padEnd(18, '0')}`);
+    return negative ? -scaled : scaled;
+}
+function compareDecimal(a: string, b: string): number {
+    const left = units(a);
+    const right = units(b);
+    return left < right ? -1 : left > right ? 1 : 0;
+}
+type ProjectionPoint = Projection['points'][number];
+function minimumPoint(points: ProjectionPoint[]): ProjectionPoint | undefined {
+    return points.reduce<ProjectionPoint | undefined>((lowest, point) =>
+        lowest === undefined || compareDecimal(point.expected_balance, lowest.expected_balance) < 0 ? point : lowest, undefined);
+}
+function daysLabel(day: number, language: 'fr' | 'en'): string {
+    return day === 0 ? (language === 'fr' ? 'Aujourd’hui' : 'Today') : `J+${day}`;
+}
+
+type PlanView = { state: 'loading' | 'unavailable' | 'stale' | 'infeasible' | 'inconsistent' | 'none' | 'feasible'; action?: ProposedAction; result?: ProjectionResult };
+function getPlanView(data: ReturnType<typeof useClientData>['data']): PlanView {
+    if (!data) return { state: 'loading' };
+    if (!data.result) return { state: data.sourceState === 'stale' ? 'stale' : 'unavailable' };
+    if (data.result.status === 'INFEASIBLE') return { state: 'infeasible', result: data.result };
+
+    const action = data.result.action_plan.proposed_actions.find(item => item.type !== 'no_action');
+    if (!action) return { state: 'none', result: data.result };
+    if (action.type === 'own_funds_transfer') {
+        const savings = units(data.request.opening_balances.savings);
+        const protectedReserve = units(data.request.savings_protected_reserve);
+        const available = savings > protectedReserve ? savings - protectedReserve : 0n;
+        if (units(action.amount_decimal) > available) return { state: 'inconsistent', result: data.result };
+    }
+    return { state: 'feasible', action, result: data.result };
+}
+
+function EventRow({ event, onRemove }: { event: EconomicEvent; onRemove?: () => void }) {
+    const { t, language } = useSession();
+    const remove = useRemoveEvent();
+    const data = useClientData().data;
+    const anchor = data?.result?.projection.as_of ?? data?.provenance.asOf;
+    const day = event.expected_settlement_at && anchor
+        ? Math.max(0, Math.round((Date.parse(event.expected_settlement_at) - Date.parse(anchor)) / 86_400_000))
+        : null;
+    const label = event.label === 'loyer' ? t('Loyer', 'Rent')
+        : event.label === 'courses' ? t('Courses', 'Groceries')
+            : event.label === 'transport' ? t('Transport', 'Transport')
+                : event.label === 'salaire' ? t('Salaire', 'Pay')
+                    : event.label === 'imprévu' ? t('Imprévu', 'Unexpected expense') : event.label;
+    const icon = event.direction === 'inflow' ? 'salary' : event.label === 'loyer' ? 'rent' : 'calendar';
+    return <View style={s.row}>
+        <View style={s.rowIcon}><Icon name={icon} size={18} color={c.accent} /></View>
+        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+            <T style={s.rowTitle}>{label}</T>
+            <Note>{`${day === null ? '—' : daysLabel(day, language)} · ${event.verification === 'declared' ? t('Déclaré', 'Declared') : t('Observé', 'Observed')}`}</Note>
+        </View>
+        <T style={[s.rowValue, event.direction === 'inflow' && { color: c.success }]}>{event.direction === 'inflow' ? '+' : '−'}{euro(event.amount.amount_decimal, language)}</T>
+        {onRemove && <Pressable onPress={() => remove.mutate(event.id)} disabled={remove.isPending} accessibilityRole="button" accessibilityLabel={t(`Supprimer ${label}`, `Remove ${label}`)} style={s.removeButton}>
+            <T style={{ color: c.muted, fontSize: 18 }}>×</T>
+        </Pressable>}
+    </View>;
+}
+function EventList({ short = false, allowDelete = false }: { short?: boolean; allowDelete?: boolean }) {
+    const data = useClientData().data;
+    const events = useMemo(() => (data?.events ?? []).filter(event => !short || ['loyer', 'salaire'].includes(event.label)), [data?.events, short]);
+    if (events.length === 0) return <Note>{'Aucune échéance enregistrée.'}</Note>;
+    return <View>{events.map(event => <EventRow key={event.id} event={event} onRemove={allowDelete ? () => undefined : undefined} />)}</View>;
+}
+
+function ProjectionChart() {
+    const { t, language } = useSession();
+    const data = useClientData().data;
+    const points = data?.result?.projection.points ?? [];
+    const reserve = data?.request.current_reserve;
+    if (!data?.result || points.length < 2 || !reserve) {
+        return <Card style={s.chartEmpty}>
+            <View style={s.emptyIcon}><Icon name="calendar" size={20} color={c.accent} /></View>
+            <T style={{ fontFamily: tokens.font.medium }}>{t('Projection en attente', 'Forecast pending')}</T>
+            <Note>{t('Les événements restent visibles. La courbe apparaîtra après un calcul serveur à jour.', 'Events remain available. The chart appears after a fresh server calculation.')}</Note>
+        </Card>;
+    }
+    const values = points.map(point => Number(point.expected_balance));
+    const reserveNumber = Number(reserve);
+    const min = Math.min(0, reserveNumber, ...values);
+    const max = Math.max(reserveNumber, ...values);
+    const spread = Math.max(1, max - min);
+    const width = 736;
+    const height = 210;
+    const padding = 20;
+    const x = (index: number) => padding + index * (width - padding * 2) / (points.length - 1);
+    const y = (value: number) => height - padding - (value - min) / spread * (height - padding * 2);
+    const expectedPath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index).toFixed(1)} ${y(values[index]!).toFixed(1)}`).join(' ');
+    const confirmedPath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index).toFixed(1)} ${y(Number(point.confirmed_balance)).toFixed(1)}`).join(' ');
+    const reserveY = y(reserveNumber);
+    const tickIndexes = [...new Set([0, Math.round((points.length - 1) / 3), Math.round((points.length - 1) * 2 / 3), points.length - 1])];
+    const lowest = minimumPoint(points);
+    const chartLabel = lowest
+        ? t(`Projection sur ${data.result.projection.horizon.steps} jours. Point bas ${euro(lowest.expected_balance, language)} à ${daysLabel(lowest.t, language)}.`, `Forecast over ${data.result.projection.horizon.steps} days. Low ${euro(lowest.expected_balance, language)} on ${daysLabel(lowest.t, language)}.`)
+        : t('Projection de trésorerie', 'Cashflow projection');
+
+    return <View style={{ gap: 12 }}>
+        <View style={s.legend}>
+            <View style={s.legendItem}><View style={[s.legendLine, { backgroundColor: c.accent }]} /><Note>{t('Prévu', 'Expected')}</Note></View>
+            <View style={s.legendItem}><View style={[s.legendLine, s.legendDashed]} /><Note>{t('Confirmé', 'Confirmed')}</Note></View>
+            <View style={s.legendItem}><View style={[s.legendLine, { backgroundColor: c.earth }]} /><Note>{t('Réserve', 'Reserve')}</Note></View>
+        </View>
+        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" accessibilityRole="image" accessibilityLabel={chartLabel}>
+            {[0.25, 0.5, 0.75].map(fraction => <Line key={fraction} x1={0} y1={padding + fraction * (height - padding * 2)} x2={width} y2={padding + fraction * (height - padding * 2)} stroke={c.border} strokeWidth={1} />)}
+            <Line x1={0} y1={reserveY} x2={width} y2={reserveY} stroke={c.earth} strokeWidth={1.5} />
+            <Path d={confirmedPath} fill="none" stroke={c.muted} strokeWidth={1.5} strokeDasharray="4 5" opacity={0.8} />
+            <Path d={expectedPath} fill="none" stroke={c.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+        <View style={s.chartTicks}>{tickIndexes.map(index => <Note key={index}>{daysLabel(points[index]!.t, language)}</Note>)}</View>
+        <Note>{chartLabel}</Note>
+    </View>;
+}
+
 function PeriodSelector() {
     const { t } = useSession();
-    const { data } = useClientData();
+    const data = useClientData().data;
     const setHorizon = useSetHorizon();
-    const activeDays = data?.computedProjection?.horizonDays ?? 30;
-    const periods = [
-        { key: '7J', label: t('7 J', '7 D'), days: 7 },
-        { key: '14J', label: t('14 J', '14 D'), days: 14 },
-        { key: '30J', label: t('30 J', '30 D'), days: 30 },
-        { key: '3M', label: t('3 M', '3 M'), days: 90 },
-        { key: '1AN', label: t('1 AN', '1 Y'), days: 365 },
-    ];
-
-    return (
-        <View style={{ gap: 6 }}>
-            <View style={s.periods}>{periods.map(p => {
-                const isSelected = activeDays === p.days;
-                return (
-                    <Pressable
-                        key={p.key}
-                        onPress={() => setHorizon.mutate(p.days)}
-                        style={[s.period, isSelected && { backgroundColor: c.raised, borderColor: '#5B454C' }]}
-                    >
-                        <T style={[s.note, { color: isSelected ? c.text : c.muted, fontFamily: isSelected ? tokens.font.medium : tokens.font.regular }]}>
-                            {p.label}
-                        </T>
-                    </Pressable>
-                );
-            })}</View>
-        </View>
-    );
+    const selected = data?.request.horizon.steps ?? 30;
+    return <View style={s.periods}>
+        {PERIODS.map(days => <Pressable key={days} disabled={setHorizon.isPending} onPress={() => setHorizon.mutate(days)} accessibilityRole="button" accessibilityState={{ selected: selected === days, disabled: setHorizon.isPending }} style={[s.period, selected === days && s.periodSelected]}>
+            <T style={[s.periodText, selected === days && s.periodTextSelected]}>{days} {t('jours', 'days')}</T>
+        </Pressable>)}
+    </View>;
 }
 
 function SimulationToolbar() {
     const { t } = useSession();
+    const data = useClientData().data;
     const createEvent = useCreateEvent();
     const resetEvents = useResetEvents();
-
-    const handleAddSimulatedExpense = () => {
-        createEvent.mutate({
-            direction: 'outflow',
-            amount_decimal: '150.00',
-            asset_id: 'EUR',
-            label: 'imprévu',
-            expected_settlement_at: '2026-09-15T10:00:00Z',
-        });
-    };
-
-    return (
-        <Card style={{ gap: 12, backgroundColor: '#1E1920', borderColor: '#483942' }}>
-            <View style={[s.between, { flexWrap: 'wrap', gap: 8 }]}>
-                <View style={{ gap: 4, flex: 1, minWidth: 200 }}>
-                    <T style={{ fontFamily: tokens.font.medium, fontSize: 14 }}>{t('⚡ Recalcul réactif en direct', '⚡ Live reactive recalculation')}</T>
-                    <Note>{t('Modifiez les échéances : la courbe SVG, le point bas et le plan s’adaptent instantanément.', 'Update events: SVG curve, lowest point and plan adapt immediately.')}</Note>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                    <Button variant="secondary" busy={createEvent.isPending} onPress={handleAddSimulatedExpense}>
-                        {t('+ Imprévu 150 €', '+ Expense 150 €')}
-                    </Button>
-                    <Button variant="ghost" busy={resetEvents.isPending} onPress={() => resetEvents.mutate()}>
-                        {t('↺ Réinitialiser', '↺ Reset')}
-                    </Button>
-                </View>
-            </View>
-        </Card>
-    );
-}
-
-function Chart() {
-    const { t, language } = useSession();
-    const { data } = useClientData();
-    const proj = data?.computedProjection;
-    const withoutActionPath = proj?.svg.withoutActionPath ?? reference.chartPaths[0]!.geometry;
-    const withActionPath = proj?.svg.withActionPath ?? reference.chartPaths[1]!.geometry;
-    const reserveY = proj?.svg.reserveY ?? 162.4;
-    const gridLines = proj?.svg.gridY ?? [40, 80, 120, 160];
-    const reserveVal = proj ? proj.reserve.toFixed(2) : fixture.current_reserve;
-    const pointsWithout = proj ? proj.pointsWithoutAction.slice(0, 6).map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithoutAction.map(v => euro(v, language)).join(' · ');
-    const pointsWith = proj ? proj.pointsWithProposal.slice(0, 6).map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithProposal.map(v => euro(v, language)).join(' · ');
-    const timelineLabels = proj?.svg.timelineLabels ?? ['Auj.', 'J+2', 'J+6', 'J+10', 'J+20', 'J+30'];
-    const activeDays = proj?.horizonDays ?? 30;
-
-    return <View style={{ gap: 14 }}>
-        <PeriodSelector />
-        <View style={[s.inline, { flexWrap: 'wrap' }]}>
-            <View style={s.inline}><View style={{ width: 24, height: 2, backgroundColor: c.text }}/><Note>{t('━━ Sans action', '━━ Without action')}</Note></View>
-            <View style={s.inline}><View style={{ width: 24, borderTopColor: c.success, borderTopWidth: 2, borderStyle: 'dashed' }}/><Note>{t('┄┄ Avec le plan proposé', '┄┄ With the proposed plan')}</Note></View>
+    const alreadyAdded = data?.events.some(event => event.label === 'imprévu') ?? false;
+    const asOf = data?.result?.projection.as_of ?? data?.provenance.asOf ?? new Date().toISOString();
+    const eventDate = new Date(Date.parse(asOf) + 3 * 86_400_000).toISOString();
+    return <Card style={s.simulationCard}>
+        <View style={s.simulationCopy}>
+            <T style={{ fontFamily: tokens.font.medium }}>{t('Tester un imprévu', 'Test an unexpected expense')}</T>
+            <Note>{t('Ajoute une dépense déclarée au scénario et demande un nouveau calcul.', 'Adds a declared expense to the scenario and requests a fresh calculation.')}</Note>
         </View>
-        <Svg width="100%" height={196} viewBox="0 0 736 196" preserveAspectRatio="none" accessibilityRole="image" accessibilityLabel={t('Illustration synthétique de la prévision. Les valeurs détaillées figurent sous la courbe.', 'Synthetic forecast illustration. Detailed values appear below the chart.')}>
-            {gridLines.map(y => <Line key={y} x1={0} y1={y} x2={736} y2={y} stroke={c.border} strokeWidth={.7}/>)}
-            <Line x1={0} y1={reserveY} x2={736} y2={reserveY} stroke={c.warning} strokeWidth={1}/>
-            <Path d={withoutActionPath} fill="none" stroke={c.text} strokeWidth={2}/>
-            <Path d={withActionPath} fill="none" stroke={c.success} strokeWidth={2} strokeDasharray="6 6"/>
-        </Svg>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>{timelineLabels.map(day => <Note key={day}>{day}</Note>)}</View>
-        <Note>{t('Repère ambre : réserve à préserver de ', 'Amber line: protected reserve of ')}{euro(reserveVal, language)} · {t(`Horizon : ${activeDays} jours`, `Horizon: ${activeDays} days`)}</Note>
-        <Note>{t('Sans action : ', 'Without action: ')}{pointsWithout}{t('. Avec le plan : ', '. With the plan: ')}{pointsWith}.</Note>
-    </View>;
+        <View style={s.simulationActions}>
+            <Button variant="secondary" disabled={alreadyAdded} busy={createEvent.isPending} onPress={() => createEvent.mutate({
+                direction: 'outflow', amount_decimal: DEMO_EXPENSE, asset_id: 'fiat:EUR', label: 'imprévu', expected_settlement_at: eventDate,
+            })}>{alreadyAdded ? t('Imprévu ajouté', 'Expense added') : t(`Ajouter ${euro(DEMO_EXPENSE)}`, `Add ${euro(DEMO_EXPENSE, 'en')}`)}</Button>
+            <Button variant="ghost" busy={resetEvents.isPending} onPress={() => resetEvents.mutate()}>{t('Réinitialiser', 'Reset')}</Button>
+        </View>
+    </Card>;
 }
 
-function TransferSummary() {
+function RecalculationNotice() {
+    const { t } = useSession();
+    const data = useClientData().data;
+    const planView = getPlanView(data);
+    if (planView.state === 'stale') return <Notice title={t('Projection à recalculer', 'Forecast needs recalculation')}>
+        {t('Les hypothèses ont changé. Le plan précédent n’est plus affiché ; aucun transfert n’est recommandé avant le nouveau résultat.', 'Assumptions changed. The previous plan is hidden; no transfer is recommended until a fresh result is available.')}
+    </Notice>;
+    if (planView.state === 'unavailable') return <Notice title={t('Calcul indisponible', 'Calculation unavailable')}>
+        {t('Le service de projection ne répond pas. Les événements déclarés restent consultables, mais aucune action n’est recommandée.', 'The forecast service is unavailable. Declared events remain visible, but no action is recommended.')}
+    </Notice>;
+    return null;
+}
+
+function DiagnosticCard({ state }: { state: PlanView['state'] }) {
     const { t, language } = useSession();
-    const { data } = useClientData();
-    const proj = data?.computedProjection;
-    const action = data?.plan.proposed_actions.find(a => a.type === 'own_funds_transfer');
-    const transferAmount = proj ? proj.recommendedTransfer.toFixed(2) : (action?.amount_decimal ?? '230.00');
-    const currentRemaining = proj ? proj.currentBeforeSalaryWithPlan.toFixed(2) : fixture.expected.current_before_salary;
-    const savingsRemaining = proj ? proj.savingsRemaining.toFixed(2) : fixture.expected.savings_remaining;
+    const data = useClientData().data;
+    const diagnostic = data?.result?.status === 'INFEASIBLE' ? data.result.diagnostic : null;
+    if (state !== 'infeasible' && state !== 'inconsistent') return null;
+    const reason = diagnostic?.reason ?? t('Le transfert proposé dépasse les fonds mobilisables après réserve protégée. Le plan a été bloqué.', 'The proposed transfer exceeds available savings after the protected reserve. The plan was blocked.');
+    return <Notice title={t('INFEASIBLE · Aucune solution sans dette', 'INFEASIBLE · No debt-free solution')} tone="error">
+        <>{diagnostic && <>{t('Besoin de liquidité : ', 'Liquidity shortfall: ')}{euro(diagnostic.deficit.amount_decimal, language)}. </>}{reason}</>
+    </Notice>;
+}
 
-    if (!action && (!proj || proj.recommendedTransfer <= 0))
-        return <T>{t('Aucune proposition nécessaire · réserve préservée', 'No proposal needed · reserve preserved')}</T>;
-
-    return <Rail>
-        <Note>{t('ACTION PROPOSÉE', 'PROPOSED ACTION')}</Note>
-        <Money value={transferAmount} size={48}/>
-        <T style={{ fontSize: 18 }}>{t('Épargne → Compte courant', 'Savings → Current account')}</T>
-        <T>{t('Votre courant resterait à ', 'Your current account would remain at ')}{euro(currentRemaining, language)}{t(' avant le salaire. Votre épargne serait de ', ' before payday. Your savings would be ')}{euro(savingsRemaining, language)}.</T>
-        <Notice title={t('Sans nouvelle dette', 'No new debt')} tone="success">{t('Les avoirs restent inchangés au moment du transfert.', 'Total assets remain unchanged at the time of transfer.')}</Notice>
-        <Button onPress={() => router.push('/proposal')}>{t('Voir la proposition', 'View proposal')}</Button>
-        <Note>{t('Projection réactive en temps réel.', 'Real-time reactive projection.')}</Note>
-    </Rail>;
+function TransferCard({ compact = false }: { compact?: boolean }) {
+    const { t, language } = useSession();
+    const data = useClientData().data;
+    const plan = getPlanView(data);
+    if (plan.state === 'infeasible' || plan.state === 'inconsistent') return <DiagnosticCard state={plan.state} />;
+    if (plan.state !== 'feasible' || plan.action?.type !== 'own_funds_transfer') {
+        if (plan.state === 'none') return <Notice title={t('Aucune action nécessaire', 'No action needed')} tone="success">
+            {t('Le plan ne propose aucun transfert. Les hypothèses et le résultat restent consultables.', 'The plan recommends no transfer. Assumptions and results remain available.')}
+        </Notice>;
+        return <RecalculationNotice />;
+    }
+    return <Card warm style={compact ? s.transferCompact : s.transferCard}>
+        <T style={s.eyebrow}>{t('PROPOSITION · SANS NOUVELLE DETTE', 'PROPOSAL · NO NEW DEBT')}</T>
+        <Money value={plan.action.amount_decimal} size={compact ? 42 : 52} />
+        <T style={s.transferTitle}>{t('Depuis l’épargne vers le courant', 'From savings to current account')}</T>
+        <Note>{t('Proposition uniquement. Aucun mouvement d’argent n’a été exécuté.', 'Proposal only. No money movement has been executed.')}</Note>
+        {!compact && <Button onPress={() => router.push('/proposal')}>{t('Examiner le plan', 'Review the plan')}</Button>}
+        {compact && <Button variant="secondary" onPress={() => router.push('/proposal')}>{t('Voir les détails', 'View details')}</Button>}
+    </Card>;
 }
 
 function Home() {
-    const { t, language } = useSession();
+    const { t, language, persona } = useSession();
     const desktop = useDesktop();
-    const { data } = useClientData();
-    const proj = data?.computedProjection;
-    const currentVal = proj ? proj.openingCurrent.toFixed(2) : fixture.opening_balances.current;
-    const savingsVal = proj ? proj.openingSavings.toFixed(2) : fixture.opening_balances.savings;
-    const totalVal = (parseFloat(currentVal) + parseFloat(savingsVal)).toFixed(2);
-    const lowestVal = proj ? proj.lowestBalanceWithoutAction.toFixed(2) : reference.pointsWithoutAction[3]!;
-    const transferVal = proj ? proj.recommendedTransfer.toFixed(2) : '230.00';
-    const lowestDay = proj ? proj.lowestDayWithoutAction : 6;
-
-    return <><Title>{t('Bonjour, Lina.', 'Hello, Lina.')}</Title><Split main={<>
-  <Card warm style={[s.hero, desktop && { padding: 32 }]}><T>{t('Argent disponible sur le courant', 'Money available in your current account')}</T><Money value={currentVal} size={desktop ? 72 : 64}/>{desktop ? <T>{t('Épargne : ', 'Savings: ')}{euro(savingsVal, language)} · {t('Total déclaré : ', 'Declared total: ')}{euro(totalVal, language)}</T> : <View style={s.between}><T>{t('Épargne', 'Savings')}</T><T>{euro(savingsVal, language)}</T></View>}<Note>{t('Saisie réactive · mise à jour en temps réel', 'Reactive entry · real-time update')}</Note></Card>
-  {!desktop && <><View style={{ gap: 8, paddingVertical: 4 }}><Heading>{t('Votre loyer arrive avant le salaire', 'Your rent is due before payday')}</Heading><T>{t(`À J+${lowestDay}, le courant serait à `, `On day ${lowestDay}, the account would reach `)}{euro(lowestVal, language)}{t('. Un transfert de ', '. A ')}{euro(transferVal, language)}{t(' peut préserver votre réserve.', ' transfer can preserve your reserve.')}</T></View><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button></>}
-  
-  <Chart />
-  <SimulationToolbar />
-
-  <View><Heading>{t('Vos prochaines échéances', 'Your upcoming payments')}</Heading><EventRows short/></View>
-  {!desktop && <><View style={[s.inline, { paddingVertical: 16 }]}><Icon name="shield"/><T>{euro(fixture.current_reserve, language)}{t(' à préserver sur le courant', ' to preserve in your current account')}</T></View><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button></>}
-  </>} aside={desktop ? <Rail><Notice title={t('Une attention nécessaire', 'Something needs your attention')}>{t('Le loyer arrive avant le salaire. Le point bas prévu est de ', 'Rent is due before payday. The forecast low is ')}{euro(lowestVal, language)}.</Notice><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button><Button variant="secondary" onPress={() => router.push('/options')}>{t('Explorer les options (sans dette)', 'Explore options (no-debt)')}</Button><Button variant="secondary" onPress={() => router.push('/sources')}>{t('Modifier mes soldes déclarés', 'Edit declared balances')}</Button><Button variant="ghost" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button><Note>{t('Date de référence synthétique : 12 septembre 2026.', 'Synthetic reference date: September 12, 2026.')}</Note></Rail> : undefined}/></>;
+    const data = useClientData().data;
+    const points = data?.result?.projection.points ?? [];
+    const lowest = minimumPoint(points);
+    const planView = getPlanView(data);
+    const resultTitle = planView.state === 'feasible'
+        ? t('Le plan respecte vos réserves.', 'The plan respects your reserves.')
+        : planView.state === 'none'
+            ? t('Aucune action nécessaire.', 'No action is needed.')
+            : planView.state === 'infeasible' || planView.state === 'inconsistent'
+                ? t('Les contraintes ne peuvent pas toutes être respectées.', 'The constraints cannot all be met.')
+                : t('Projection à recalculer.', 'Forecast needs recalculation.');
+    const title = persona === 'personal' ? t('Voir venir, sans perdre l’essentiel.', 'See what is coming. Protect what matters.')
+        : persona === 'independent' ? t('Garder le cap sur votre activité.', 'Keep your business on course.')
+            : t('Décider avec une vue commune.', 'Decide from a shared view.');
+    return <PageTransition key="home">
+        <Title>{title}</Title>
+        <Note>{t('Une lecture claire de vos entrées, échéances et réserves.', 'A clear view of your income, due dates and reserves.')}</Note>
+        <RecalculationNotice />
+        <Split main={<>
+            <Card warm style={s.hero}>
+                <View style={s.heroTop}>
+                    <View style={{ gap: 7 }}>
+                        <T style={s.eyebrow}>{t('SOLDE DÉCLARÉ · COMPTE COURANT', 'DECLARED BALANCE · CURRENT ACCOUNT')}</T>
+                        {data ? <Money value={data.request.opening_balances.current} size={desktop ? 68 : 54} /> : <ActivityIndicator color={c.accent} />}
+                    </View>
+                    <View style={s.heroMark}><Icon name="calendar" size={22} color={c.accent} /></View>
+                </View>
+                <View style={s.heroFooter}>
+                    <Note>{t('Épargne déclarée', 'Declared savings')}</Note>
+                    <T style={s.heroValue}>{data ? euro(data.request.opening_balances.savings, language) : '—'}</T>
+                </View>
+                <Note>{t('Espace personnel · données déclarées', 'Personal workspace · declared data')}</Note>
+            </Card>
+            <View style={s.section}>
+                <View style={s.sectionHeader}><CardTitle eyebrow={t('PROJECTION PERSONNELLE', 'PERSONAL FORECAST')} title={t('Le mois en un regard', 'The month at a glance')} />{data?.result && <Badge tone={planView.state === 'infeasible' || planView.state === 'inconsistent' ? 'error' : 'success'}>{planView.state === 'infeasible' || planView.state === 'inconsistent' ? 'INFEASIBLE' : t('Calculé', 'Calculated')}</Badge>}</View>
+                <Card style={s.chartCard}><ProjectionChart /></Card>
+                {lowest && <View style={s.lowSummary}>
+                    <View style={{ flex: 1, minWidth: 0 }}><T style={s.eyebrow}>{t('POINT BAS PRÉVU', 'PROJECTED LOW')}</T><Money value={lowest.expected_balance} size={28} /><Note>{t('À ', 'On ')}{daysLabel(lowest.t, language)}</Note></View>
+                    <View style={s.reserveSummary}><Icon name="shield" size={19} color={c.accent} /><T style={s.reserveSummaryText}>{t('Réserve à préserver : ', 'Protected reserve: ')}{data ? euro(data.request.current_reserve, language) : '—'}</T></View>
+                </View>}
+            </View>
+            <SimulationToolbar />
+            <View style={s.section}><View style={s.sectionHeader}><CardTitle eyebrow={t('À VENIR', 'UP NEXT')} title={t('Prochaines échéances', 'Upcoming events')} /><Button variant="ghost" onPress={() => router.push('/calendar')}>{t('Tout voir', 'View all')}</Button></View><EventList short /></View>
+        </>} aside={desktop ? <Rail>
+            <CardTitle eyebrow={t('VOTRE RÉSULTAT', 'YOUR RESULT')} title={resultTitle} />
+            <TransferCard compact />
+            <Button variant="secondary" onPress={() => router.push('/sources')}>{t('Mettre à jour mes données', 'Update my data')}</Button>
+            <Button variant="ghost" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add an event')}</Button>
+            <Note>{t('Prévision disponible sans wallet, DID, KYC ni crédit.', 'Forecasting works without a wallet, DID, KYC or credit.')}</Note>
+        </Rail> : undefined} />
+    </PageTransition>;
 }
 
 function Calendar() {
     const { t, language } = useSession();
-    const desktop = useDesktop();
-    const { data } = useClientData();
-    const proj = data?.computedProjection;
-    const lowestVal = proj ? proj.lowestBalanceWithoutAction.toFixed(2) : reference.pointsWithoutAction[3]!;
-    const lowestDay = proj ? proj.lowestDayWithoutAction : 6;
-    const currentWithPlan = proj ? proj.currentBeforeSalaryWithPlan.toFixed(2) : fixture.expected.current_before_salary;
-
-    return <><Title>{t('Calendrier', 'Calendar')}</Title><Split main={<>
-  <T style={{ fontSize: desktop ? 20 : 16 }}>{t('SOLDE PRÉVU DU COURANT', 'PROJECTED CURRENT ACCOUNT BALANCE')}</T>
-  <View style={[s.between, { alignItems: 'flex-end', gap: 16 }]}><View style={{ flex: 1 }}><Money value={lowestVal} size={desktop ? 56 : 52}/><Note>{t(`Au plus bas à J+${lowestDay}, avant le salaire`, `Lowest at day ${lowestDay}, before payday`)}</Note></View><View style={{ maxWidth: '45%', gap: 6 }}><Money value={currentWithPlan} size={30}/><Note>{t('avec le plan', 'with the plan')}</Note></View></View>
-  
-  <Chart />
-  <SimulationToolbar />
-
-  {!desktop && <TransferSummary />}
-  <View>
-      <View style={[s.between, { marginBottom: 8 }]}>
-          <Heading>{t('Vos échéances', 'Your scheduled payments')}</Heading>
-          <Note>{t('(Cliquer sur ✕ pour supprimer)', '(Click ✕ to delete)')}</Note>
-      </View>
-      <EventRows allowDelete />
-  </View>
-  </>} aside={desktop ? <TransferSummary /> : undefined}/></>;
+    const data = useClientData().data;
+    const points = data?.result?.projection.points ?? [];
+    const lowest = minimumPoint(points);
+    return <PageTransition key="calendar">
+        <Title>{t('Calendrier', 'Calendar')}</Title>
+        <Note>{t('Les revenus attendus sont des prévisions, pas du cash confirmé.', 'Expected income is a forecast, not confirmed cash.')}</Note>
+        <RecalculationNotice />
+        <Card style={s.chartCard}>
+            <View style={s.sectionHeader}><CardTitle eyebrow={t('SOLDE ATTENDU', 'EXPECTED BALANCE')} title={t('Évolution du courant', 'Current account over time')} /><PeriodSelector /></View>
+            <ProjectionChart />
+            {lowest && <View style={s.lowSummary}><View style={{ flex: 1 }}><T style={s.eyebrow}>{t('POINT BAS', 'LOWEST POINT')}</T><Money value={lowest.expected_balance} size={34}/></View><Note>{daysLabel(lowest.t, language)}</Note></View>}
+        </Card>
+        <TransferCard />
+        <View style={s.section}>
+            <View style={s.sectionHeader}><CardTitle eyebrow={t('DÉCLARÉES', 'DECLARED')} title={t('Échéances', 'Scheduled events')} /><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter', 'Add')}</Button></View>
+            <Card style={s.eventCard}><EventList allowDelete /></Card>
+        </View>
+    </PageTransition>;
 }
 
 function Comparison() {
     const { t, language } = useSession();
-    const { data } = useClientData();
-    const proj = data?.computedProjection;
-    const currentOpen = proj ? proj.openingCurrent.toFixed(2) : fixture.opening_balances.current;
-    const currentAfter = proj ? proj.pointsWithProposal[0]!.toFixed(2) : reference.pointsWithProposal[0]!;
-    const savingsOpen = proj ? proj.openingSavings.toFixed(2) : fixture.opening_balances.savings;
-    const savingsAfter = proj ? proj.savingsRemaining.toFixed(2) : fixture.expected.savings_remaining;
-    const total = (parseFloat(currentOpen) + parseFloat(savingsOpen)).toFixed(2);
-    const lowestBefore = proj ? proj.lowestBalanceWithoutAction.toFixed(2) : reference.pointsWithoutAction[3]!;
-    const lowestAfter = proj ? proj.currentBeforeSalaryWithPlan.toFixed(2) : fixture.expected.current_before_salary;
-
-    const rows = [
-        [t('Compte courant', 'Current account'), currentOpen, currentAfter],
-        [t('Épargne', 'Savings'), savingsOpen, savingsAfter],
-        [t('Total des avoirs', 'Total assets'), total, total],
-        [t('Avant le salaire', 'Before payday'), lowestBefore, lowestAfter]
-    ];
-    return <View><Heading>{t('Avant / avec le plan', 'Before / with the plan')}</Heading>{rows.map(([label, before, after]) => <View key={label} style={[s.row, { flexWrap: 'wrap', justifyContent: 'space-between' }]}><T>{label}</T><View style={s.inline}><T style={{ color: c.muted }}>{euro(before!, language)}</T><Icon name="arrow" size={16}/><T style={{ fontFamily: tokens.font.medium }}>{euro(after!, language)}</T></View></View>)}</View>;
+    const data = useClientData().data;
+    const points = data?.result?.projection.points ?? [];
+    const opening = data?.request.opening_balances.current;
+    const lowest = minimumPoint(points);
+    const entries = [
+        [t('Solde de départ', 'Opening balance'), opening],
+        [t('Point bas attendu', 'Expected low point'), lowest?.expected_balance],
+        [t('Réserve protégée', 'Protected reserve'), data?.request.current_reserve],
+    ].filter((entry): entry is [string, string] => entry[1] !== undefined);
+    return <View style={s.comparison}>
+        <CardTitle eyebrow={t('RÉSULTAT STRUCTURÉ', 'STRUCTURED RESULT')} title={t('Hypothèses et prévision', 'Inputs and forecast')} />
+        {entries.map(([label, amount]) => <View key={label} style={s.comparisonRow}><T style={{ flex: 1 }}>{label}</T><T style={s.rowValue}>{euro(amount, language)}</T></View>)}
+        <Note>{t('Les entrées attendues restent séparées des soldes confirmés.', 'Expected inflows remain separate from confirmed balances.')}</Note>
+    </View>;
 }
-function Proposal() {
-    const { t, language, state } = useSession();
-    const { data } = useClientData();
-    const ack = useAcknowledge();
-    const desktop = useDesktop();
-    const action = data?.plan.proposed_actions.find(a => a.type === 'own_funds_transfer');
-    if (!action)
-        return <T>{t('Aucune proposition disponible', 'No proposal available')}</T>;
-    return <>
-  <Title>{desktop ? t('Gardez une longueur d’avance.', 'Stay one step ahead.') : t('Une réserve.\nL’esprit tranquille.', 'A reserve.\nPeace of mind.')}</Title><Note>{t('ACTION PROPOSÉE · SANS DETTE', 'PROPOSED ACTION · NO NEW DEBT')}</Note>
-  <Split main={<><Card warm style={s.hero}><Money value={action.amount_decimal}/><T>{t('Épargne → Compte courant', 'Savings → Current account')}</T><Note>{t('Aperçu uniquement · aucun virement effectué', 'Preview only · no transfer made')}</Note></Card><Card style={s.detail}><Comparison /><Notice title={t('Réserve de 100 € préservée', '€100 reserve preserved')} tone="success">{t('Le salaire de 1 600 € reste attendu à J+10. Après son arrivée, le courant serait de 1 700 €.', 'The €1,600 salary is still expected on day 10. After it arrives, the current account would reach €1,700.')}</Notice><Note>{t('Ce plan suppose 300 € d’épargne mobilisable, les dépenses prévues et le salaire à la date indiquée.', 'This plan assumes €300 of available savings, the planned expenses and salary on the stated date.')}</Note>{!desktop && <PlanActions />}</Card></>} aside={desktop ? <Rail><Heading>{t('Votre décision', 'Your decision')}</Heading><PlanActions /><Note>{t('Épargne restante : ', 'Remaining savings: ')}{euro(fixture.expected.savings_remaining, language)}</Note></Rail> : undefined}/></>;
-}
-function PlanActions() { const { t, state } = useSession(); const { data } = useClientData(); const ack = useAcknowledge(); const saved = data?.plan.status === 'ACKNOWLEDGED'; return <View style={{ gap: 16 }}><Button busy={ack.isPending} disabled={!data || state === 'stale'} onPress={() => { if (data)
-    ack.mutate(data.plan, { onSuccess: () => router.push('/tracking') }); }}>{saved ? t('Voir le plan enregistré', 'View saved plan') : t('Enregistrer ce plan', 'Save this plan')}</Button>{ack.isError && <T accessibilityRole="alert" style={{ color: c.error }}>{t('Enregistrement impossible. Relisez la proposition.', 'Could not save. Read the proposal again.')}</T>}<Button variant="secondary" onPress={() => router.push('/options')}>{t('Comparer les autres options', 'Compare other options')}</Button><Note>{t('Enregistrer acquitte la proposition dans cette session de démo. Aucun argent n’est déplacé. Le transfert reste à réaliser séparément.', 'Saving acknowledges the proposal in this demo session. No money moves. The transfer must be carried out separately.')}</Note></View>; }
-function Sources() {
-    const { t, language } = useSession();
-    const desktop = useDesktop();
-    const [info, setInfo] = useState(false);
-    const { data } = useClientData();
-    const updateBalances = useUpdateBalances();
-    const proj = data?.computedProjection;
-    const currentVal = proj ? proj.openingCurrent.toFixed(2) : fixture.opening_balances.current;
-    const savingsVal = proj ? proj.openingSavings.toFixed(2) : fixture.opening_balances.savings;
-    const reserveVal = proj ? proj.reserve.toFixed(2) : fixture.current_reserve;
 
-    const [editing, setEditing] = useState(false);
-    const [curInp, setCurInp] = useState(currentVal);
-    const [savInp, setSavInp] = useState(savingsVal);
-    const [resInp, setResInp] = useState(reserveVal);
-
-    const handleSaveBalances = () => {
-        const c = parseFloat(curInp.replace(',', '.'));
-        const s = parseFloat(savInp.replace(',', '.'));
-        const r = parseFloat(resInp.replace(',', '.'));
-        if (!isNaN(c) && !isNaN(s)) {
-            updateBalances.mutate({ current: c, savings: s, reserve: isNaN(r) ? undefined : r });
-            setEditing(false);
-        }
-    };
-
-    return <><Title>{t('Sources', 'Sources')}</Title><T>{t('Vos données, au même endroit.', 'Your data, in one place.')}</T><Split main={<><Card warm style={s.detail}>
-        <View style={[s.between, { flexWrap: 'wrap', gap: 8 }]}>
-            <Heading>{t('Comptes déclarés', 'Declared accounts')}</Heading>
-            <Button variant="secondary" onPress={() => setEditing(!editing)}>
-                {editing ? t('Annuler', 'Cancel') : t('Modifier mes soldes', 'Edit my balances')}
-            </Button>
-        </View>
-
-        {editing ? (
-            <View style={{ gap: 12, marginTop: 8 }}>
-                <Field label={t('Solde compte courant (€)', 'Current account balance (€)')} value={curInp} onChangeText={setCurInp} keyboardType="decimal-pad" />
-                <Field label={t('Épargne mobilisable (€)', 'Available savings (€)')} value={savInp} onChangeText={setSavInp} keyboardType="decimal-pad" />
-                <Field label={t('Réserve protégée (€)', 'Protected reserve (€)')} value={resInp} onChangeText={setResInp} keyboardType="decimal-pad" />
-                <Button busy={updateBalances.isPending} onPress={handleSaveBalances}>
-                    {t('Appliquer les nouveaux soldes', 'Apply new balances')}
-                </Button>
-            </View>
-        ) : (
-            <>
-                <Row title={t('Compte courant', 'Current account')} detail={t('Saisi manuellement · déclaré', 'Entered manually · declared')} value={euro(currentVal, language)} icon="sources"/>
-                <Row title={t('Épargne', 'Savings')} detail={t('Mobilisable dans ce scénario', 'Available in this scenario')} value={euro(savingsVal, language)} icon="shield"/>
-                <Row title={t('Réserve protégée', 'Protected reserve')} detail={t('Seuil d’alerte de trésorerie', 'Cash alert threshold')} value={euro(reserveVal, language)} icon="shield"/>
-            </>
-        )}
-    </Card><Note>{t('Soldes déclarés par vous, non vérifiés par une banque.', 'Balances declared by you, not verified by a bank.')}</Note><View><Heading>{t('Événements & imports', 'Events & imports')}</Heading><Row title={t(`${data?.events.length ?? 4} échéances actives`, `${data?.events.length ?? 4} active events`)} detail={t('Saisie déclarative réactive', 'Reactive declared data')} icon="calendar"/><Row title="operations.csv" detail={t('Exemple d’aperçu uniquement · aucun fichier importé', 'Preview example only · no file imported')} icon="file"/></View><Button onPress={() => router.push('/import')}>{t('Importer un fichier', 'Import a file')}</Button><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button></>} aside={<Rail><Notice title={t('Connexion facultative', 'Optional connection')}>{t('Vous pouvez continuer avec vos saisies et imports. Aucune connexion bancaire active.', 'You can continue with manual entries and imports. No active bank connection.')}</Notice><Button variant="secondary" onPress={() => setInfo(!info)}>{t('Voir les connexions disponibles', 'View available connections')}</Button>{info && <Note>{t('Aucun connecteur n’est raccordé. La prévision synthétique reste accessible sans wallet ni KYC.', 'No connector is integrated. The synthetic forecast remains available without a wallet or KYC.')}</Note>}<Button variant="ghost" onPress={() => router.push('/calendar')}>{t('Revenir au calendrier', 'Back to calendar')}</Button></Rail>}/></>;
-}
-function Tracking() {
+function PlanActions() {
     const { t } = useSession();
-    const { data } = useClientData();
-    const saved = data?.plan.status === 'ACKNOWLEDGED';
-    const action = data?.plan.proposed_actions.find(a => a.type === 'own_funds_transfer');
-    const [viewMode, setViewMode] = useState<'lina' | 'network'>('lina');
+    const data = useClientData().data;
+    const acknowledge = useAcknowledge();
+    const plan = getPlanView(data);
+    if (plan.state !== 'feasible' || plan.result?.status !== 'FEASIBLE') return <RecalculationNotice />;
+    const saved = plan.result.action_plan.status === 'ACKNOWLEDGED';
+    const actionPlan = plan.result.action_plan;
+    return <View style={{ gap: 12 }}>
+        <Button busy={acknowledge.isPending} onPress={() => acknowledge.mutate(actionPlan)}>
+            {saved ? t('Proposition acquittée', 'Proposal acknowledged') : t('Acquitter la proposition', 'Acknowledge proposal')}
+        </Button>
+        {acknowledge.isError && <T accessibilityRole="alert" style={{ color: c.error }}>{t('Impossible d’enregistrer cet acquittement. Réessayez.', 'Could not save acknowledgement. Please retry.')}</T>}
+        <Note>{t('Acquitter signifie avoir lu la proposition. Cela ne transfère aucun fonds.', 'Acknowledging means you have read the proposal. No funds are moved.')}</Note>
+    </View>;
+}
 
-    if (!action) return <T>{t('Aucune proposition disponible', 'No proposal available')}</T>;
-
-    return <>
-        <Title>{t('Suivi', 'Tracking')}</Title>
-        <T>{t('Ce qui est prévu. Ce qui a eu lieu.', 'What is planned. What has happened.')}</T>
-
-        <View style={[s.periods, { marginVertical: 8 }]}>
-            <Pressable
-                onPress={() => setViewMode('lina')}
-                style={[s.period, viewMode === 'lina' && { backgroundColor: c.raised, borderColor: '#5B454C' }]}
-            >
-                <T style={[s.note, { color: viewMode === 'lina' ? c.text : c.muted }]}>
-                    {t('Suivi personnel (Lina)', 'Personal tracking (Lina)')}
-                </T>
-            </Pressable>
-            <Pressable
-                onPress={() => setViewMode('network')}
-                style={[s.period, viewMode === 'network' && { backgroundColor: c.raised, borderColor: '#5B454C' }]}
-            >
-                <T style={[s.note, { color: viewMode === 'network' ? c.text : c.muted }]}>
-                    {t('Suivi réseau XRPL (Devnet)', 'XRPL Network tracking (Devnet)')}
-                </T>
-            </Pressable>
-        </View>
-
-        {viewMode === 'lina' ? (
-            <Split
-                main={<>
-                    <Card warm style={s.hero}>
-                        <Note>{saved ? t('PLAN ENREGISTRÉ', 'SAVED PLAN') : t('PROPOSITION À LIRE', 'PROPOSAL TO READ')}</Note>
-                        <Money value={action.amount_decimal} />
-                        <T style={{ fontSize: 18 }}>{t('Épargne → Compte courant', 'Savings → Current account')}</T>
-                        <Note>{saved ? t('Aujourd’hui à 09:45 · session de démonstration', 'Today at 09:45 · demo session') : t('Aucune décision enregistrée', 'No decision recorded')}</Note>
-                    </Card>
-                    <Notice title={t('Le transfert reste à réaliser', 'The transfer still needs to be made')}>
-                        {t('Votre accord enregistre le plan. Il ne modifie pas vos soldes.', 'Your agreement saves the plan. It does not change your balances.')}
-                    </Notice>
-                    <View>
-                        <Heading>{t('Étapes du plan', 'Plan steps')}</Heading>
-                        <Row
-                            icon={saved ? 'check' : 'circle'}
-                            title={saved ? t('Plan enregistré', 'Plan saved') : t('Plan proposé', 'Plan proposed')}
-                            detail={saved ? t('Acquittement simulé · session uniquement', 'Simulated acknowledgement · session only') : t('À lire avant de décider', 'Read before deciding')}
-                            positive={saved}
-                        />
-                        <Row
-                            icon="circle"
-                            title={t('Transfert à réaliser', 'Transfer to make')}
-                            detail={t('Depuis votre banque, séparément', 'Through your bank, separately')}
-                        />
-                        <Row
-                            icon="circle"
-                            title={t('Mouvement confirmé', 'Confirmed movement')}
-                            detail={t('Aucune observation disponible', 'No observation available')}
-                        />
-                    </View>
-                </>}
-                aside={<Rail>
-                    <Button onPress={() => router.push('/proposal')}>
-                        {saved ? t('Voir le plan enregistré', 'View saved plan') : t('Lire la proposition', 'Read proposal')}
-                    </Button>
-                    <Button variant="secondary" onPress={() => router.push('/sources')}>
-                        {t('Mettre à jour mes données', 'Update my data')}
-                    </Button>
-                    <Note>{t('Aucune transaction ni preuve réseau n’a été créée sans votre accord exprès.', 'No transaction or network evidence has been created without your express consent.')}</Note>
-                </Rail>}
-            />
-        ) : (
-            <Split
-                main={<>
-                    <Card warm style={s.hero}>
-                        <View style={s.between}>
-                            <Note>{t('ÉTAT DE DÉMONSTRATION · RÉSEAU DE TEST', 'DEMO STATE · TEST NETWORK')}</Note>
-                            <View style={{ backgroundColor: '#42281D', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
-                                <T style={{ fontSize: 11, color: c.warning }}>XRPL Devnet</T>
-                            </View>
-                        </View>
-                        <Heading style={{ fontSize: 24 }}>{t('Confirmation en attente', 'Confirmation pending')}</Heading>
-                        <T>{t('Les fonds ne sont pas encore confirmés.', 'Funds are not yet confirmed.')}</T>
-                        <Note>{t('Transaction non-custodiale signée localement (XLS-65 / XLS-66).', 'Non-custodial transaction signed locally (XLS-65 / XLS-66).')}</Note>
-                    </Card>
-
-                    <Notice title={t('Vos soldes ne sont pas crédités', 'Your balances are not credited')} tone="warning">
-                        {t('Une opération envoyée ne devient confirmée qu’après vérification du résultat et de ses effets.', 'A submitted operation is confirmed only after ledger verification of its result and effects.')}
-                    </Notice>
-
-                    <View>
-                        <Heading>{t('Cycle réseau', 'Network lifecycle')}</Heading>
-                        <Row icon="check" title={t('1. Approbation', '1. Approval')} detail={t('Validité 5 minutes vérifiée off-chain', '5-minute validity verified off-chain')} positive />
-                        <Row icon="check" title={t('2. Signature', '2. Signature')} detail={t('Clé Ed25519 locale non-custodiale (rPVMhWB...)', 'Local non-custodial Ed25519 key (rPVMhWB...)')} positive />
-                        <Row icon="check" title={t('3. Envoi au réseau', '3. Submission')} detail={t('Broadcast au nœud devnet.xrpl.org:51233', 'Broadcast to devnet.xrpl.org:51233')} positive />
-                        <Row icon="circle" title={t('4. Confirmation ledger', '4. Ledger confirmation')} detail={t('En attente de clôture du ledger devnet #49281', 'Awaiting ledger closure devnet #49281')} />
-                    </View>
-                </>}
-                aside={<Rail>
-                    <Heading>{t('Preuve on-chain', 'On-chain proof')}</Heading>
-                    <Note>{t('Hash de transaction :', 'Transaction hash:')}</Note>
-                    <T style={{ fontFamily: 'Courier', fontSize: 11, color: c.accent }}>
-                        7F1D8B4E...91A2C3E5
-                    </T>
-                    <Button variant="secondary" onPress={() => router.push('/proposal')}>
-                        {t('Vérifier le statut', 'Verify status')}
-                    </Button>
-                    <Note>{t('Les réserves cantonnées sont strictement séparées de la liquidité active.', 'Segregated reserves are strictly separated from active liquidity.')}</Note>
-                </Rail>}
-            />
-        )}
-    </>;
+function Proposal() {
+    const { t } = useSession();
+    const desktop = useDesktop();
+    const plan = getPlanView(useClientData().data);
+    if (plan.state === 'infeasible' || plan.state === 'inconsistent') return <PageTransition key="proposal"><Title>{t('Aucune action sûre identifiée.', 'No safe action identified.')}</Title><DiagnosticCard state={plan.state} /><Button variant="secondary" onPress={() => router.push('/sources')}>{t('Vérifier mes hypothèses', 'Review my assumptions')}</Button></PageTransition>;
+    if (plan.state !== 'feasible' || plan.action?.type !== 'own_funds_transfer') return <PageTransition key="proposal"><Title>{t('Proposition', 'Proposal')}</Title><RecalculationNotice /><TransferCard /></PageTransition>;
+    return <PageTransition key="proposal">
+        <Title>{t('Une action claire, à votre rythme.', 'One clear action, on your terms.')}</Title>
+        <Note>{t('Proposition déterministe · les montants viennent du plan structuré.', 'Deterministic proposal · amounts come from the structured plan.')}</Note>
+        <Split main={<>
+            <Card warm style={s.proposalHero}>
+                <T style={s.eyebrow}>{t('TRANSFERT DE FONDS PROPRES', 'OWN FUNDS TRANSFER')}</T>
+                <Money value={plan.action.amount_decimal} size={62} />
+                <T style={s.transferTitle}>{t('Depuis l’épargne vers le courant', 'From savings to current account')}</T>
+                <Note>{t('Aperçu seulement. Aucun virement n’a été effectué.', 'Preview only. No transfer has been made.')}</Note>
+            </Card>
+            <Card style={s.detail}><Comparison /></Card>
+        </>} aside={<Rail>
+            <CardTitle eyebrow={t('DÉCISION', 'DECISION')} title={t('Relire avant d’acquitter', 'Review before acknowledging')} />
+            <PlanActions />
+            <Button variant="secondary" onPress={() => router.push('/options')}>{t('Comparer les options', 'Compare options')}</Button>
+            <Notice title={t('Pas une exécution', 'Not an execution')} tone="success">{t('La proposition ne déplace pas d’argent et n’envoie aucune transaction.', 'The proposal does not move money or submit a transaction.')}</Notice>
+        </Rail>} />
+        {!desktop && <View style={s.mobileActions}><PlanActions /><Button variant="secondary" onPress={() => router.push('/options')}>{t('Comparer les options', 'Compare options')}</Button></View>}
+    </PageTransition>;
 }
 
 function Options() {
-    const { t, setState } = useSession();
-    const { data } = useClientData();
-    const action = data?.plan.proposed_actions.find(a => a.type === 'own_funds_transfer');
-    if (!action) return <T>{t('Aucune proposition disponible', 'No proposal available')}</T>;
+    const { t } = useSession();
+    const plan = getPlanView(useClientData().data);
+    return <PageTransition key="options">
+        <Title>{t('Options', 'Options')}</Title>
+        <Note>{t('Les dépenses essentielles et réserves protégées restent des contraintes.', 'Essential expenses and protected reserves stay as hard constraints.')}</Note>
+        <RecalculationNotice />
+        {(plan.state === 'infeasible' || plan.state === 'inconsistent') ? <>
+            <DiagnosticCard state={plan.state} />
+            <Card><CardTitle eyebrow={t('AUTRES PISTES', 'OTHER OPTIONS')} title={t('Aucune action n’est engagée automatiquement.', 'No other action is taken automatically.')} />
+                <Note>{t('Vous pouvez revoir les dates ou vos hypothèses. Un changement d’échéance nécessite l’accord du créancier.', 'You can review event dates or assumptions. A due-date change requires the creditor’s agreement.')}</Note>
+                <Button variant="secondary" onPress={() => router.push('/sources')}>{t('Vérifier les données', 'Review data')}</Button>
+            </Card>
+        </> : <>
+            <TransferCard />
+            <Card><CardTitle eyebrow={t('SANS DÉPLACEMENT AUTOMATIQUE', 'NO AUTOMATIC CHANGE')} title={t('Demander un décalage d’échéance', 'Request a due-date change')} />
+                <Note>{t('Toute nouvelle date reste une hypothèse tant que le créancier ne l’a pas confirmée.', 'Any new date remains a scenario until the creditor confirms it.')}</Note>
+                <Button variant="secondary" onPress={() => router.push('/add')}>{t('Revoir les échéances', 'Review due dates')}</Button>
+            </Card>
+        </>}
+    </PageTransition>;
+}
 
-    return <>
-        <Title>{t('Vos options', 'Your options')}</Title>
-        <T style={{ fontSize: 16, color: c.muted, marginBottom: 8 }}>
-            {t('Préserver 100 € avant le salaire', 'Preserve €100 before payday')}
-        </T>
+function Sources() {
+    const { t, language } = useSession();
+    const desktop = useDesktop();
+    const data = useClientData().data;
+    const updateBalances = useUpdateBalances();
+    const [editing, setEditing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [current, setCurrent] = useState(data?.request.opening_balances.current ?? demoFixture.opening_balances.current);
+    const [savings, setSavings] = useState(data?.request.opening_balances.savings ?? demoFixture.opening_balances.savings);
+    const [reserve, setReserve] = useState(data?.request.current_reserve ?? demoFixture.current_reserve);
+    const [protectedSavings, setProtectedSavings] = useState(data?.request.savings_protected_reserve ?? '0.00');
+    const currentValue = data?.request.opening_balances.current ?? demoFixture.opening_balances.current;
+    const savingsValue = data?.request.opening_balances.savings ?? demoFixture.opening_balances.savings;
+    const reserveValue = data?.request.current_reserve ?? demoFixture.current_reserve;
 
-        <Card warm style={{ gap: 14 }}>
-            <View style={s.inline}>
-                <View style={{ backgroundColor: '#382B2E', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
-                    <T style={{ fontSize: 11, color: c.accent, fontFamily: tokens.font.medium }}>
-                        {t('COMPATIBLE · SANS NOUVELLE DETTE', 'COMPATIBLE · NO NEW DEBT')}
-                    </T>
-                </View>
+    return <PageTransition key="sources">
+        <Title>{t('Vos sources', 'Your sources')}</Title>
+        <Note>{t('Saisie déclarative · aucune connexion bancaire n’est active.', 'Declared entries · no bank connection is active.')}</Note>
+        <RecalculationNotice />
+        <Split main={<>
+            <Card warm style={s.detail}>
+                <View style={s.sectionHeader}><CardTitle eyebrow={t('ESPACE PERSONNEL', 'PERSONAL WORKSPACE')} title={t('Soldes déclarés', 'Declared balances')} /><Button variant="secondary" onPress={() => { setEditing(!editing); setError(null); }}>{editing ? t('Annuler', 'Cancel') : t('Modifier', 'Edit')}</Button></View>
+                {editing ? <View style={{ gap: 14 }}>
+                    <Field label={t('Compte courant (€)', 'Current account (€)')} value={current} onChangeText={setCurrent} keyboardType="decimal-pad" accessibilityHint={t('Solde déclaré du compte courant', 'Declared current account balance')} />
+                    <Field label={t('Épargne totale (€)', 'Total savings (€)')} value={savings} onChangeText={setSavings} keyboardType="decimal-pad" />
+                    <Field label={t('Réserve à conserver sur le courant (€)', 'Reserve to keep in current account (€)')} value={reserve} onChangeText={setReserve} keyboardType="decimal-pad" />
+                    <Field label={t('Épargne protégée (€)', 'Protected savings (€)')} value={protectedSavings} onChangeText={setProtectedSavings} keyboardType="decimal-pad" />
+                    {error && <T accessibilityRole="alert" style={{ color: c.error }}>{error}</T>}
+                    <Button busy={updateBalances.isPending} onPress={() => {
+                        const values = [current, savings, reserve, protectedSavings].map(value => DecimalStringSchema.safeParse(value.replace(',', '.')));
+                        if (values.some(value => !value.success)) {
+                            setError(t('Saisissez des montants décimaux positifs valides.', 'Enter valid positive decimal amounts.'));
+                            return;
+                        }
+                        updateBalances.mutate({ current: current.replace(',', '.'), savings: savings.replace(',', '.'), reserve: reserve.replace(',', '.'), protectedSavings: protectedSavings.replace(',', '.') }, {
+                            onSuccess: () => { setEditing(false); setError(null); },
+                            onError: () => setError(t('Les hypothèses n’ont pas été modifiées. Vérifiez le calcul puis réessayez.', 'Assumptions were not updated. Check the calculation and retry.')),
+                        });
+                    }}>{t('Recalculer avec ces soldes', 'Recalculate with these balances')}</Button>
+                </View> : <View>
+                    <SourceRow title={t('Compte courant', 'Current account')} subtitle={t('Déclaré par vous', 'Declared by you')} value={euro(currentValue, language)} icon="sources" />
+                    <SourceRow title={t('Épargne', 'Savings')} subtitle={t('Déclarée par vous', 'Declared by you')} value={euro(savingsValue, language)} icon="shield" />
+                    <SourceRow title={t('Réserve courante', 'Current reserve')} subtitle={t('Seuil que le plan doit préserver', 'Floor the plan must preserve')} value={euro(reserveValue, language)} icon="shield" />
+                </View>}
+                <Note>{t('Ces données ne sont pas vérifiées par une banque.', 'These values have not been verified by a bank.')}</Note>
+            </Card>
+            <View style={s.section}>
+                <View style={s.sectionHeader}><CardTitle eyebrow={t('CALENDRIER', 'CALENDAR')} title={t('Entrées et échéances', 'Income and due dates')} /><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter', 'Add')}</Button></View>
+                <Card style={s.eventCard}><EventList allowDelete /></Card>
             </View>
-            <Heading>{t('Transférer 230 € de l’épargne', 'Transfer €230 from savings')}</Heading>
-            <Money value={action.amount_decimal} />
-            <T>{t('70 € d’épargne restante. Réserve du courant préservée. À réaliser avant J+2.', '€70 remaining in savings. Current account reserve preserved. To complete before day 2.')}</T>
-            <Note>{t('Coût bancaire éventuel à vérifier auprès de votre banque.', 'Possible banking fee to verify with your bank.')}</Note>
-            <Button onPress={() => router.push('/proposal')}>{t('Voir ce plan', 'View this plan')}</Button>
-        </Card>
-
-        <Card style={{ gap: 12 }}>
-            <Heading>{t('Demander un décalage du loyer', 'Request rent payment postponement')}</Heading>
-            <T>{t('Accord du bailleur nécessaire. Le loyer reste à J+2 tant que la nouvelle date n’est pas confirmée.', 'Landlord agreement required. Rent remains scheduled at day 2 until confirmed.')}</T>
-            <Note>{t('Option non engagée · aucune démarche automatique n’est effectuée sans votre accord.', 'Non-binding option · no automated request made without your consent.')}</Note>
-        </Card>
-
-        <Card style={{ gap: 12 }}>
-            <Heading>{t('Et si mon épargne était protégée ?', 'What if my savings were protected?')}</Heading>
-            <T>{t('Avec 300 € d’épargne protégée, aucune solution sans dette dans ce scénario fourni.', 'With €300 of protected savings, this supplied scenario has no debt-free solution.')}</T>
-            <Button variant="secondary" onPress={() => { setState('no-solution'); router.push('/proposal'); }}>
-                {t('Explorer ce diagnostic (sans dette)', 'Explore this diagnostic (no-debt)')}
-            </Button>
-        </Card>
-
-        <Note style={{ marginTop: 8 }}>
-            {t('Aucune dépense facultative à réduire n’est identifiée dans ces hypothèses.', 'No discretionary expense to reduce was identified under these assumptions.')}
-        </Note>
-        <Button variant="ghost" onPress={() => router.push('/sources')}>
-            {t('Modifier les hypothèses', 'Modify assumptions')}
-        </Button>
-    </>;
+            <Card style={s.importCard}><View style={s.rowIcon}><Icon name="file" size={18} color={c.accent}/></View><View style={{ flex: 1, gap: 4 }}><T style={s.rowTitle}>{t('Importer un fichier', 'Import a file')}</T><Note>{t('Aperçu seulement · aucun fichier n’a été chargé.', 'Preview only · no file has been uploaded.')}</Note></View><Button variant="ghost" onPress={() => router.push('/import')}>{t('Ouvrir', 'Open')}</Button></Card>
+        </>} aside={desktop ? <Rail>
+            <CardTitle eyebrow={t('CONFIDENTIALITÉ', 'PRIVACY')} title={t('Vos données restent dans votre espace.', 'Your data stays in your workspace.')} />
+            <Note>{t('L’espace personnel ne requiert ni organisation, ni wallet, ni DID.', 'A personal workspace requires no organization, wallet or DID.')}</Note>
+            <Button variant="secondary" onPress={() => router.push('/calendar')}>{t('Voir le calendrier', 'View calendar')}</Button>
+        </Rail> : undefined} />
+    </PageTransition>;
 }
 
-function IndependentScreen() {
-    const { t, setPersona } = useSession();
-    return <>
-        <Title>{t('Une rentrée est retardée', 'An income payment is late')}</Title>
-        <Note>{t('PROCHAINS 3 JOURS · EXEMPLE INDÉPENDANT', 'NEXT 3 DAYS · FREELANCE EXAMPLE')}</Note>
-        <Split
-            main={<>
-                <Card warm style={s.hero}>
-                    <Money value="2400.00" size={60} />
-                    <T style={{ fontSize: 18 }}>{t('Facture Studio Nord · attendue hier', 'Studio Nord invoice · expected yesterday')}</T>
-                    <Note>{t('Montant facturé : 2 400 € · non encore encaissé', 'Invoiced amount: €2,400 · not yet credited')}</Note>
-                </Card>
-
-                <Notice title={t('Deux échéances sont concernées', 'Two due dates are affected')} tone="warning">
-                    {t('La facture attendue ne compte pas comme argent disponible. Les dépenses du studio arrivent avant le règlement du client.', 'The expected invoice does not count as available money. Studio expenses arrive before client settlement.')}
-                </Notice>
-
-                <Card style={s.detail}>
-                    <Heading>{t('Échéances activité', 'Business scheduled payments')}</Heading>
-                    <Row
-                        icon="rent"
-                        title={t('Loyer du studio', 'Studio rent')}
-                        detail={t('J+2 · Dépense essentielle d’exploitation', 'Day 2 · Essential operating expense')}
-                        value="−900 €"
-                    />
-                    <Row
-                        icon="file"
-                        title={t('Fournisseur matériel', 'Equipment supplier')}
-                        detail={t('J+3 · Commande validée', 'Day 3 · Confirmed purchase order')}
-                        value="−650 €"
-                    />
-                    <Row
-                        icon="shield"
-                        title={t('Provision fiscale', 'Tax reserve')}
-                        detail={t('Réservée · protégée de toute affectation opérationnelle', 'Reserved · protected from operational allocation')}
-                        value="+1 400 €"
-                        positive
-                    />
-                </Card>
-
-                <Note>
-                    {t('Votre espace personnel reste séparé. Aucun transfert entre espaces n’est automatique.', 'Your personal workspace remains separate. No transfer between spaces is automatic.')}
-                </Note>
-
-                <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
-                    <Button onPress={() => router.push('/options')}>
-                        {t('Comparer les options', 'Compare options')}
-                    </Button>
-                    <Button variant="secondary" onPress={() => router.push('/add')}>
-                        {t('Actualiser la date de rentrée', 'Update income date')}
-                    </Button>
-                </View>
-            </>}
-            aside={<Rail>
-                <Heading>{t('Séparation des patrimoines', 'Workspace separation')}</Heading>
-                <T>{t('L’optimiseur garantit qu’aucun fonds personnel ne vient combler l’activité sans votre ordre exprès.', 'The optimizer ensures no personal funds patch business cashflow without your express order.')}</T>
-                <Button variant="secondary" onPress={() => { setPersona('personal'); router.push('/'); }}>
-                    {t('Revenir à Lina (Personnel)', 'Return to Lina (Personal)')}
-                </Button>
-            </Rail>}
-        />
-    </>;
-}
-
-function OrganizationScreen() {
-    const { t, setPersona } = useSession();
-    const [subScenario, setSubScenario] = useState<'31' | '32' | '33' | '34' | '35'>('31');
-
-    return <>
-        <View style={[s.between, { flexWrap: 'wrap', gap: 8 }]}>
-            <Title>{t('Organisation', 'Organization')}</Title>
-            <Button variant="ghost" onPress={() => { setPersona('personal'); router.push('/'); }}>
-                {t('← Revenir à Lina', '← Return to Lina')}
-            </Button>
-        </View>
-
-        <View style={[s.periods, { marginVertical: 12 }]}>
-            {[
-                { id: '31', label: t('31 · Incompatible', '31 · Incompatible') },
-                { id: '32', label: t('32 · Approbation', '32 · Approval') },
-                { id: '33', label: t('33 · Accès & DID', '33 · Access & DID') },
-                { id: '34', label: t('34 · Frais sponsorisés', '34 · Sponsoring') },
-                { id: '35', label: t('35 · Habilité', '35 · Authorized') },
-            ].map(tab => (
-                <Pressable
-                    key={tab.id}
-                    onPress={() => setSubScenario(tab.id as any)}
-                    style={[s.period, subScenario === tab.id && { backgroundColor: c.raised, borderColor: '#5B454C' }]}
-                >
-                    <T style={[s.note, { color: subScenario === tab.id ? c.text : c.muted, fontSize: 11 }]}>
-                        {tab.label}
-                    </T>
-                </Pressable>
-            ))}
-        </View>
-
-        {subScenario === '31' && (
-            <Split
-                main={<>
-                    <Card warm style={s.hero}>
-                        <Note>{t('DIAGNOSTIC · EXEMPLE PME', 'DIAGNOSTIC · SME EXAMPLE')}</Note>
-                        <Heading style={{ fontSize: 24 }}>{t('Capacité insuffisante', 'Insufficient capacity')}</Heading>
-                        <Money value="90000.00" size={56} />
-                        <Note>{t('Besoin formulé : 90 000 € · Plafond maximum : 80 000 €', 'Requested need: €90,000 · Maximum ceiling: €80,000')}</Note>
-                    </Card>
-
-                    <Notice title={t('Ce scénario est impossible (INFEASIBLE)', 'This scenario is impossible (INFEASIBLE)')} tone="warning">
-                        {t('Le besoin dépasse la capacité. Aucune opération financière ne peut être exécutée.', 'The need exceeds available capacity. No financial operation can be executed.')}
-                    </Notice>
-
-                    <Card style={s.detail}>
-                        <Heading>{t('Détail du calcul d’éligibilité', 'Eligibility calculation details')}</Heading>
-                        <Row icon="warning" title={t('Besoin exprimé', 'Expressed need')} detail={t('Dépenses opérationnelles de clôture', 'Closing operating expenses')} value="90 000 €" />
-                        <Row icon="shield" title={t('Capacité disponible du pool', 'Available pool capacity')} detail={t('Plafond XRPL XLS-65 / XLS-66', 'Ceiling XRPL XLS-65 / XLS-66')} value="80 000 €" />
-                        <Row icon="circle" title={t('Écart non couvert', 'Uncovered gap')} detail={t('Déficit structurel hors limites de prêt', 'Structural deficit beyond loan limits')} value="−10 000 €" />
-                    </Card>
-
-                    <Note>
-                        {t('Les fonds de clients cantonnés restent exclus. Une approbation ne peut pas dépasser ce plafond.', 'Segregated client funds remain excluded. An approval cannot exceed this ceiling.')}
-                    </Note>
-
-                    <Button onPress={() => setSubScenario('32')}>{t('Voir le scénario compatible 70 000 €', 'View compatible €70,000 scenario')}</Button>
-                </>}
-                aside={<Rail>
-                    <Heading>{t('Garde-fous mathématiques', 'Mathematical safeguards')}</Heading>
-                    <T>{t('Le solveur déterministe refuse formellement de générer une transaction si les contraintes du pool ne sont pas respectées.', 'The deterministic solver formally refuses to generate a transaction if pool constraints are not met.')}</T>
-                </Rail>}
-            />
-        )}
-
-        {subScenario === '32' && (
-            <Split
-                main={<>
-                    <Card warm style={s.hero}>
-                        <Note>{t('SIMULATION · CONDITIONS À VÉRIFIER', 'SIMULATION · CONDITIONS TO VERIFY')}</Note>
-                        <Heading style={{ fontSize: 24 }}>{t('Scénario compatible', 'Compatible scenario')}</Heading>
-                        <Money value="70000.00" size={56} />
-                        <Note>{t('Besoin réajusté : 70 000 € · Capacité disponible : 80 000 €', 'Adjusted need: €70,000 · Available capacity: €80,000')}</Note>
-                    </Card>
-
-                    <Notice title={t('Approbation requise', 'Approval required')} tone="warning">
-                        {t('Seule une personne habilitée peut approuver ces conditions. Votre rôle actuel : analyste (consultation et proposition uniquement).', 'Only an authorized person can approve these terms. Your current role: analyst (consultation and proposal only).')}
-                    </Notice>
-
-                    <Card style={s.detail}>
-                        <Heading>{t('Conditions du prêt XRPL', 'XRPL Loan terms')}</Heading>
-                        <Row icon="shield" title={t('Capacité du scénario', 'Scenario capacity')} detail={t('Compatible avec le pool d’actifs', 'Compatible with asset pool')} value="80 000 €" />
-                        <Row icon="calendar" title={t('Durée proposée', 'Proposed duration')} detail={t('Remboursement planifié', 'Planned repayment')} value="30 jours" />
-                        <Row icon="file" title={t('Taux / Coût total', 'Interest / Total fee')} detail={t('Fixé par le protocole XLS-66', 'Fixed by protocol XLS-66')} value="450 €" />
-                    </Card>
-
-                    <Note>
-                        {t('Montant, frais, durée et remboursement doivent être renseignés avant signature. Tout changement invalide l’approbation.', 'Amount, fees, duration and repayment must be filled in before signature. Any change invalidates approval.')}
-                    </Note>
-
-                    <Button onPress={() => setSubScenario('35')}>{t('Demander une approbation (vue signataire)', 'Request approval (signer view)')}</Button>
-                </>}
-                aside={<Rail>
-                    <Heading>{t('Exécution indisponible', 'Execution unavailable')}</Heading>
-                    <T>{t('Les capacités réseau et les conditions ne sont pas encore vérifiées. Aucune clé privée de dépense n’est stockée sur nos serveurs.', 'Network capabilities and conditions are not yet verified. No private spending key is stored on our servers.')}</T>
-                </Rail>}
-            />
-        )}
-
-        {subScenario === '33' && (
-            <Split
-                main={<>
-                    <Card warm style={{ gap: 12 }}>
-                        <Note>{t('RÉSEAU DE TEST · CAPACITÉS À VÉRIFIER', 'TEST NETWORK · CAPABILITIES TO VERIFY')}</Note>
-                        <Heading>{t('Pour accéder au fonds', 'To access the fund')}</Heading>
-                        <T>{t('Une attestation valide, délivrée par un émetteur accepté, et l’accès au groupe autorisé (Permissioned Domain) sont requis.', 'A valid credential, issued by an accepted issuer, and access to the authorized group (Permissioned Domain) are required.')}</T>
-                        <Row icon="shield" title={t('Accès du financeur', 'Funder access')} detail={t('Validateur d’attestation : Émetteur accrédité #892', 'Credential validator: Accredited Issuer #892')} positive />
-                    </Card>
-
-                    <Card style={{ gap: 12 }}>
-                        <Heading>{t('Pour obtenir un financement', 'To obtain funding')}</Heading>
-                        <T>{t('L’éligibilité et la capacité de remboursement sont évaluées séparément. L’accès au fonds ne garantit pas un prêt.', 'Eligibility and repayment capacity are assessed separately. Access to the fund does not guarantee a loan.')}</T>
-                        <Row icon="check" title={t('Éligibilité de l’emprunteur', 'Borrower eligibility')} detail={t('Score de liquidité vérifié déterministement', 'Liquidity score deterministically verified')} positive />
-                    </Card>
-
-                    <Notice title={t('Attestation expirée ou révoquée', 'Expired or revoked credential')} tone="warning">
-                        {t('Les nouvelles actions sont bloquées. Les droits de sortie doivent être vérifiés séparément.', 'New actions are blocked. Exit rights must be verified separately.')}
-                    </Notice>
-
-                    <Note>
-                        {t('Identité portable (DID) : facultative. Elle ne suffit pas à établir votre éligibilité.', 'Decentralized Identifier (DID): optional. It is not sufficient on its own to establish eligibility.')}
-                    </Note>
-                </>}
-                aside={<Rail>
-                    <Heading>{t('Conformité XLS-65', 'XLS-65 Compliance')}</Heading>
-                    <T>{t('Les Single Asset Vaults appliquent les règles du domaine sans intermédiaire centralisé.', 'Single Asset Vaults enforce domain rules without a centralized intermediary.')}</T>
-                </Rail>}
-            />
-        )}
-
-        {subScenario === '34' && (
-            <Split
-                main={<>
-                    <Notice title={t('Prise en charge à vérifier', 'Sponsoring to verify')} tone="warning">
-                        {t('Aucun sponsor actif n’est confirmé. Vous ne pouvez pas encore utiliser cette option.', 'No active sponsor is confirmed. You cannot use this option yet.')}
-                    </Notice>
-
-                    <Card style={s.detail}>
-                        <Heading>{t('Limites de sponsoring', 'Sponsoring limits')}</Heading>
-                        <Row icon="shield" title={t('Payeur des frais', 'Fee payer')} detail={t('Sponsor tiers accrédité', 'Accredited third-party sponsor')} value="rSponsor92..." />
-                        <Row icon="circle" title={t('Plafond par opération', 'Limit per operation')} detail={t('Frais de gaz réseau maximum couverts', 'Maximum covered network gas fee')} value="0.005 XRP" />
-                        <Row icon="circle" title={t('Budget journalier', 'Daily budget')} detail={t('Consommation globale du compte entreprise', 'Global enterprise account consumption')} value="50 XRP / jour" />
-                    </Card>
-
-                    <Note>
-                        {t('Bénéficiaires autorisés uniquement. Une révocation ou un plafond atteint rend l’option indisponible. Les réserves immobilisées sont séparées des frais consommés.', 'Authorized beneficiaries only. Revocation or reaching the limit makes the option unavailable. Locked reserves are separated from consumed fees.')}
-                    </Note>
-                </>}
-                aside={<Rail>
-                    <Heading>{t('Règles du protocole', 'Protocol rules')}</Heading>
-                    <T>{t('Le parrainage de transaction ne confère aucun droit sur les actifs empruntés.', 'Transaction sponsoring grants no rights over borrowed assets.')}</T>
-                </Rail>}
-            />
-        )}
-
-        {subScenario === '35' && (
-            <Split
-                main={<>
-                    <Card warm style={s.hero}>
-                        <Note>{t('SIMULATION · APPROBATEUR HABILITÉ', 'SIMULATION · AUTHORIZED SIGNER')}</Note>
-                        <Heading style={{ fontSize: 24 }}>{t('Revoir les conditions', 'Review conditions')}</Heading>
-                        <Money value="70000.00" size={56} />
-                        <Note>{t('Scénario compatible avec une capacité de 80 000 €.', 'Compatible scenario with a capacity of €80,000.')}</Note>
-                    </Card>
-
-                    <Card style={s.detail}>
-                        <Heading>{t('Paramètres contractuels validés', 'Validated contractual parameters')}</Heading>
-                        <Row icon="calendar" title={t('Durée proposée', 'Proposed duration')} detail={t('Échéance unique à 30 jours', 'Single due date at 30 days')} value="30 jours" />
-                        <Row icon="file" title={t('Coût total prévu', 'Total expected cost')} detail={t('Intérêts courus et frais de mise à disposition', 'Accrued interest and availability fee')} value="450 €" />
-                        <Row icon="shield" title={t('Remboursement', 'Repayment')} detail={t('Échéance in fine déduite des encaissements clients', 'Bullet repayment deducted from client collections')} value="70 450 €" />
-                    </Card>
-
-                    <Notice title={t('Approbation liée à ces conditions', 'Approval tied to these conditions')} tone="success">
-                        {t('Tout changement demande une nouvelle approbation. Validité proposée : 5 minutes.', 'Any change requires a fresh approval. Proposed validity: 5 minutes.')}
-                    </Notice>
-
-                    <Button onPress={() => router.push('/tracking')}>
-                        {t('Approuver le scénario (simulation)', 'Approve scenario (simulation)')}
-                    </Button>
-
-                    <Note>
-                        {t('Cette maquette enregistre une approbation simulée. La signature reste indisponible tant que réseau, actif et capacités ne sont pas vérifiés.', 'This mockup records a simulated approval. Signature remains unavailable until network, asset and capabilities are verified.')}
-                    </Note>
-                </>}
-                aside={<Rail>
-                    <Heading>{t('Rôle Signataire', 'Signer Role')}</Heading>
-                    <T>{t('Vous disposez des privilèges de signature pour engager la ligne de trésorerie de l’organisation.', 'You hold signing privileges to commit the organization’s treasury line.')}</T>
-                    <Button variant="secondary" onPress={() => router.push('/tracking')}>
-                        {t('Voir le suivi réseau', 'View network tracking')}
-                    </Button>
-                </Rail>}
-            />
-        )}
-    </>;
+function SourceRow({ title, subtitle, value, icon }: { title: string; subtitle: string; value: string; icon: string }) {
+    return <View style={s.row}><View style={s.rowIcon}><Icon name={icon} size={18} color={c.accent}/></View><View style={{ flex: 1, gap: 4 }}><T style={s.rowTitle}>{title}</T><Note>{subtitle}</Note></View><T style={s.rowValue}>{value}</T></View>;
 }
 
 function AddEvent() {
@@ -773,140 +469,185 @@ function AddEvent() {
     const [label, setLabel] = useState('');
     const [amount, setAmount] = useState('');
     const [date, setDate] = useState('');
-    const [error, setError] = useState('');
-    const [saved, setSaved] = useState(false);
+    const [direction, setDirection] = useState<'inflow' | 'outflow'>('outflow');
+    const [error, setError] = useState<string | null>(null);
     const input = useRef<TextInput>(null);
     const createEvent = useCreateEvent();
+    const anchor = useClientData().data?.result?.projection.as_of ?? useClientData().data?.provenance.asOf ?? '2026-09-12T00:00:00Z';
+    const defaultDate = new Date(Date.parse(anchor) + 1 * 86_400_000).toISOString().slice(0, 10);
 
-    return <>
-        <Title>{t('Ajouter une échéance', 'Add a due date')}</Title>
-        <Card style={{ maxWidth: 680 }}>
-            <Field ref={input} label={t('Libellé', 'Label')} value={label} onChangeText={setLabel} placeholder={t('Ex. Loyer', 'e.g. Rent')} error={error && !label ? error : undefined}/>
-            <Field label={t('Montant en EUR', 'Amount in EUR')} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="600,00"/>
-            <Field label={t('Date prévue (AAAA-MM-JJ)', 'Expected date (YYYY-MM-DD)')} value={date} onChangeText={setDate} placeholder="2026-09-14"/>
-            <Note>{t('Cette saisie reste déclarative. Les prévisions se mettent à jour automatiquement.', 'This entry remains declared. Forecasts update automatically.')}</Note>
-            {error ? <T accessibilityRole="alert" style={{ color: c.error }}>{error}</T> : null}
-            <Button
-                busy={createEvent.isPending}
-                onPress={() => {
-                    const normalizedAmount = amount.replace(',', '.');
-                    if (!label.trim() || !DecimalStringSchema.safeParse(normalizedAmount).success || normalizedAmount.startsWith('-') || !/[1-9]/.test(normalizedAmount) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) {
-                        setError(t('Vérifiez le libellé, le montant positif et la date.', 'Check the label, positive amount and date.'));
-                        input.current?.focus();
-                        return;
-                    }
-                    setError('');
-                    createEvent.mutate({
-                        direction: 'outflow',
-                        amount_decimal: normalizedAmount,
-                        asset_id: 'EUR',
-                        label: label.trim(),
-                        expected_settlement_at: `${date}T10:00:00Z`,
-                    }, {
-                        onSuccess: () => {
-                            setSaved(true);
-                            setTimeout(() => router.push('/calendar'), 800);
-                        },
-                    });
-                }}
-            >
-                {t('Enregistrer l’échéance', 'Save due date')}
-            </Button>
-            {saved && <Notice title={t('Échéance enregistrée', 'Due date saved')} tone="success">{t('L’échéance a été ajoutée à vos prévisions.', 'The due date was added to your forecast.')}</Notice>}
-            <Button variant="secondary" onPress={() => router.push('/sources')}>{t('Retour aux sources', 'Back to sources')}</Button>
+    return <PageTransition key="add">
+        <Title>{t('Ajouter une échéance', 'Add an event')}</Title>
+        <Card style={s.formCard}>
+            <Field ref={input} label={t('Libellé', 'Label')} value={label} onChangeText={setLabel} placeholder={t('Ex. Assurance', 'e.g. Insurance')} />
+            <Field label={t('Montant (€)', 'Amount (€)')} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0,00" />
+            <Field label={t('Date prévue (AAAA-MM-JJ)', 'Expected date (YYYY-MM-DD)')} value={date} onChangeText={setDate} placeholder={defaultDate} />
+            <View style={{ gap: 8 }}><T variant="label">{t('Type d’événement', 'Event type')}</T><View style={s.periods}>
+                {(['outflow', 'inflow'] as const).map(value => <Pressable key={value} onPress={() => setDirection(value)} accessibilityRole="button" accessibilityState={{ selected: direction === value }} style={[s.period, direction === value && s.periodSelected]}>
+                    <T style={[s.periodText, direction === value && s.periodTextSelected]}>{value === 'outflow' ? t('Dépense', 'Expense') : t('Revenu attendu', 'Expected income')}</T>
+                </Pressable>)}
+            </View></View>
+            <Note>{t('Cette entrée est déclarative. Un revenu attendu ne devient pas du cash confirmé.', 'This entry is declared. Expected income does not become confirmed cash.')}</Note>
+            {error && <T accessibilityRole="alert" style={{ color: c.error }}>{error}</T>}
+            <Button busy={createEvent.isPending} onPress={() => {
+                const normalized = amount.replace(',', '.');
+                const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T10:00:00Z`));
+                if (!label.trim() || !DecimalStringSchema.safeParse(normalized).success || normalized.startsWith('-') || !/[1-9]/.test(normalized) || !validDate) {
+                    setError(t('Vérifiez le libellé, le montant positif et la date prévue.', 'Check the label, positive amount and expected date.'));
+                    input.current?.focus();
+                    return;
+                }
+                setError(null);
+                createEvent.mutate({ direction, amount_decimal: normalized, asset_id: 'fiat:EUR', label: label.trim(), expected_settlement_at: `${date}T10:00:00Z` }, {
+                    onSuccess: () => router.push('/calendar'),
+                    onError: () => setError(t('L’événement reste en brouillon. Le calcul est indisponible ; réessayez plus tard.', 'The event remains a draft. Calculation is unavailable; please retry later.')),
+                });
+            }}>{t('Enregistrer et recalculer', 'Save and recalculate')}</Button>
+            <Button variant="ghost" onPress={() => router.push('/sources')}>{t('Annuler', 'Cancel')}</Button>
         </Card>
-    </>;
+    </PageTransition>;
 }
 
 function ImportPreview() {
     const { t } = useSession();
     const [excluded, setExcluded] = useState(false);
-    const [confirmed, setConfirmed] = useState(false);
-    return <>
+    return <PageTransition key="import">
         <Title>{t('Aperçu de l’import', 'Import preview')}</Title>
-        <Note>{t('Exemple synthétique de la maquette · aucun fichier chargé', 'Synthetic design example · no file uploaded')}</Note>
-        <Card>
-            <Heading>operations.csv</Heading>
-            <Row icon="file" title={t('12 lignes détectées dans l’exemple', '12 rows detected in the example')} detail={t('11 lignes distinctes et 1 doublon illustratif', '11 distinct rows and 1 illustrative duplicate')}/>
-            <Notice title={t('Un doublon à vérifier', 'One duplicate to check')}>{t('L’exemple contient deux lignes identiques. Excluez le doublon pour continuer.', 'The example contains two identical rows. Exclude the duplicate to continue.')}</Notice>
-            <Button variant="secondary" onPress={() => { setExcluded(!excluded); setConfirmed(false); }}>
-                {excluded ? t('Réinclure le doublon', 'Include duplicate again') : t('Exclure le doublon', 'Exclude duplicate')}
-            </Button>
-            <Button disabled={!excluded} onPress={() => setConfirmed(true)}>
-                {t('Confirmer l’aperçu de démonstration', 'Confirm demonstration preview')}
-            </Button>
-            {confirmed && <T accessibilityLiveRegion="polite">{t('Aperçu validé : 11 lignes. Aucune importation ni écriture financière effectuée.', 'Preview validated: 11 rows. No import or financial write was performed.')}</T>}
+        <Notice title={t('Aucun fichier sélectionné', 'No file selected')}>{t('L’import CSV n’est pas raccordé dans cette version. Rien n’a été chargé ni écrit.', 'CSV import is not connected in this version. Nothing has been uploaded or written.')}</Notice>
+        <Card style={s.formCard}>
+            <CardTitle eyebrow={t('EXEMPLE PÉDAGOGIQUE', 'TEACHING EXAMPLE')} title="operations.csv" />
+            <Note>{t('Le fichier est une illustration de dédoublonnage, pas une source importée.', 'This file is a deduplication illustration, not an imported source.')}</Note>
+            <SourceRow title={t('Ligne à vérifier', 'Row to review')} subtitle={t('Doublon illustratif', 'Illustrative duplicate')} value={excluded ? t('Exclue', 'Excluded') : t('À revoir', 'Review')} icon="file" />
+            <Button variant="secondary" onPress={() => setExcluded(!excluded)}>{excluded ? t('Réinclure la ligne', 'Include row again') : t('Exclure cette ligne', 'Exclude this row')}</Button>
+            <Button disabled={!excluded} onPress={() => router.push('/sources')}>{t('Terminer l’aperçu', 'Finish preview')}</Button>
             <Button variant="ghost" onPress={() => router.push('/sources')}>{t('Retour aux sources', 'Back to sources')}</Button>
         </Card>
-    </>;
+    </PageTransition>;
 }
 
-function Diagnostic() { const { t, persona, setState } = useSession(); return <><Title>{t('Aucune solution compatible', 'No compatible solution')}</Title><Card><Icon name="shield" color={c.warning} size={32}/><Heading>{persona === 'organization' ? t('Le besoin dépasse la capacité', 'The need exceeds capacity') : t('Votre réserve reste protégée', 'Your reserve remains protected')}</Heading><T>{persona === 'organization' ? t('Besoin : 90 000 €. Plafond : 80 000 €. Résultat de référence : INFEASIBLE.', 'Need: €90,000. Limit: €80,000. Reference result: INFEASIBLE.') : t('Avec 300 € d’épargne protégée, le scénario Lina fourni ne permet pas de solution sans dette.', 'With €300 of protected savings, the supplied Lina scenario has no debt-free solution.')}</T><Note>{t('Diagnostic de démonstration fourni, sans nouvelle action financière. Aucune réserve n’est réduite.', 'Provided demonstration diagnostic, without a new financial action. No reserve is reduced.')}</Note><Button onPress={() => { setState('ready'); router.push('/sources'); }}>{t('Vérifier les données', 'Check data')}</Button></Card></>; }
-function Audience() { const { t, persona, setPersona } = useSession(); if (persona === 'independent') return <IndependentScreen />; if (persona === 'organization') return <OrganizationScreen />; return <Button variant="secondary" onPress={() => { setPersona('personal'); router.push('/'); }}>{t('Revenir à Lina', 'Return to Lina')}</Button>; }
-export function Screen({ screen }: {
-    screen?: string;
-}) {
+function Tracking() {
+    const { t } = useSession();
+    const data = useClientData().data;
+    const [evidenceOpen, setEvidenceOpen] = useState(false);
+    const plan = getPlanView(data);
+    const action = plan.state === 'feasible' && plan.action?.type === 'own_funds_transfer' ? plan.action : null;
+    return <PageTransition key="tracking">
+        <Title>{t('Suivi', 'Tracking')}</Title>
+        <Note>{t('Ce qui est proposé. Ce qui a réellement été observé.', 'What is proposed. What has actually been observed.')}</Note>
+        <RecalculationNotice />
+        {plan.state === 'infeasible' || plan.state === 'inconsistent' ? <DiagnosticCard state={plan.state} /> : action ? <Card warm style={s.detail}>
+            <T style={s.eyebrow}>{t('PROPOSITION · NON EXÉCUTÉE', 'PROPOSAL · NOT EXECUTED')}</T>
+            <Money value={action.amount_decimal} size={44}/>
+            <Notice title={t('Aucun transfert observé', 'No transfer observed')} tone="success">{t('L’acquittement conserve la proposition. Il ne modifie pas vos soldes.', 'Acknowledgement records the proposal. It does not change your balances.')}</Notice>
+            <PlanActions />
+        </Card> : <Notice title={t('Aucun plan à suivre', 'No plan to track')}>{t('Une proposition apparaîtra après un calcul disponible et réalisable.', 'A proposal will appear after a feasible calculation is available.')}</Notice>}
+        <Card style={s.detail}>
+            <CardTitle eyebrow={t('TRACK 1 · LOADED', 'TRACK 1 · LOADED')} title={t('Preuves XRPL observées', 'Observed XRPL evidence')} />
+            <Note>{t('Lecture et replay de preuves de test archivées. Aucune connexion, signature ni soumission live depuis cette interface.', 'Read-only replay of archived test evidence. This interface does not connect, sign or submit live transactions.')}</Note>
+            <Button variant="secondary" onPress={() => setEvidenceOpen(true)}>{t('Ouvrir le centre de preuves', 'Open evidence center')}</Button>
+        </Card>
+        <WalletModal visible={evidenceOpen} onClose={() => setEvidenceOpen(false)} />
+    </PageTransition>;
+}
+
+function AudienceOverview() {
+    const { t, persona } = useSession();
+    const setHorizon = useSetHorizon();
+    const label = persona === 'independent' ? t('Espace d’activité', 'Business workspace') : t('Espace d’organisation', 'Organization workspace');
+    const text = persona === 'independent'
+        ? t('Les encaissements attendus restent distincts du cash disponible. Les provisions et dépenses essentielles doivent rester protégées. Cette vue de démonstration n’a pas encore de projection dédiée.', 'Expected settlements stay separate from available cash. Tax reserves and essential expenses stay protected. This demo view has no dedicated projection yet.')
+        : t('Track 1 Loaded distingue le droit de déposer dans un vault privé de la décision d’accorder un prêt. Cette vue pédagogique ne déclenche aucune action ledger.', 'Track 1 Loaded separates permission to deposit into a private vault from the decision to grant a loan. This teaching view triggers no ledger action.');
+    return <PageTransition key={persona}>
+        <Title>{label}</Title>
+        <Card warm style={s.audienceCard}><CardTitle eyebrow={t('PARCOURS COMMUN', 'COMMON JOURNEY')} title={t('Même moteur, contexte séparé.', 'One engine, separate context.')} /><T style={{ lineHeight: 24 }}>{text}</T><Note>{t('Les chiffres de Lina ne sont pas réutilisés dans cet espace.', 'Lina’s figures are not reused in this workspace.')}</Note><Button onPress={() => router.push('/sources')}>{t('Voir les sources disponibles', 'Review available sources')}</Button></Card>
+        <Card style={s.detail}><CardTitle eyebrow={t('PROCHAINES ÉTAPES', 'NEXT STEPS')} title={t('Prévision avant financement', 'Forecast before financing')} /><Note>{t('Les données, échéances et prévisions restent accessibles sans wallet, DID ou KYC. Toute capacité Loaded dépend de son état observé.', 'Data, due dates and forecasts remain available without a wallet, DID or KYC. Loaded capabilities depend on their observed state.')}</Note><Button variant="secondary" onPress={() => router.replace('/')}>{t('Revenir au personnel', 'Return to personal')}</Button></Card>
+    </PageTransition>;
+}
+
+export function Screen({ screen }: { screen?: string }) {
     const { state, setState, persona, isOnline, t } = useSession();
     const query = useClientData();
+    const raw = screen ? String(screen).trim().toLowerCase().replace(/^\/+/, '').replace(/\/+$/, '') : '';
+    const activeScreen = (!raw || ['index', 'home', 'accueil', '[screen]', 'undefined'].includes(raw)) ? 'home' : raw;
 
-    // Robust route normalization: strips leading/trailing slashes and handles undefined/empty/home/index
-    const raw = (screen ? String(screen).trim().toLowerCase().replace(/^\/+/, '').replace(/\/+$/, '') : '');
-    const activeScreen = (!raw || raw === 'index' || raw === 'home' || raw === 'accueil' || raw === '[screen]' || raw === 'undefined') ? 'home' : raw;
-
-    if (state === 'loading' || query.isPending)
-        return <><Title>{t('Chargement', 'Loading')}</Title><Card><ActivityIndicator color={c.accent}/><T accessibilityLiveRegion="polite">{t('Chargement des données…', 'Loading data…')}</T>{state === 'loading' && <Button variant="secondary" onPress={() => setState('ready')}>{t('Terminer l’aperçu de chargement', 'Finish loading preview')}</Button>}</Card></>;
-    if (state === 'error' || query.isError)
-        return <><Title>{t('Données indisponibles', 'Data unavailable')}</Title><Card><T accessibilityRole="alert">{t('Impossible de charger les données. Aucun solde n’a été modifié.', 'Could not load data. No balance has changed.')}</T><Button onPress={() => { setState('ready'); void query.refetch(); }}>{t('Réessayer', 'Try again')}</Button></Card></>;
-    if (state === 'empty')
-        return <><Title>{t('Commençons simplement.', 'Let’s start simply.')}</Title><Card><T>{t('Aucune donnée dans cet aperçu. Ajoutez une échéance ou découvrez le scénario de Lina, sans wallet ni compte bancaire connecté.', 'No data in this preview. Add a due date or explore Lina’s scenario, without a wallet or connected bank account.')}</T><Button onPress={() => { setState('ready'); router.push('/add'); }}>{t('Ajouter une échéance', 'Add a due date')}</Button><Button variant="secondary" onPress={() => setState('ready')}>{t('Découvrir avec Lina', 'Explore with Lina')}</Button></Card></>;
-    if (persona !== 'personal' && activeScreen === 'home')
-        return <Audience />;
-    if (state === 'no-solution' && ['proposal', 'calendar', 'home'].includes(activeScreen))
-        return <Diagnostic />;
+    if (state === 'loading' || query.isPending) return <><Title>{t('Chargement', 'Loading')}</Title><Card style={s.stateCard}><ActivityIndicator color={c.accent}/><T accessibilityLiveRegion="polite">{t('Chargement de la projection…', 'Loading your forecast…')}</T></Card></>;
+    if (state === 'error' || query.isError) return <><Title>{t('Données indisponibles', 'Data unavailable')}</Title><Card style={s.stateCard}><T accessibilityRole="alert">{t('Impossible de charger les données. Aucun solde ni mouvement n’a été modifié.', 'Could not load data. No balance or movement has changed.')}</T><Button onPress={() => { setState('ready'); void query.refetch(); }}>{t('Réessayer', 'Retry')}</Button></Card></>;
+    if (state === 'empty') return <><Title>{t('Commençons simplement.', 'Let’s start simply.')}</Title><Card style={s.stateCard}><T>{t('Ajoutez un solde, une entrée attendue ou une échéance. Le wallet reste facultatif.', 'Add a balance, expected income or due date. The wallet remains optional.')}</T><Button onPress={() => { setState('ready'); router.push('/add'); }}>{t('Ajouter une échéance', 'Add an event')}</Button></Card></>;
+    if (state === 'no-solution' && ['proposal', 'options'].includes(activeScreen)) return <><Title>{t('Aucune solution sûre', 'No safe solution')}</Title><DiagnosticCard state="infeasible" /></>;
+    if (persona !== 'personal' && activeScreen === 'home') return <AudienceOverview />;
 
     const pages: Record<string, React.ReactNode> = {
-        home: <Home />,
-        calendar: <Calendar />,
-        sources: <Sources />,
-        proposal: <Proposal />,
-        tracking: <Tracking />,
-        options: <Options />,
-        add: <AddEvent />,
-        import: <ImportPreview />
+        home: <Home />, calendar: <Calendar />, sources: <Sources />, proposal: <Proposal />, tracking: <Tracking />,
+        options: <Options />, add: <AddEvent />, import: <ImportPreview />,
     };
-
-    const content = pages[activeScreen] ?? <Home />;
-
     return <>
-        {!isOnline && (
-            <Notice title={t('Mode hors-ligne actif', 'Offline mode active')} tone="warning">
-                {t(
-                    'TanStack Query opère sur le cache local. Vos prévisions et simulations restent entièrement fonctionnelles sans connexion internet (PER-11, NET-02).',
-                    'TanStack Query is operating from local cache. Your forecasts and simulations remain fully functional without an internet connection (PER-11, NET-02).'
-                )}
-            </Notice>
-        )}
-        {state === 'stale' && <Notice title={t('Données anciennes', 'Outdated data')}>{t('Référence synthétique : 12 septembre 2026. Consultation uniquement ; actualisation réelle non raccordée.', 'Synthetic reference: September 12, 2026. Viewing only; live refresh is not connected.')}</Notice>}
-        {state === 'unavailable' && <Notice title={t('Capacité financière indisponible', 'Financial capability unavailable')}>{t('La prévision reste accessible sans wallet, DID, KYC ou crédit.', 'Forecasting remains available without a wallet, DID, KYC or credit.')}</Notice>}
-        {content}
+        {!isOnline && <Notice title={t('Mode hors ligne', 'Offline mode')}>
+            {t('Vos événements déclarés restent visibles. Une modification locale invalide l’ancien plan jusqu’au prochain calcul serveur.', 'Your declared events remain visible. A local change invalidates the old plan until the next server calculation.')}
+        </Notice>}
+        {state === 'stale' && <Notice title={t('Données anciennes', 'Outdated data')}>{t('Cette projection n’est pas à jour. Aucun montant d’action ne sera présenté.', 'This projection is stale. No action amount will be shown.')}</Notice>}
+        {state === 'unavailable' && <Notice title={t('Financement indisponible', 'Financial capability unavailable')}>{t('La prévision reste indépendante du wallet, du DID, du KYC et du crédit.', 'Forecasting remains independent of wallet, DID, KYC and credit.')}</Notice>}
+        {pages[activeScreen] ?? <Home />}
     </>;
 }
-const s = StyleSheet.create({
-    title: { fontSize: 28, lineHeight: 36, letterSpacing: -0.8, fontFamily: tokens.font.regular },
-    heading: { fontSize: 20, lineHeight: 28, letterSpacing: -0.3, fontFamily: tokens.font.medium },
-    note: { fontSize: 13, lineHeight: 20, color: c.muted, fontFamily: tokens.font.regular },
-    money: { fontFamily: 'Inter_300Light', letterSpacing: -2.5, fontVariant: ['tabular-nums'] },
-    split: { gap: 32, alignItems: 'stretch' },
-    main: { gap: 24, minWidth: 0 },
-    aside: { gap: 24, minWidth: 0 },
-    rail: { borderRadius: 28, padding: 24, gap: 24, borderWidth: 1, borderColor: '#3F353C' },
-    hero: { borderRadius: 28, padding: 24, gap: 20, borderWidth: 1, borderColor: '#5B454C' },
-    detail: { backgroundColor: '#1D191F', padding: 20, gap: 20, borderWidth: 1, borderColor: c.border, borderRadius: 24 },
-    notice: { backgroundColor: '#2C252A', borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: '#3F353C' },
-    row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: c.border },
-    inline: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    periods: { flexDirection: 'row', gap: 6 },
-    period: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: 'transparent' },
-});
 
+const s = StyleSheet.create({
+    title: { fontFamily: tokens.font.display, fontSize: 38, lineHeight: 46, letterSpacing: -0.6, color: c.text, maxWidth: 840 },
+    heading: { fontFamily: tokens.font.display, fontSize: 23, lineHeight: 30, letterSpacing: -0.2, color: c.text },
+    note: { fontSize: 14, lineHeight: 21, fontFamily: tokens.font.regular },
+    eyebrow: { fontSize: 11, lineHeight: 16, letterSpacing: 1.05, fontFamily: tokens.font.semibold, color: c.muted },
+    money: { fontFamily: tokens.font.regular, fontVariant: ['tabular-nums'], color: c.text, letterSpacing: -1.4 },
+    split: { gap: 24, alignItems: 'stretch' },
+    splitDesktop: { flexDirection: 'row' },
+    main: { gap: 24, minWidth: 0 },
+    mainDesktop: { flex: 1 },
+    aside: { gap: 20, minWidth: 0 },
+    asideDesktop: { width: 340 },
+    rail: { backgroundColor: '#ECEFE5', borderRadius: tokens.radius.card, padding: 22, gap: 18, borderWidth: 1, borderColor: '#D5DCCB' },
+    hero: { padding: 24, gap: 16 },
+    heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+    heroMark: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E0E8D8' },
+    heroFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: c.border, paddingTop: 14 },
+    heroValue: { color: c.text, fontSize: 17, fontFamily: tokens.font.medium, fontVariant: ['tabular-nums'] },
+    section: { gap: 14 },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' },
+    chartCard: { gap: 16, padding: 20 },
+    chartEmpty: { gap: 9, alignItems: 'flex-start', backgroundColor: c.surface },
+    emptyIcon: { width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', backgroundColor: c.accentSoft },
+    legend: { flexDirection: 'row', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    legendLine: { width: 22, height: 2, borderRadius: 1 },
+    legendDashed: { backgroundColor: 'transparent', borderTopWidth: 2, borderTopColor: c.muted, borderStyle: 'dashed' },
+    chartTicks: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
+    lowSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: 16, borderRadius: 16, backgroundColor: '#F1F0E7' },
+    reserveSummary: { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: '52%' },
+    reserveSummaryText: { fontSize: 14, lineHeight: 21, flexShrink: 1 },
+    simulationCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: 18 },
+    simulationCopy: { flex: 1, minWidth: 210, gap: 4 },
+    simulationActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    periods: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+    period: { minHeight: 44, minWidth: 66, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: 'transparent', backgroundColor: '#F3F1E9' },
+    periodSelected: { backgroundColor: c.accent, borderColor: c.accent },
+    periodText: { color: c.muted, fontSize: 13, fontFamily: tokens.font.medium },
+    periodTextSelected: { color: '#FFFEF9' },
+    transferCard: { gap: 14 },
+    transferCompact: { gap: 12, padding: 18 },
+    transferTitle: { fontFamily: tokens.font.medium, fontSize: 18, lineHeight: 25, color: c.text },
+    notice: { backgroundColor: '#F4EBDD', borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: '#E5D1B1' },
+    noticeError: { backgroundColor: '#F7E8E3', borderColor: '#E4BFB5' },
+    noticeSuccess: { backgroundColor: c.accentSoft, borderColor: '#CDD8C4' },
+    detail: { padding: 20, gap: 18 },
+    comparison: { gap: 14 },
+    comparisonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    eventCard: { paddingVertical: 4 },
+    row: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    rowIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accentSoft },
+    rowTitle: { fontSize: 15, lineHeight: 22, fontFamily: tokens.font.medium, color: c.text },
+    rowValue: { fontSize: 15, lineHeight: 22, fontFamily: tokens.font.medium, fontVariant: ['tabular-nums'], color: c.text },
+    removeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+    proposalHero: { padding: 28, gap: 15 },
+    mobileActions: { gap: 12 },
+    formCard: { width: '100%', maxWidth: 680, gap: 20, padding: 24 },
+    importCard: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: 16 },
+    audienceCard: { gap: 16, maxWidth: 860 },
+    stateCard: { maxWidth: 680, gap: 16, alignItems: 'flex-start' },
+});

@@ -22,8 +22,9 @@
  * under Samet's S7, not in this adapter.
  */
 import { Client, Wallet, addPreFundedSponsor, signAsSponsor, SponsorFlags } from "xrpl";
-import { SponsorshipPort } from "./ports.js";
+import { SponsorshipPort, SponsorshipReservation } from "./ports.js";
 import { PortResult, TransactionEvidence } from "./types.js";
+import { buildPaymentTransaction } from "./transaction-builders.js";
 
 const EXPLORER_PREFIX =
   "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";
@@ -31,7 +32,10 @@ const EXPLORER_PREFIX =
 export class XrplSponsorshipAdapter implements SponsorshipPort {
   constructor(private readonly wssUrl: string) {}
 
-  async quoteSponsoredOperation(): Promise<PortResult<{ maxAmountDrops: string; expiresAt: string }>> {
+  async quoteSponsoredOperation(_params: {
+    beneficiaryAddress: string;
+    transactionType: string;
+  }): Promise<PortResult<{ maxAmountDrops: string; expiresAt: string }>> {
     return {
       outcome: "unavailable",
       reason:
@@ -45,22 +49,39 @@ export class XrplSponsorshipAdapter implements SponsorshipPort {
     sponseeSeed: string;
     destinationAddress: string;
     amountDrops: string;
+    reservation: SponsorshipReservation;
   }): Promise<PortResult<{ txHash: string; feeDrops: string }>> {
+    const sponsor = Wallet.fromSeed(params.sponsorSeed);
+    const sponsee = Wallet.fromSeed(params.sponseeSeed);
+    const reservation = params.reservation;
+    const expiry = Date.parse(reservation.expiresAt);
+    if (
+      !reservation.reservationId.trim() ||
+      !reservation.policyVersion.trim() ||
+      reservation.transactionType !== "Payment" ||
+      reservation.sponsorAddress !== sponsor.classicAddress ||
+      reservation.beneficiaryAddress !== sponsee.classicAddress ||
+      !Number.isFinite(expiry) ||
+      expiry <= Date.now() ||
+      !/^(0|[1-9][0-9]*)$/.test(reservation.maxFeeDrops)
+    ) {
+      return { outcome: "unavailable", reason: "A current, matching sponsorship policy reservation is required (SPON-02/03)." };
+    }
+
     const client = new Client(this.wssUrl);
     await client.connect();
     try {
-      const sponsor = Wallet.fromSeed(params.sponsorSeed);
-      const sponsee = Wallet.fromSeed(params.sponseeSeed);
-
       const currentLedger = await client.getLedgerIndex();
-      const prepared = await client.autofill({
-        TransactionType: "Payment",
-        Account: sponsee.classicAddress,
-        Destination: params.destinationAddress,
-        Amount: params.amountDrops,
-      } as any);
+      const prepared = await client.autofill(buildPaymentTransaction({
+        account: sponsee.classicAddress,
+        destination: params.destinationAddress,
+        amountDrops: params.amountDrops,
+      }));
       (prepared as any).LastLedgerSequence = currentLedger + 2000;
       const feeDrops = (prepared as any).Fee as string;
+      if (!/^(0|[1-9][0-9]*)$/.test(feeDrops) || BigInt(feeDrops) > BigInt(reservation.maxFeeDrops)) {
+        return { outcome: "unavailable", reason: "The prepared network fee exceeds the reserved sponsorship limit." };
+      }
 
       const withSponsorFields = addPreFundedSponsor(prepared as any, sponsor.classicAddress, SponsorFlags.spfSponsorFee);
       const sponseeSigned = sponsee.sign(withSponsorFields as any);

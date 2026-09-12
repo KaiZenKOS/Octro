@@ -94,6 +94,7 @@ export function useCreateEvent() {
     const cache = useQueryClient();
     return useMutation({
         mutationFn: (event: EconomicEventPayload) => source.addEvent?.(event) ?? Promise.resolve(),
+        onMutate: () => markProjectionStale(cache),
         onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
     });
 }
@@ -103,6 +104,7 @@ export function useRemoveEvent() {
     const cache = useQueryClient();
     return useMutation({
         mutationFn: (eventId: string) => source.removeEvent?.(eventId) ?? Promise.resolve(),
+        onMutate: () => markProjectionStale(cache),
         onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
     });
 }
@@ -112,6 +114,7 @@ export function useResetEvents() {
     const cache = useQueryClient();
     return useMutation({
         mutationFn: () => source.resetEvents?.() ?? Promise.resolve(),
+        onMutate: () => markProjectionStale(cache),
         onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
     });
 }
@@ -120,8 +123,9 @@ export function useUpdateBalances() {
     const { source } = useSession();
     const cache = useQueryClient();
     return useMutation({
-        mutationFn: (params: { current: number; savings: number; reserve?: number }) =>
-            source.updateBalances?.(params.current, params.savings, params.reserve) ?? Promise.resolve(),
+        mutationFn: (params: { current: string; savings: string; reserve?: string; protectedSavings?: string }) =>
+            source.updateBalances?.(params.current, params.savings, params.reserve, params.protectedSavings) ?? Promise.resolve(),
+        onMutate: () => markProjectionStale(cache),
         onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
     });
 }
@@ -131,6 +135,17 @@ export function useSetHorizon() {
     const cache = useQueryClient();
     return useMutation({
         mutationFn: (days: number) => source.setHorizon?.(days) ?? Promise.resolve(),
+        onMutate: () => markProjectionStale(cache),
         onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
     });
+}
+
+function markProjectionStale(cache: ReturnType<typeof useQueryClient>) {
+    cache.setQueryData<import('./data').ClientSnapshot>(['workspace', 'lina-fixture-v1'], old => old ? {
+        ...old,
+        result: null,
+        plan: null,
+        sourceState: 'stale',
+        sourceMessage: 'Les données ont changé. La projection attend un nouveau calcul serveur.',
+    } : old);
 }

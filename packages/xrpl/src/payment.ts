@@ -6,6 +6,7 @@
 import { Client, Wallet } from "xrpl";
 import { PaymentPort } from "./ports.js";
 import { PortResult, TransactionEvidence } from "./types.js";
+import { buildPaymentTransaction } from "./transaction-builders.js";
 
 const EXPLORER_PREFIX =
   "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";
@@ -23,12 +24,11 @@ export class XrplPaymentAdapter implements PaymentPort {
     try {
       const source = Wallet.fromSeed(params.sourceSeed);
       const currentLedger = await client.getLedgerIndex();
-      const prepared = await client.autofill({
-        TransactionType: "Payment",
-        Account: source.classicAddress,
-        Destination: params.destinationAddress,
-        Amount: params.amountDrops,
-      } as any);
+      const prepared = await client.autofill(buildPaymentTransaction({
+        account: source.classicAddress,
+        destination: params.destinationAddress,
+        amountDrops: params.amountDrops,
+      }));
       (prepared as any).LastLedgerSequence = currentLedger + 2000;
       const signed = source.sign(prepared as any);
       const submitResp = await client.submit(signed.tx_blob);

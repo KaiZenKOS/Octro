@@ -40,7 +40,7 @@
       "validated": false,
       "result_code": null,
       "ledger_index": null,
-      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/B9A12BE23AAF37771569A6B46AD22A964E4A9D35D6157D06A05AEA1C39A75447"
+      "explorer_url": null
     }
   ]
 }

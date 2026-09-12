@@ -13,6 +13,7 @@ export interface RecordDeclaredEventCommand {
   amountDecimal: string;
   assetId: string;
   label: string;
+  sourceEventId?: string;
   expectedSettlementAt?: string;
 }
 
@@ -38,7 +39,7 @@ export class RecordDeclaredEventUseCase {
     const event: EconomicEvent = {
       id: this.ids.newId(),
       tenant_id: workspace.tenant_id,
-      source_event_id: this.ids.newId(),
+      source_event_id: command.sourceEventId ?? this.ids.newId(),
       direction: command.direction,
       amount: { amount_decimal: command.amountDecimal, asset_id: command.assetId },
       status: "expected",
@@ -49,7 +50,6 @@ export class RecordDeclaredEventUseCase {
         ? { expected_settlement_at: command.expectedSettlementAt }
         : {}),
     };
-    await this.events.save(event);
-    return event;
+    return await this.events.save(event);
   }
 }

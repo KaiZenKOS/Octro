@@ -7,3 +7,4 @@ export * from "./credentials-domains.js";
 export * from "./sponsorship.js";
 export * from "./did.js";
 export * from "./contract-network-capabilities.js";
+export * from "./transaction-builders.js";

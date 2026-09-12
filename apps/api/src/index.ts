@@ -8,7 +8,7 @@ app
   .listen({ port, host: "0.0.0.0" })
   .then(() => {
     // eslint-disable-next-line no-console
-    console.log(`Octro API (S1 in-memory composition) listening on :${port}`);
+    console.log(`Octro API (in-memory data, Python optimizer) listening on :${port}`);
   })
   .catch((err: unknown) => {
     // eslint-disable-next-line no-console

@@ -1,0 +1,14 @@
+{
+  "spec_version": "2.2",
+  "track": 2,
+  "flavour": "Loaded",
+  "protocol": "V1",
+  "vault": "open-ended",
+  "network": "custom-hackathon-devnet",
+  "network_id": 4001,
+  "sdk_package": "xrpl",
+  "sdk_version": "5.2.0",
+  "ledger_verified": true,
+  "primary_loaded": ["credentials", "permissioned_domains"],
+  "capabilities": { "lending_v1": "verified" }
+}

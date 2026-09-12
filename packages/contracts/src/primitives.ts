@@ -29,7 +29,7 @@ export const AssetIdSchema = z
 export const MoneySchema = z.object({
   amount_decimal: DecimalStringSchema,
   asset_id: AssetIdSchema,
-});
+}).strict();
 export type Money = z.infer<typeof MoneySchema>;
 
 export const IsoDateTimeSchema = z.string().datetime({ offset: true });

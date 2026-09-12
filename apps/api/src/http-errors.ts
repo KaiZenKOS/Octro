@@ -1,5 +1,5 @@
 import { AccessDeniedError, ForbiddenRoleError, InvalidWorkspaceError, NetworkCapabilityUnavailableError } from "@octro/domain";
-import { NotFoundError } from "@octro/application";
+import { IdempotencyConflictError, NotFoundError, OptimizerTimeoutError, OptimizerUnavailableError } from "@octro/application";
 import type { FastifyReply } from "fastify";
 import { ZodError } from "zod";
 
@@ -25,6 +25,16 @@ export function sendError(reply: FastifyReply, err: unknown): FastifyReply {
   }
   if (err instanceof NetworkCapabilityUnavailableError) {
     return reply.code(409).send({ code: "NETWORK_UNSUPPORTED", message: err.message, retryable: false });
+  }
+  if (err instanceof IdempotencyConflictError) {
+    return reply.code(409).send({ code: "VERSION_CONFLICT", message: err.message, retryable: false });
+  }
+  if (err instanceof OptimizerTimeoutError) {
+    return reply.code(503).send({ code: "TIMEOUT", message: "La projection a dépassé le délai de calcul ; aucune action n'a été créée.", retryable: true });
+  }
+  if (err instanceof OptimizerUnavailableError) {
+    reply.log.error({ err }, "deterministic optimizer unavailable");
+    return reply.code(503).send({ code: "INTERNAL", message: "Le moteur de projection est temporairement indisponible." });
   }
   reply.log.error(err);
   return reply.code(500).send({ code: "INTERNAL", message: "unexpected error" });

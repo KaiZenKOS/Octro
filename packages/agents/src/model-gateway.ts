@@ -1,128 +1,110 @@
+import { z } from "zod";
+
 export interface ModelMessage {
-    role: 'user' | 'assistant' | 'system';
-    content: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+export interface ModelGenerationOptions {
+  signal?: AbortSignal;
 }
 
 export interface ModelGatewayResponse {
-    content: string;
-    toolCalls?: Array<{ name: string; args: Record<string, unknown> }>;
+  content: string;
 }
 
 export interface ModelGateway {
-    generate(messages: ModelMessage[]): Promise<ModelGatewayResponse>;
+  generate(messages: ModelMessage[], options?: ModelGenerationOptions): Promise<ModelGatewayResponse>;
 }
 
+export class ModelGatewayUnavailableError extends Error {
+  constructor(message = "model gateway is unavailable") {
+    super(message);
+    this.name = "ModelGatewayUnavailableError";
+  }
+}
+
+/**
+ * A safe, deterministic default. Model output is a tiny structured choice;
+ * the caller renders every user-visible fact from the financial plan.
+ */
 export class DeterministicModelGateway implements ModelGateway {
-    async generate(messages: ModelMessage[]): Promise<ModelGatewayResponse> {
-        const last = messages[messages.length - 1]?.content ?? '';
-        
-        if (last.toLowerCase().includes('lina') || last.toLowerCase().includes('230') || last.toLowerCase().includes('réserve')) {
-            return {
-                content: "Analyse déterministe : Un point bas de trésorerie survient à J+6 (-130 €) avant la rentrée du salaire à J+10 (+1 600 €). La recommandation optimale sans souscrire de dette consiste en un virement interne de 230 € depuis l'épargne vers le compte courant, maintenant votre réserve de 100 € intacte et laissant 70 € en épargne disponible.",
-            };
-        }
-
-        if (last.toLowerCase().includes('retard') || last.toLowerCase().includes('salaire')) {
-            return {
-                content: "Gestion du risque : Si le salaire accuse 3 jours de retard (arrivée à J+13), le compte courant reste à +100 € grâce au transfert de 230 €, préservant votre réserve de sécurité sans frais d'incident bancaire.",
-            };
-        }
-
-        return {
-            content: "Octro a analysé votre calendrier de trésorerie. Aucune anomalie critique non couverte n'a été détectée sur votre horizon de prévision.",
-        };
-    }
+  async generate(): Promise<ModelGatewayResponse> {
+    return { content: JSON.stringify({ order: "action_first" }) };
+  }
 }
 
+export interface LiveModelGatewayOptions {
+  /** Inject a server-held key from the server composition root. Never read from a client bundle. */
+  apiKey?: string;
+  endpoint?: string;
+  model?: string;
+  fetcher?: typeof fetch;
+}
+
+const CompletionSchema = z.object({
+  choices: z.array(z.object({
+    message: z.object({ content: z.string().nullable().optional() }).passthrough(),
+  }).passthrough()).min(1),
+}).passthrough();
+
+/**
+ * Server-only OpenAI-compatible gateway. It deliberately performs no
+ * environment lookup and has no provider-specific browser keys. The server composition root
+ * must inject its secret; orchestration falls back deterministically on any
+ * provider error or timeout.
+ */
 export class LiveModelGateway implements ModelGateway {
-    private fallback = new DeterministicModelGateway();
-    private customKey?: string | undefined;
+  private readonly apiKey: string | undefined;
+  private readonly endpoint: string;
+  private readonly model: string;
+  private readonly fetcher: typeof fetch;
 
-    constructor(apiKey?: string) {
-        this.customKey = apiKey;
+  constructor(options: LiveModelGatewayOptions = {}) {
+    this.apiKey = options.apiKey;
+    this.endpoint = options.endpoint ?? "https://api.openai.com/v1/chat/completions";
+    this.model = options.model ?? "gpt-4o-mini";
+    this.fetcher = options.fetcher ?? fetch;
+  }
+
+  async generate(messages: ModelMessage[], options: ModelGenerationOptions = {}): Promise<ModelGatewayResponse> {
+    if ("window" in globalThis) {
+      throw new ModelGatewayUnavailableError("live model gateway cannot run in a browser");
+    }
+    if (!this.apiKey) {
+      throw new ModelGatewayUnavailableError("server model credential was not injected");
     }
 
-    async generate(messages: ModelMessage[]): Promise<ModelGatewayResponse> {
-        const deepseekKey = this.customKey || (typeof process !== 'undefined' ? (process.env?.DEEPSEEK_API_KEY || process.env?.EXPO_PUBLIC_DEEPSEEK_API_KEY || process.env?.OCTRO_LLM_API_KEY) : undefined);
-        const geminiKey = typeof process !== 'undefined' ? (process.env?.GEMINI_API_KEY || process.env?.EXPO_PUBLIC_GEMINI_API_KEY) : undefined;
-        const openaiKey = typeof process !== 'undefined' ? (process.env?.OPENAI_API_KEY || process.env?.EXPO_PUBLIC_OPENAI_API_KEY) : undefined;
-
-        // 1. DeepSeek API (OpenAI-compatible)
-        if (deepseekKey && (deepseekKey.startsWith('sk-') || deepseekKey.length > 10)) {
-            try {
-                const res = await fetch('https://api.deepseek.com/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${deepseekKey}`,
-                    },
-                    body: JSON.stringify({
-                        model: 'deepseek-chat',
-                        messages: messages.map(m => ({ role: m.role, content: m.content })),
-                        temperature: 0.3,
-                        max_tokens: 500,
-                    }),
-                });
-
-                if (res.ok) {
-                    const data = await res.json() as any;
-                    const text = data?.choices?.[0]?.message?.content;
-                    if (text) return { content: text };
-                }
-            } catch {
-                // Fall through to fallback
-            }
-        }
-
-        // 2. Gemini API
-        if (geminiKey) {
-            try {
-                const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                    })
-                });
-                if (res.ok) {
-                    const data = await res.json() as any;
-                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (text) return { content: text };
-                }
-            } catch {
-                // Fall through to fallback
-            }
-        }
-
-        // 3. OpenAI API
-        if (openaiKey) {
-            try {
-                const res = await fetch('https://api.openai.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${openaiKey}`,
-                    },
-                    body: JSON.stringify({
-                        model: 'gpt-4o-mini',
-                        messages: messages.map(m => ({ role: m.role, content: m.content })),
-                        temperature: 0.3,
-                        max_tokens: 500,
-                    }),
-                });
-
-                if (res.ok) {
-                    const data = await res.json() as any;
-                    const text = data?.choices?.[0]?.message?.content;
-                    if (text) return { content: text };
-                }
-            } catch {
-                // Fall through to fallback
-            }
-        }
-
-        return this.fallback.generate(messages);
+    const endpoint = new URL(this.endpoint);
+    if (endpoint.protocol !== "https:") {
+      throw new ModelGatewayUnavailableError("model endpoint must use HTTPS");
     }
+
+    const response = await this.fetcher(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages,
+        temperature: 0,
+        max_tokens: 32,
+        response_format: { type: "json_object" },
+      }),
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+
+    if (!response.ok) {
+      throw new ModelGatewayUnavailableError(`model provider returned HTTP ${response.status}`);
+    }
+
+    const parsed = CompletionSchema.safeParse(await response.json());
+    const content = parsed.success ? parsed.data.choices[0]?.message.content : undefined;
+    if (typeof content !== "string" || content.length === 0 || content.length > 256) {
+      throw new ModelGatewayUnavailableError("model provider returned an invalid bounded response");
+    }
+    return { content };
+  }
 }
-

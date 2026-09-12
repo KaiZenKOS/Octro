@@ -24,6 +24,7 @@
 import { Client, Wallet } from "xrpl";
 import { DidPort } from "./ports.js";
 import { PortResult, TransactionEvidence } from "./types.js";
+import { buildDidSetTransaction } from "./transaction-builders.js";
 
 const EXPLORER_PREFIX =
   "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";
@@ -41,12 +42,11 @@ export class XrplDidAdapter implements DidPort {
     try {
       const subject = Wallet.fromSeed(params.subjectSeed);
       const currentLedger = await client.getLedgerIndex();
-      const prepared = await client.autofill({
-        TransactionType: "DIDSet",
-        Account: subject.classicAddress,
-        DIDDocument: Buffer.from(params.didDocumentUtf8, "utf8").toString("hex").toUpperCase(),
-        ...(params.uri ? { URI: Buffer.from(params.uri, "utf8").toString("hex").toUpperCase() } : {}),
-      } as any);
+      const prepared = await client.autofill(buildDidSetTransaction({
+        account: subject.classicAddress,
+        didDocumentUtf8: params.didDocumentUtf8,
+        ...(params.uri === undefined ? {} : { uri: params.uri }),
+      }));
       (prepared as any).LastLedgerSequence = currentLedger + 2000;
       const signed = subject.sign(prepared as any);
       const submitResp = await client.submit(signed.tx_blob);

@@ -4,8 +4,13 @@
     "slug": "octro",
     "scheme": "octro",
     "version": "0.1.0",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "plugins": ["expo-router"],
-    "web": { "bundler": "metro", "output": "static", "name": "Octro — vos prévisions" }
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "name": "Octro — vos prévisions",
+      "favicon": "./assets/logo.png"
+    }
   }
 }

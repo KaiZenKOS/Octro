@@ -1,5 +1,4 @@
-# Image de dev/demo pour apps/client (rendu de fixture Pencil, pas un
-# raccordement K2 termine — voir apps/client/README.md). Construit l'export
+# Image web pour apps/client. Construit l'export
 # web statique d'Expo Router (`expo export --platform web`, deja configure en
 # "output": "static" dans apps/client/app.json) et le sert avec nginx.
 FROM node:22-alpine AS build
@@ -16,6 +15,8 @@ COPY docs/v2.2 ./docs/v2.2
 RUN npm ci
 # Precompiler tous les packages exposes via ./dist (contracts, domain, application, agents)
 RUN npm run build
+ARG EXPO_PUBLIC_API_URL=/api
+ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
 RUN npm run build --workspace @octro/client
 
 FROM nginx:1.27-alpine

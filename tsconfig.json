@@ -7,7 +7,9 @@
     { "path": "packages/agents" },
     { "path": "packages/mcp" },
     { "path": "packages/xrpl" },
-    { "path": "apps/api" }
+    { "path": "packages/postgres" },
+    { "path": "apps/api" },
+    { "path": "apps/worker" }
   ]
 }
 

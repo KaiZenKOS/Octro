@@ -44,6 +44,13 @@
 import { Client, Wallet } from "xrpl";
 import { CredentialsAndDomainsPort } from "./ports.js";
 import { PortResult, TransactionEvidence } from "./types.js";
+import {
+  buildCredentialAcceptTransaction,
+  buildCredentialCreateTransaction,
+  buildPermissionedDomainSetTransaction,
+  buildVaultSetDomainTransaction,
+  withTrack1NetworkId,
+} from "./transaction-builders.js";
 
 const EXPLORER_PREFIX =
   "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";
@@ -64,7 +71,7 @@ async function submitAndConfirm(
 ): Promise<SubmitOutcome> {
   (tx as { Account?: string }).Account = wallet.classicAddress;
   const currentLedger = await client.getLedgerIndex();
-  const prepared = await client.autofill(tx as any);
+  const prepared = await client.autofill(withTrack1NetworkId(tx) as any);
   (prepared as any).LastLedgerSequence = currentLedger + 2000;
   const signed = wallet.sign(prepared as any);
   const submitResp = await client.submit(signed.tx_blob);
@@ -107,15 +114,6 @@ function toEvidence(stepId: string, txType: string, outcome: SubmitOutcome): Tra
   };
 }
 
-// Credential type strings must be hex-encoded (max 64 bytes) per the
-// SDK's own validateCredentialType.
-function toCredentialTypeHex(credentialType: string): string {
-  if (/^[0-9A-Fa-f]+$/.test(credentialType) && credentialType.length % 2 === 0) {
-    return credentialType.toUpperCase();
-  }
-  return Buffer.from(credentialType, "utf8").toString("hex").toUpperCase();
-}
-
 export class XrplCredentialsAndDomainsAdapter implements CredentialsAndDomainsPort {
   constructor(private readonly wssUrl: string) {}
 
@@ -137,13 +135,12 @@ export class XrplCredentialsAndDomainsAdapter implements CredentialsAndDomainsPo
   }): Promise<PortResult<{ credentialIndex: string }>> {
     return this.withClient(async (client) => {
       const issuer = Wallet.fromSeed(params.issuerSeed);
-      const credentialTypeHex = toCredentialTypeHex(params.credentialType);
-      const outcome = await submitAndConfirm(client, issuer, {
-        TransactionType: "CredentialCreate",
-        Subject: params.subjectAddress,
-        CredentialType: credentialTypeHex,
-        ...(params.expirationRippleTime ? { Expiration: params.expirationRippleTime } : {}),
-      });
+      const outcome = await submitAndConfirm(client, issuer, buildCredentialCreateTransaction({
+        account: issuer.classicAddress,
+        subjectAddress: params.subjectAddress,
+        credentialType: params.credentialType,
+        ...(params.expirationRippleTime === undefined ? {} : { expirationRippleTime: params.expirationRippleTime }),
+      }));
       const evidence = toEvidence("credential_create", "CredentialCreate", outcome);
       if (outcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence };
@@ -173,11 +170,11 @@ export class XrplCredentialsAndDomainsAdapter implements CredentialsAndDomainsPo
   }): Promise<PortResult<{}>> {
     return this.withClient(async (client) => {
       const subject = Wallet.fromSeed(params.subjectSeed);
-      const outcome = await submitAndConfirm(client, subject, {
-        TransactionType: "CredentialAccept",
-        Issuer: params.issuerAddress,
-        CredentialType: toCredentialTypeHex(params.credentialType),
-      });
+      const outcome = await submitAndConfirm(client, subject, buildCredentialAcceptTransaction({
+        account: subject.classicAddress,
+        issuerAddress: params.issuerAddress,
+        credentialType: params.credentialType,
+      }));
       const evidence = toEvidence("credential_accept", "CredentialAccept", outcome);
       return outcome.resultCode === "tesSUCCESS"
         ? { outcome: "ready", data: {}, evidence }
@@ -199,12 +196,11 @@ export class XrplCredentialsAndDomainsAdapter implements CredentialsAndDomainsPo
   }): Promise<PortResult<{ domainId: string }>> {
     return this.withClient(async (client) => {
       const owner = Wallet.fromSeed(params.ownerSeed);
-      const domainOutcome = await submitAndConfirm(client, owner, {
-        TransactionType: "PermissionedDomainSet",
-        AcceptedCredentials: params.acceptedCredentials.map((c) => ({
-          Credential: { Issuer: c.issuer, CredentialType: toCredentialTypeHex(c.credentialType) },
-        })),
-      });
+      const domainOutcome = await submitAndConfirm(
+        client,
+        owner,
+        buildPermissionedDomainSetTransaction({ account: owner.classicAddress, acceptedCredentials: params.acceptedCredentials }),
+      );
       const domainEvidence = toEvidence("domain_set", "PermissionedDomainSet", domainOutcome);
       if (domainOutcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence: domainEvidence };
@@ -219,11 +215,11 @@ export class XrplCredentialsAndDomainsAdapter implements CredentialsAndDomainsPo
         return { outcome: "degraded", reason: "PermissionedDomainSet validated but no domain object found" };
       }
 
-      const vaultSetOutcome = await submitAndConfirm(client, owner, {
-        TransactionType: "VaultSet",
-        VaultID: params.vaultId,
-        DomainID: domainId,
-      });
+      const vaultSetOutcome = await submitAndConfirm(
+        client,
+        owner,
+        buildVaultSetDomainTransaction({ account: owner.classicAddress, vaultId: params.vaultId, domainId }),
+      );
       const vaultSetEvidence = toEvidence("vault_set_domain", "VaultSet", vaultSetOutcome);
       if (vaultSetOutcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence: vaultSetEvidence };

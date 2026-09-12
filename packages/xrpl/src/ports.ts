@@ -138,7 +138,19 @@ export interface SponsorshipPort {
     sponseeSeed: string;
     destinationAddress: string;
     amountDrops: string;
+    reservation: SponsorshipReservation;
   }): Promise<PortResult<{ txHash: string; feeDrops: string }>>;
+}
+
+/** A server-created, atomically reserved authorization supplied by the app. */
+export interface SponsorshipReservation {
+  reservationId: string;
+  sponsorAddress: string;
+  beneficiaryAddress: string;
+  transactionType: "Payment";
+  maxFeeDrops: string;
+  expiresAt: string;
+  policyVersion: string;
 }
 
 /** DID, optional P1 (DID-01). Never sufficient proof of solvency or eligibility on its own. */

@@ -145,6 +145,22 @@ def plan_personal_no_debt(
     # ENG-02: round the transfer up so the rounded amount still clears
     # the reserve, then re-verify the constraint with the rounded value.
     transfer_amount = quantize_up(deficit)
+    if transfer_amount > unprotected_savings:
+        # The rounded amount itself must remain funded. A raw deficit that
+        # exactly fits the source balance may still round up past it.
+        return NoDebtDiagnostic(
+            status="INFEASIBLE_NO_DEBT",
+            plan_id=plan_id,
+            deficit=quantize(deficit),
+            binding_constraints=[
+                "current_reserve",
+                "savings_protected_reserve" if protected_savings > 0 else "savings_available",
+            ],
+            reason=(
+                "L'arrondi necessaire pour proteger la reserve courante depasse "
+                "les fonds propres mobilisables sans enfreindre la reserve protegee."
+            ),
+        )
     trace_with_transfer = build_balance_trace(
         opening_current + transfer_amount, events, horizon_days
     )

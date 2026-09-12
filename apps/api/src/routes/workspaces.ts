@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { DeclaredEventRequestSchema, IdSchema, TenantIdSchema } from "@octro/contracts";
 import { z } from "zod";
 import type { AppDependencies } from "../composition.js";
 import { sendError } from "../http-errors.js";
@@ -8,12 +9,12 @@ import { sendError } from "../http-errors.js";
 // deliberement un nom non ambigu pour ne jamais etre confondu avec une
 // session verifiee, et sera remplace en meme temps que l'adaptateur S3/S5.
 function requireTenantHeader(request: FastifyRequest, reply: FastifyReply): string | null {
-  const value = request.headers["x-dev-tenant-id"];
-  if (typeof value !== "string" || value.length === 0) {
+  const parsed = TenantIdSchema.safeParse(request.headers["x-dev-tenant-id"]);
+  if (!parsed.success) {
     reply.code(401).send({ code: "UNAUTHENTICATED", message: "x-dev-tenant-id header required (placeholder auth, S1)" });
     return null;
   }
-  return value;
+  return parsed.data;
 }
 
 const CreateWorkspaceBody = z.object({
@@ -21,15 +22,7 @@ const CreateWorkspaceBody = z.object({
   kind: z.enum(["personal", "organization"]),
   organization_id: z.string().uuid().optional(),
   display_name: z.string().min(1).max(120),
-});
-
-const RecordEventBody = z.object({
-  direction: z.enum(["inflow", "outflow"]),
-  amount_decimal: z.string(),
-  asset_id: z.string(),
-  label: z.string().min(1).max(200),
-  expected_settlement_at: z.string().datetime({ offset: true }).optional(),
-});
+}).strict();
 
 export async function workspaceRoutes(app: FastifyInstance, deps: AppDependencies): Promise<void> {
   app.post("/v1/workspaces", async (request, reply) => {
@@ -51,7 +44,8 @@ export async function workspaceRoutes(app: FastifyInstance, deps: AppDependencie
     const tenantId = requireTenantHeader(request, reply);
     if (!tenantId) return reply;
     try {
-      const { id } = request.params as { id: string };
+      const { id: rawId } = request.params as { id: string };
+      const id = IdSchema.parse(rawId);
       const workspace = await deps.getWorkspace.execute({ requestingTenantId: tenantId, workspaceId: id });
       return reply.send(workspace);
     } catch (err) {
@@ -63,8 +57,13 @@ export async function workspaceRoutes(app: FastifyInstance, deps: AppDependencie
     const tenantId = requireTenantHeader(request, reply);
     if (!tenantId) return reply;
     try {
-      const { id } = request.params as { id: string };
-      const body = RecordEventBody.parse(request.body);
+      const { id: rawId } = request.params as { id: string };
+      const id = IdSchema.parse(rawId);
+      const body = DeclaredEventRequestSchema.parse(request.body);
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (idempotencyKey !== undefined && (typeof idempotencyKey !== "string" || idempotencyKey.length > 200)) {
+        return reply.code(400).send({ code: "INVALID_REQUEST", message: "Idempotency-Key must be a string of at most 200 characters" });
+      }
       const event = await deps.recordDeclaredEvent.execute({
         requestingTenantId: tenantId,
         workspaceId: id,
@@ -72,6 +71,7 @@ export async function workspaceRoutes(app: FastifyInstance, deps: AppDependencie
         amountDecimal: body.amount_decimal,
         assetId: body.asset_id,
         label: body.label,
+        ...(idempotencyKey !== undefined ? { sourceEventId: idempotencyKey } : {}),
         ...(body.expected_settlement_at !== undefined
           ? { expectedSettlementAt: body.expected_settlement_at }
           : {}),

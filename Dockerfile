@@ -1,12 +1,15 @@
-# Image de dev/demo pour apps/api (S1). Construit le monorepo npm workspaces
-# comme `npm run build` a la racine (packages/contracts, domain, application,
-# puis apps/api via les references TypeScript) et lance l'API Fastify.
+# Image de dev/demo pour apps/api. Construit les workspaces TypeScript et
+# embarque le moteur Python déterministe appelé par l'adaptateur API.
 #
-# L'API S1 reste une composition en memoire (voir apps/api/src/composition.ts) :
-# ce conteneur ne prouve ni n'implique une persistance PostgreSQL/MongoDB reelle.
-FROM node:22-alpine
+# Les repositories API restent en mémoire (voir apps/api/src/composition.ts) :
+# le package PostgreSQL présent dans le monorepo n'est pas encore composé ici.
+FROM node:22-bookworm-slim
 
 WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 # Sources completes du monorepo (voir .dockerignore pour les exclusions).
 # Necessaire avant `npm ci` : npm doit voir le package.json de chaque
@@ -14,6 +17,8 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.json tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
+COPY services ./services
+COPY docs/v2.2/hackathon.config.json ./docs/v2.2/hackathon.config.json
 
 RUN npm ci
 
@@ -22,6 +27,7 @@ RUN npm ci
 RUN npm run build
 
 ENV NODE_ENV=production
+ENV OCTRO_PYTHON=python3
 EXPOSE 3000
 
 CMD ["node", "apps/api/dist/index.js"]

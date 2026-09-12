@@ -1,0 +1,11 @@
+# MCP métier — intégration v2.2
+
+Périmètre : `MCP-02` (séparation documentation/métier, aucun outil de signature ou de soumission), `AGT-02`, `SEC-01`, `SEC-02`, `SEC-03`, `UI-02` et `ARCH-LOAD-01`. Référence : CDC v2.2, chapitres 9, 15, 19, 21, 31 et 32, ainsi que `docs/architecture.md`.
+
+`OctroMcpServer` n’accède ni aux dépôts ni au réseau XRPL. Sa composition reçoit trois ports de lecture : résumé de Workspace, projection et lecture d’un ActionPlan. Chaque appel exige des références (`requestId`, `workspaceId`, version attendue et, pour un plan, `planId`), valide strictement ses arguments avec Zod, puis délègue au port applicatif. Le tenant effectif et l’acteur sont fournis séparément par le transport MCP après authentification; un champ tenant dans les arguments est refusé. Les résultats et leur tenant sont revalidés avant de quitter le serveur.
+
+Point de raccordement : la composition API adapte `GetWorkspaceUseCase` pour le résumé. Pour `octro_get_projection`, elle charge le snapshot autorisé à partir du Workspace/version, puis appelle le cas d’usage de projection avec l’actif, les soldes d’ouverture et les réserves configurés côté application; ces valeurs ne sont pas des arguments de l’agent. Elle transmet le `ProjectionResult` déterministe discriminé `FEASIBLE`/`INFEASIBLE` avec son `action_plan` ou son diagnostic. Le cas d’usage de lecture d’ActionPlan et les contrôles de version/autorisation correspondants sont à fournir par `packages/application/` avant le branchement de `octro_get_action_plan`.
+
+Le transport doit construire `McpRequestContext` à partir de l’identité, du tenant et des scopes vérifiés, puis appeler `callTool(name, args, context)`. Les outils présents sont en lecture seule. Aucun outil XRPL, d’écriture, de signature ou de soumission n’est enregistré; les décisions humaines ne passent pas par une commande MCP permissive. Les namespaces MCP de documentation XRPL restent des outils de développement distincts du présent MCP métier.
+
+Cette frontière satisfait les critères d’acceptation `MCP-02` et l’isolation contextuelle attendue par `SEC-01`; le raccordement d’un adaptateur n’est pas une preuve de persistance, d’exécution ou de contrôle ledger. Les résultats réseau restent soumis aux recettes `EVID-01`, `REL-01` et au gate actif du Track 1 Loaded.

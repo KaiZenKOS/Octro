@@ -5,6 +5,7 @@ import type { EconomicEvent } from "@octro/contracts";
 // Workspace (docs/architecture.md) : toute lecture le filtre (SEC-01). La
 // doublure en memoire (adapters/in-memory) l'applique deja, sans attendre S3.
 export interface EconomicEventRepository {
-  save(event: EconomicEvent): Promise<void>;
+  /** Save once per tenant/connection/source id and return the canonical event. */
+  save(event: EconomicEvent): Promise<EconomicEvent>;
   listByTenant(tenantId: string): Promise<EconomicEvent[]>;
 }

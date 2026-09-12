@@ -3,7 +3,14 @@
 // modifier deux fois le solde). DATA-02 : une prevision reste separee du
 // cash confirme.
 import { z } from "zod";
-import { IdSchema, IsoDateTimeSchema, MoneySchema, TenantIdSchema } from "./primitives.js";
+import {
+  AssetIdSchema,
+  IdSchema,
+  IsoDateTimeSchema,
+  MoneySchema,
+  PositiveDecimalStringSchema,
+  TenantIdSchema,
+} from "./primitives.js";
 
 export const EventDirectionSchema = z.enum(["inflow", "outflow"]);
 
@@ -15,6 +22,7 @@ export const VerificationSchema = z.enum([
   "provider_verified",
   "ledger_verified",
 ]);
+export type Verification = z.infer<typeof VerificationSchema>;
 
 // expected = prevu (n'alimente jamais le cash confirme, DATA-02) ;
 // settled = reglement observe ; cancelled = retire du calendrier.
@@ -36,6 +44,15 @@ export const EconomicEventSchema = z.object({
   observed_at: IsoDateTimeSchema,
   expected_settlement_at: IsoDateTimeSchema.optional(),
   raw_object_ref: z.string().min(1).optional(),
-});
+}).strict();
+
+export const DeclaredEventRequestSchema = z.object({
+  direction: EventDirectionSchema,
+  amount_decimal: PositiveDecimalStringSchema,
+  asset_id: AssetIdSchema,
+  label: z.string().min(1).max(200),
+  expected_settlement_at: IsoDateTimeSchema.optional(),
+}).strict();
+export type DeclaredEventRequest = z.infer<typeof DeclaredEventRequestSchema>;
 
 export type EconomicEvent = z.infer<typeof EconomicEventSchema>;

@@ -32,6 +32,15 @@
 import { Client, Wallet, xrpToDrops, signLoanSetByCounterparty } from "xrpl";
 import { LendingV1Port } from "./ports.js";
 import { PortResult, TransactionEvidence } from "./types.js";
+import {
+  buildLoanBrokerSetTransaction,
+  buildLoanPayTransaction,
+  buildLoanSetTransaction,
+  buildVaultCreateTransaction,
+  buildVaultDepositTransaction,
+  buildVaultWithdrawTransaction,
+  withTrack1NetworkId,
+} from "./transaction-builders.js";
 
 const EXPLORER_PREFIX =
   "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";
@@ -76,7 +85,7 @@ async function submitAndConfirm(
 ): Promise<SubmitOutcome> {
   (tx as { Account?: string }).Account = wallet.classicAddress;
   const currentLedger = await client.getLedgerIndex();
-  const prepared = await client.autofill(tx as any);
+  const prepared = await client.autofill(withTrack1NetworkId(tx) as any);
   (prepared as any).LastLedgerSequence = currentLedger + 2000;
   const signed = wallet.sign(prepared as any);
   const submitResp = await client.submit(signed.tx_blob);
@@ -116,10 +125,7 @@ export class XrplLendingV1Adapter implements LendingV1Port {
   }): Promise<PortResult<{ vaultId: string }>> {
     return this.withClient(async (client) => {
       const owner = Wallet.fromSeed(params.ownerSeed);
-      const outcome = await submitAndConfirm(client, owner, {
-        TransactionType: "VaultCreate",
-        Asset: params.asset,
-      });
+      const outcome = await submitAndConfirm(client, owner, buildVaultCreateTransaction({ account: owner.classicAddress, asset: params.asset }));
       const evidence = toEvidence("lending-v1", "vault_create", "VaultCreate", outcome);
       if (outcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence };
@@ -144,11 +150,11 @@ export class XrplLendingV1Adapter implements LendingV1Port {
   }): Promise<PortResult<{}>> {
     return this.withClient(async (client) => {
       const depositor = Wallet.fromSeed(params.depositorSeed);
-      const outcome = await submitAndConfirm(client, depositor, {
-        TransactionType: "VaultDeposit",
-        VaultID: params.vaultId,
-        Amount: params.amountDrops,
-      });
+      const outcome = await submitAndConfirm(client, depositor, buildVaultDepositTransaction({
+        account: depositor.classicAddress,
+        vaultId: params.vaultId,
+        amountDrops: params.amountDrops,
+      }));
       const evidence = toEvidence("lending-v1", "deposit", "VaultDeposit", outcome);
       return outcome.resultCode === "tesSUCCESS"
         ? { outcome: "ready", data: {}, evidence }
@@ -164,12 +170,12 @@ export class XrplLendingV1Adapter implements LendingV1Port {
   }): Promise<PortResult<{ loanBrokerId: string }>> {
     return this.withClient(async (client) => {
       const owner = Wallet.fromSeed(params.ownerSeed);
-      const outcome = await submitAndConfirm(client, owner, {
-        TransactionType: "LoanBrokerSet",
-        VaultID: params.vaultId,
-        DebtMaximum: params.debtMaximumDrops,
-        ManagementFeeRate: params.managementFeeRate,
-      });
+      const outcome = await submitAndConfirm(client, owner, buildLoanBrokerSetTransaction({
+        account: owner.classicAddress,
+        vaultId: params.vaultId,
+        debtMaximumDrops: params.debtMaximumDrops,
+        managementFeeRate: params.managementFeeRate,
+      }));
       const evidence = toEvidence("lending-v1", "broker_setup", "LoanBrokerSet", outcome);
       if (outcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence };
@@ -202,17 +208,16 @@ export class XrplLendingV1Adapter implements LendingV1Port {
       const brokerOwner = Wallet.fromSeed(params.brokerOwnerSeed);
 
       const currentLedger = await client.getLedgerIndex();
-      const prepared = await client.autofill({
-        TransactionType: "LoanSet",
-        Account: borrower.classicAddress,
-        LoanBrokerID: params.loanBrokerId,
-        Counterparty: brokerOwner.classicAddress,
-        PrincipalRequested: params.principalDrops,
-        InterestRate: params.interestRateHundredThousandths,
-        PaymentInterval: params.paymentIntervalSeconds,
-        PaymentTotal: params.paymentTotal,
-        GracePeriod: params.gracePeriodSeconds,
-      } as any);
+      const prepared = await client.autofill(buildLoanSetTransaction({
+        borrowerAddress: borrower.classicAddress,
+        brokerOwnerAddress: brokerOwner.classicAddress,
+        loanBrokerId: params.loanBrokerId,
+        principalDrops: params.principalDrops,
+        interestRateHundredThousandths: params.interestRateHundredThousandths,
+        paymentIntervalSeconds: params.paymentIntervalSeconds,
+        paymentTotal: params.paymentTotal,
+        gracePeriodSeconds: params.gracePeriodSeconds,
+      }));
       (prepared as any).LastLedgerSequence = currentLedger + 2000;
 
       // First party (borrower) signs normally, then the counterparty
@@ -251,12 +256,11 @@ export class XrplLendingV1Adapter implements LendingV1Port {
       // tfLoanFullPayment flag on the same rounded Amount was rolled
       // back with tecKILLED; a plain payment for the same amount
       // succeeded and closed the loan (see file header).
-      const outcome = await submitAndConfirm(client, borrower, {
-        TransactionType: "LoanPay",
-        LoanID: params.loanId,
-        Amount: params.amountDrops,
-        Flags: 0,
-      });
+      const outcome = await submitAndConfirm(client, borrower, buildLoanPayTransaction({
+        account: borrower.classicAddress,
+        loanId: params.loanId,
+        amountDrops: params.amountDrops,
+      }));
       const evidence = toEvidence("lending-v1", "repayment", "LoanPay", outcome);
       return outcome.resultCode === "tesSUCCESS"
         ? { outcome: "ready", data: {}, evidence }
@@ -271,11 +275,11 @@ export class XrplLendingV1Adapter implements LendingV1Port {
   }): Promise<PortResult<{}>> {
     return this.withClient(async (client) => {
       const withdrawer = Wallet.fromSeed(params.withdrawerSeed);
-      const outcome = await submitAndConfirm(client, withdrawer, {
-        TransactionType: "VaultWithdraw",
-        VaultID: params.vaultId,
-        Amount: params.amountDrops,
-      });
+      const outcome = await submitAndConfirm(client, withdrawer, buildVaultWithdrawTransaction({
+        account: withdrawer.classicAddress,
+        vaultId: params.vaultId,
+        amountDrops: params.amountDrops,
+      }));
       const evidence = toEvidence("lending-v1", "vault_withdraw", "VaultWithdraw", outcome);
       return outcome.resultCode === "tesSUCCESS"
         ? { outcome: "ready", data: {}, evidence }
