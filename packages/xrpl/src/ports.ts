@@ -82,6 +82,7 @@ export interface CredentialsAndDomainsPort {
     issuerSeed: string;
     subjectAddress: string;
     credentialType: string;
+    expirationRippleTime?: number;
   }): Promise<PortResult<{ credentialIndex: string }>>;
 
   acceptCredential(params: {

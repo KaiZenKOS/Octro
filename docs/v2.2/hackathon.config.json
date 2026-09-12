@@ -16,8 +16,8 @@
   "capabilities": {
     "lending_v1": "verified_full_cycle_vault_deposit_broker_loan_accept_repay_withdraw_with_yield",
     "single_asset_vault": "verified",
-    "credentials": "amendment_enabled_flow_unverified",
-    "permissioned_domains": "amendment_enabled_flow_unverified",
+    "credentials": "verified_deny_then_accept_then_expire",
+    "permissioned_domains": "verified_vault_gating_via_share_mpt_domain_id",
     "sponsorship": "amendment_enabled_sp0_not_run",
     "did": "amendment_enabled_unused"
   },
