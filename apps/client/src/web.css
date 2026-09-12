@@ -1,0 +1,6 @@
+html,body,#root { height:100%; margin:0; background:#0D0C12; }
+* { box-sizing:border-box; }
+:focus-visible { outline:2px solid #D8E78C !important; outline-offset:4px; }
+button,a { -webkit-tap-highlight-color:transparent; }
+@media(prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; transition:none !important; animation:none !important; } }
+::selection { background:#4D434B; color:#FBFAFC; }

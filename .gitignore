@@ -1,2 +1,17 @@
 .xrpl-devex/
 .claude/settings.local.json
+__pycache__/
+*.pyc
+
+# S1 — socle monorepo (OPS-02, SEC-04)
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/
+
+# Local infrastructure material (SEC-04); populate outside the tracked tree.
+.secrets/
+.certs/

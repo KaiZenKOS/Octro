@@ -1,0 +1,23 @@
+# Lance l'API Octro (S1, composition en memoire) en local via Docker.
+# PostgreSQL/MongoDB sont des instances distantes deja provisionnees (voir
+# .env, a completer depuis .env.example) ; aucun conteneur de base de donnees
+# n'est demarre ici. Pour un PostgreSQL local isole (tests avant l'adaptateur
+# reel), voir infra/docker-compose.dev.yml (usage distinct, non lie a ce compose).
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-3000}:3000"
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    ports:
+      - "8082:80"
+    restart: unless-stopped
