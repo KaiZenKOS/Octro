@@ -14,7 +14,7 @@
   "ledger_verified": true,
   "g0_evidence_ref": "docs/progress/augustin/evidence/g0-network-and-payment.json",
   "capabilities": {
-    "lending_v1": "partial_vault_broker_withdraw_verified_loan_accept_unverified",
+    "lending_v1": "verified_full_cycle_vault_deposit_broker_loan_accept_repay_withdraw_with_yield",
     "single_asset_vault": "verified",
     "credentials": "amendment_enabled_flow_unverified",
     "permissioned_domains": "amendment_enabled_flow_unverified",

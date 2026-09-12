@@ -79,43 +79,91 @@ plusieurs preteurs concurrents au-dela de l'exemple pedagogique, et
 l'appel FastAPI en transport (hors perimetre du moteur lui-meme, voir
 architecture.md).
 
-## A3 — Cycle Lending V1 : PARTIEL, execute reellement, pas complet
+## A3 — Cycle Lending V1 : FAIT, cycle complet reellement execute
 
 Meme reseau, comptes finances par le faucet, transactions reelles
-signees et soumises (voir
-`docs/progress/augustin/evidence/a3-vault-broker-loanset-attempt.json`
-et `a3-vault-withdraw.json`) :
+signees et soumises (voir `docs/progress/augustin/evidence/
+a3-vault-broker-loanset-attempt.json`, `a3-vault-withdraw.json` et
+`a3-loan-full-cycle.json`) :
 
 | Etape | Transaction | Resultat |
 | --- | --- | --- |
 | Vault ouvert cree | `VaultCreate` (Asset XRP) | `tesSUCCESS`, hash `04FA0A2F...0255` |
 | Depot preteur | `VaultDeposit` 50 XRP | `tesSUCCESS`, hash `B21D001B...96D` |
 | Courtier configure | `LoanBrokerSet` | `tesSUCCESS`, hash `A1337FEE...86E` |
-| Retrait de capital | `VaultWithdraw` 10 XRP | `tesSUCCESS`, hash `72752DB4...F69` |
-| Pret accepte | `LoanSet` (emprunteur seul, sans co-signature courtier) | **rejete avant inclusion**, `temBAD_SIGNER` |
+| Retrait de capital (avant le pret) | `VaultWithdraw` 10 XRP | `tesSUCCESS`, hash `72752DB4...F69` |
+| Pret tente sans co-signature | `LoanSet` (emprunteur seul) | **rejete avant inclusion**, `temBAD_SIGNER` |
+| **Pret accepte (coordonne)** | `LoanSet` (emprunteur signe, puis le proprietaire du courtier co-signe) | `tesSUCCESS`, hash `693C846F...6FE2` |
+| Decaissement | effet de bord du `LoanSet` valide, pas de transaction separee | confirme par les soldes (voir plus bas) |
+| Remboursement tente en solde total | `LoanPay` (`Amount` = `TotalValueOutstanding` arrondi, `Flags = tfLoanFullPayment`) | inclus dans un ledger valide puis **annule**, `tecKILLED` |
+| **Remboursement reel** | `LoanPay` (meme `Amount`, `Flags = 0`) | `tesSUCCESS`, hash `EA2B4816...A3C1F1`, pret ferme |
+| **Retrait avec rendement reel** | `VaultWithdraw` du solde disponible post-remboursement | `tesSUCCESS`, hash `9522A975...E173B` |
 
-Le rejet du `LoanSet` est un vrai refus protocolaire (HACK-03/AC-L04) :
-verifie apres coup qu'aucun objet `Loan` n'existe et que le solde de
-l'emprunteur est rest identique (1000000000 drops avant/apres). C'est
-une preuve honnete de protection du protocole, pas une simulation.
+Le premier rejet `LoanSet` (`temBAD_SIGNER`) reste conserve comme
+preuve honnete de protection du protocole (HACK-03/AC-L04) : verifie
+apres coup qu'aucun objet `Loan` n'existait alors et que le solde de
+l'emprunteur etait reste identique.
 
-**Non fait, bloque sur du travail restant (pas sur un acces
-manquant)** : `LoanSet` necessite la co-signature du proprietaire du
-courtier (`CounterpartySignature`, xrpl.js 5.2.0 expose
-`signLoanSetByCounterparty` / `combineLoanSetCounterpartySigners` pour
-cela) ; ce flux multi-parties n'a pas ete construit. Sans pret accepte,
-`LoanPay` (remboursement) et le retrait avec rendement ne peuvent pas
-etre exerces honnetement — je ne les ai pas simules. Prochaine etape
-concrete : construire le payload `LoanSet` canonique avec expiration,
-faire signer par l'emprunteur puis co-signer par le proprietaire du
-courtier via l'helper SDK, soumettre, puis rejouer `LoanPay` et
-`VaultWithdraw` avec rendement observe.
+**Comment la co-signature a ete obtenue** : l'emprunteur signe la
+transaction normalement (`wallet.sign(prepared)`), puis le proprietaire
+du courtier co-signe le meme `tx_blob` avec l'aide SDK
+`signLoanSetByCounterparty` (xrpl.js 5.2.0) ; le blob final co-signe est
+soumis directement (pas besoin de `combineLoanSetCounterpartySigners`
+avec un seul co-signataire). Sans cette co-signature, `autofill` calcule
+quand meme un `Fee` majore pour le nombre de signataires attendus par le
+courtier (avertissement SDK explicite), mais rippled rejette toujours la
+transaction faute de signature reelle.
 
-`packages/xrpl/src/lending-v1.ts` reflete exactement cet etat :
-`createVault`, `depositToVault`, `setLoanBroker`, `withdrawFromVault`
-sont des adaptateurs verifies ; `acceptLoan`/`repayLoan` retournent
-`{ outcome: "unsupported" }` avec la raison ci-dessus au lieu de
-pretendre fonctionner.
+**Decaissement confirme par effet, pas par transaction dediee** : ce
+build SDK/reseau ne fait apparaitre aucune transaction `Drawdown`
+separee. Le decaissement est verifie par delta de solde : emprunteur
+`1000000000 -> 1009999976` drops (+10 XRP moins frais), vault
+`AssetsAvailable` `40000000 -> 30000000` drops (-10 XRP), `AssetsTotal`
+inchange (le principal preté reste compte comme actif du vault tant
+qu'il est en cours).
+
+**Le remboursement a d'abord echoue avec `tecKILLED`** (« No funds
+transferred and no offer created »), inclus dans un ledger valide donc
+facturé, en utilisant `Amount = TotalValueOutstanding` (valeur arrondie
+affichee par le ledger, `10001370` drops) avec `Flags =
+tfLoanFullPayment`. Le meme montant sans ce flag (`Flags = 0`) a reussi
+et a ferme le pret (le `Loan` a perdu `PrincipalOutstanding` /
+`TotalValueOutstanding` / `PaymentRemaining` / `NextPaymentDueDate` et a
+gagne `PreviousPaymentDueDate`). Hypothese la plus probable : le vrai
+montant de solde est `PeriodicPayment` non arrondi
+(`10001369.86301369963` drops, non representable en entier), et
+`tfLoanFullPayment` exige une correspondance exacte que la valeur
+arrondie ne satisfait pas. Retenu comme friction reseau/SDK reelle,
+signalee separement via le hook DevEx de cette session.
+
+**Rendement reellement constate** : apres remboursement, le vault
+affichait `AssetsAvailable = AssetsTotal = 10001370` drops. Le
+proprietaire a retire ce solde integral ; son solde a augmente de
+`977999940` a `988001298` drops (+10001358 net de 12 drops de frais).
+Le delta de 1370 drops (~0.00137 XRP) au-dessus du principal de
+10 000 000 drops correspond a l'interet reellement du :
+`10 000 000 * 5% annuel * 1/365 jour = 1369.86`, arrondi a 1370 par le
+ledger — un rendement constate, pas suppose.
+
+**Note d'ordre de script** : un retrait intermediaire (`VaultWithdraw`
+de 30 000 000 drops, avant la reussite du remboursement) a ete fait par
+erreur de sequencement de script entre les deux tentatives de
+`LoanPay`. C'etait un retrait de capital disponible, pas un retrait de
+rendement ; il est documente separement (`a3-vault-withdraw.json`) et
+n'affecte pas la coherence comptable du cycle final (verifiee ci-dessus).
+
+`packages/xrpl/src/lending-v1.ts` reflete cet etat verifie :
+`createVault`, `depositToVault`, `setLoanBroker`, `acceptLoan`,
+`repayLoan`, `withdrawFromVault` sont tous des adaptateurs reels et
+testes (voir le header du fichier pour le detail des deux frictions
+`temBAD_SIGNER`/`tecKILLED` et leur solution).
+
+**Reste a faire sur A3** : rejouer le cycle avec un vrai calendrier de
+paiements multiples (`PaymentTotal > 1`) pour couvrir explicitement
+`ENG-05`/le cas H72 sur reseau reel (actuellement seul `services/
+optimizer` le couvre en deterministe) ; explorer si `tfLoanFullPayment`
+fonctionne avec le montant non arrondi exact plutot que conclure
+definitivement qu'il faut l'eviter.
 
 ## A4 — Credentials et Domains : NON EXECUTE (bloque, identifie)
 
@@ -151,10 +199,10 @@ ne pas retarder le reste.
 
 - **Humain requis** : confirmation mentor que le reseau reste V1 pour
   les nouveaux prets (G0, chapitre 16).
-- **Travail restant, pas un acces manquant** : coordination
-  multi-signature `LoanSet` (A3), compte emetteur + eligibilite
-  applicative pour Credentials/Domains (A4, depend aussi de S5 chez
-  Samet), SP0 sponsoring (A6, P1).
+- **Travail restant, pas un acces manquant** : compte emetteur +
+  eligibilite applicative pour Credentials/Domains (A4, depend aussi de
+  S5 chez Samet), SP0 sponsoring (A6, P1). La coordination
+  multi-signature `LoanSet` (A3) est maintenant faite.
 - **Dependance externe** : le port de calcul reel depuis
   `packages/application/` (S3) et le contrat wallet avec Kevin (K3)
   ne sont pas dans mon perimetre d'ecriture.
@@ -177,11 +225,14 @@ ne pas retarder le reste.
   a titre de verification (hors depot, pas de lockfile ajoute) -> aucune
   erreur de type.
 - Transactions reseau listees ci-dessus, chacune avec son hash et son
-  lien d'explorateur dans `docs/progress/augustin/evidence/`.
+  lien d'explorateur dans `docs/progress/augustin/evidence/`, y compris
+  le cycle de pret complet dans `a3-loan-full-cycle.json`.
 
 ## Prochain lot pret
 
-Construire la co-signature `LoanSet` (A3) pour obtenir un prêt reellement
-accepte, decaisse, rembourse et retire avec rendement, ce qui debloquera
-aussi le retrait avec rendement de `HACK-02`/`AC-L03`. En parallele,
-demarrer A4 des qu'un compte emetteur de test est disponible.
+A3 P0 est maintenant complet (vault, depot, courtier, pret accepte,
+remboursement, retrait avec rendement, tous reels et valides).
+Prochaine priorite : demarrer A4 (Credentials/Domains) des qu'un compte
+emetteur de test est disponible, en coordination avec S5 (Samet) pour
+l'eligibilite applicative. En parallele, obtenir la confirmation
+mentor sur le statut V1 du reseau (seul point A1 encore ouvert).

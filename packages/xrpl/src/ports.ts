@@ -47,12 +47,20 @@ export interface LendingV1Port {
     managementFeeRate: number;
   }): Promise<PortResult<{ loanBrokerId: string }>>;
 
-  /** Not implemented: requires coordinated counterparty co-signature. */
+  /**
+   * Verified 2026-09-12: the borrower signs normally, then the loan
+   * broker owner (brokerOwnerSeed) co-signs with xrpl.js's
+   * signLoanSetByCounterparty before submission.
+   */
   acceptLoan(params: {
     borrowerSeed: string;
+    brokerOwnerSeed: string;
     loanBrokerId: string;
     principalDrops: string;
-    interestRateBps: number;
+    interestRateHundredThousandths: number; // e.g. 5000 = 5.000%, per LoanSet's InterestRate scale (max 100000)
+    paymentIntervalSeconds: number; // must be >= 60
+    paymentTotal: number;
+    gracePeriodSeconds: number;
   }): Promise<PortResult<{ loanId: string }>>;
 
   repayLoan(params: {
