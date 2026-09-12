@@ -9,8 +9,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "name": "Octro — vos prévisions",
-      "favicon": "./assets/logo.png"
+      "name": "Octro — vos prévisions"
     }
   }
 }
