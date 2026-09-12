@@ -13,6 +13,46 @@ export interface NetworkCapabilitiesPort {
   getSnapshot(): Promise<NetworkCapabilitySnapshot>;
 }
 
+/**
+ * Lecture seule (aucune transaction soumise) — deliberement distinct de
+ * PortResult, qui porte une TransactionEvidence pensee pour un ordre
+ * soumis au ledger (chapitre 32) : fabriquer une preuve de transaction
+ * pour une simple requete de solde/historique n'aurait pas de sens.
+ * "unavailable" couvre toute erreur reseau/ledger (ex. compte jamais
+ * active, endpoint injoignable).
+ */
+export type QueryResult<T> = { outcome: "ready"; data: T } | { outcome: "unavailable"; reason: string };
+
+export interface AccountBalance {
+  asset_id: string;
+  value: string;
+}
+
+export interface AccountTransactionSummary {
+  tx_hash: string;
+  tx_type: string;
+  result_code: string;
+  validated: boolean;
+  ledger_index: number;
+  occurred_at: string | null;
+  delivered_amount: AccountBalance | null;
+  direction: "incoming" | "outgoing" | "other";
+  counterparty: string | null;
+  explorer_url: string;
+}
+
+/**
+ * Vue "compte" pour le client : soldes reels (XRP + toute ligne de
+ * confiance IOU non nulle) et historique de transactions on-chain — pas
+ * seulement les actions applicatives deja loguees (LenderDeposit,
+ * WithdrawalRequest, ...), mais tout ce que le ledger a reellement vu
+ * passer sur cette adresse.
+ */
+export interface AccountActivityPort {
+  getBalances(address: string): Promise<QueryResult<AccountBalance[]>>;
+  getTransactions(address: string, limit?: number): Promise<QueryResult<AccountTransactionSummary[]>>;
+}
+
 export interface PaymentPort {
   sendTestPayment(params: {
     sourceSeed: string; // test-only; never accepted from an LLM tool call

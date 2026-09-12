@@ -74,4 +74,18 @@ export async function authRoutes(app: FastifyInstance, deps: AppDependencies): P
       return sendError(reply, err);
     }
   });
+
+  // Soldes reels (XRP + IOU) et historique de transactions on-chain — le
+  // client n'affichait jusqu'ici que les actions applicatives deja
+  // loguees (lending), jamais l'etat reel du compte sur le ledger.
+  app.get("/v1/wallet/activity", async (request, reply) => {
+    const userId = await requireSession(request, reply, deps);
+    if (!userId) return reply;
+    try {
+      const activity = await deps.getWalletActivity.execute({ userId });
+      return reply.send(activity);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
 }

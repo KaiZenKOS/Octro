@@ -1,24 +1,26 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Modal, View } from 'react-native';
+import { Linking, Modal, Pressable, View } from 'react-native';
 import { Badge, Button, Card, Field, Typography as T, tokens } from '@octro/ui';
 import { Icon } from './Icon';
 import { useAuth } from './auth';
 import {
   assetSymbol,
   formatAmount,
+  formatHumanAmount,
   isNativeXrp,
   NATIVE_ASSET_ID,
   toLedgerAmount,
   useLendingApi,
 } from './lending-data';
 import type {
+  AccountTransaction,
   CreditAssessment,
   KycStatus,
   LendingAsset,
   LendingPositions,
   OdooCompany,
   OdooConnection,
-  Wallet,
+  WalletActivity,
 } from './lending-data';
 
 const c = tokens.color;
@@ -528,24 +530,126 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
   );
 }
 
-function WalletBadge() {
-  const api = useLendingApi();
-  const [wallet, setWallet] = useState<Wallet | null>(null);
+function transactionStatusTone(resultCode: string, validated: boolean): 'neutral' | 'success' | 'warning' | 'error' {
+  if (!validated) return 'warning';
+  return resultCode === 'tesSUCCESS' ? 'success' : 'error';
+}
+function directionLabel(direction: AccountTransaction['direction']): string {
+  return direction === 'incoming' ? 'Reçu' : direction === 'outgoing' ? 'Envoyé' : 'Interne';
+}
+function formatOccurredAt(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
 
-  useEffect(() => {
-    api.getWallet().then(setWallet).catch(() => setWallet(null));
+// Une ligne = une transaction on-chain reelle (pas seulement une action
+// applicative deja loguee) — ouvre l'explorateur XRPL au tap.
+function TransactionRow({ tx }: { tx: AccountTransaction }) {
+  return (
+    <Pressable
+      onPress={() => Linking.openURL(tx.explorer_url)}
+      accessibilityRole="link"
+      accessibilityLabel={`${directionLabel(tx.direction)} · ${tx.tx_type} · voir sur l'explorateur`}
+      style={({ pressed }) => [
+        { gap: 4, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border },
+        pressed && { opacity: 0.65 },
+      ]}
+    >
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <Badge tone={tx.direction === 'incoming' ? 'success' : 'neutral'}>{directionLabel(tx.direction)}</Badge>
+          <T variant="label">{tx.tx_type}</T>
+        </View>
+        <Badge tone={transactionStatusTone(tx.result_code, tx.validated)}>{tx.result_code}</Badge>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <T variant="muted" style={{ fontSize: 13 }}>
+          {formatOccurredAt(tx.occurred_at)}
+          {tx.counterparty ? ` · ${tx.direction === 'incoming' ? 'de' : 'vers'} ${tx.counterparty}` : ''}
+        </T>
+        {tx.delivered_amount && <T>{formatHumanAmount(tx.delivered_amount.asset_id, tx.delivered_amount.value)}</T>}
+      </View>
+    </Pressable>
+  );
+}
+
+// Section "compte" (correction UX explicite) : adresse complete (jamais
+// tronquee), soldes reels par actif, historique de transactions on-chain —
+// remplace l'ancien badge d'adresse abregee qui ne montrait rien d'autre.
+function WalletOverview() {
+  const api = useLendingApi();
+  const [activity, setActivity] = useState<WalletActivity | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    api
+      .getWalletActivity()
+      .then((a) => {
+        setActivity(a);
+        setError(null);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Unexpected error'))
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!wallet) return null;
-  const short = `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`;
+  useEffect(refresh, [refresh]);
+
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <Icon name="wallet" size={16} color={c.muted} />
-      <T variant="muted" style={{ fontSize: 13 }}>
-        {short}
-      </T>
-    </View>
+    <Card style={{ gap: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Icon name="wallet" size={22} color={c.text} />
+          <T variant="title">Votre wallet XRPL</T>
+        </View>
+        <Button busy={loading} variant="ghost" onPress={refresh} style={{ minHeight: 36, paddingVertical: 6, paddingHorizontal: 12 }}>
+          Actualiser
+        </Button>
+      </View>
+
+      <ErrorNote message={error} />
+      {!activity && loading && <T variant="muted">Chargement du solde et de l'historique…</T>}
+
+      {activity && (
+        <>
+          <View style={{ gap: 4 }}>
+            <T variant="label">Adresse</T>
+            <T selectable style={{ fontSize: 15 }}>
+              {activity.address}
+            </T>
+            <T variant="muted" style={{ fontSize: 12 }}>
+              {activity.network}
+            </T>
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <T variant="label">Solde</T>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              {activity.balances.length === 0 ? (
+                <T variant="muted">Compte pas encore financé sur le ledger.</T>
+              ) : (
+                activity.balances.map((b) => <Badge key={b.asset_id}>{formatHumanAmount(b.asset_id, b.value)}</Badge>)
+              )}
+            </View>
+          </View>
+
+          <View style={{ gap: 4 }}>
+            <T variant="label">Transactions récentes</T>
+            {activity.transactions.length === 0 ? (
+              <T variant="muted">Aucune transaction sur ce compte pour l'instant.</T>
+            ) : (
+              <View>
+                {activity.transactions.map((tx) => (
+                  <TransactionRow key={tx.tx_hash} tx={tx} />
+                ))}
+              </View>
+            )}
+          </View>
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -583,14 +687,12 @@ export function AccountScreen() {
   return (
     <View style={{ gap: 24 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <View style={{ gap: 4 }}>
-          <T variant="title">Bonjour, {user.email}</T>
-          <WalletBadge />
-        </View>
+        <T variant="title">Bonjour, {user.email}</T>
         <Button variant="ghost" onPress={logout} style={{ minHeight: 40, paddingVertical: 8, paddingHorizontal: 12 }}>
           Se déconnecter
         </Button>
       </View>
+      <WalletOverview />
       {kyc.status !== 'valid' && (
         <KycGateModal
           onDecided={(status) => {

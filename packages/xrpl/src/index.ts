@@ -14,3 +14,7 @@ export * from "./buffer-disbursement.js";
 
 // Integration xrpl-lending-sim — actifs IOU (RLUSD simule) + Cover XLS-66.
 export * from "./iou-setup.js";
+
+// Vue "compte" du client (soldes reels + historique de transactions
+// on-chain), lecture seule.
+export * from "./account-activity.js";

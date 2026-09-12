@@ -78,6 +78,36 @@ export interface LendingPositions {
   withdrawals: WithdrawalRequest[];
 }
 
+// Vue "compte" (GET /v1/wallet/activity) : soldes reels et historique de
+// transactions on-chain, en unites humaines directement (contrairement aux
+// montants de LenderDeposit/LoanPosition/WithdrawalRequest ci-dessus, qui
+// restent en unite ledger — drops pour XRP) : ne jamais les faire passer
+// par toLedgerAmount/fromLedgerAmount, utiliser formatHumanAmount.
+export interface AccountBalance {
+  asset_id: string;
+  value: string;
+}
+
+export interface AccountTransaction {
+  tx_hash: string;
+  tx_type: string;
+  result_code: string;
+  validated: boolean;
+  ledger_index: number;
+  occurred_at: string | null;
+  delivered_amount: AccountBalance | null;
+  direction: 'incoming' | 'outgoing' | 'other';
+  counterparty: string | null;
+  explorer_url: string;
+}
+
+export interface WalletActivity {
+  address: string;
+  network: string;
+  balances: AccountBalance[];
+  transactions: AccountTransaction[];
+}
+
 export const NATIVE_ASSET_ID = 'xrpl:XRP';
 const DROPS_PER_XRP = 1_000_000n;
 
@@ -116,6 +146,13 @@ export function formatAmount(assetId: string, ledgerAmount: string): string {
   return `${fromLedgerAmount(assetId, ledgerAmount)} ${assetSymbol(assetId)}`;
 }
 
+// Pour un montant deja en unite humaine (soldes/transactions on-chain,
+// GET /v1/wallet/activity) — distinct de formatAmount, qui part d'un
+// montant en unite ledger (drops pour XRP).
+export function formatHumanAmount(assetId: string, humanValue: string): string {
+  return `${humanValue} ${assetSymbol(assetId)}`;
+}
+
 async function parseJsonOrThrow(response: Response): Promise<any> {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -141,6 +178,10 @@ export function useLendingApi() {
 
   return {
     getWallet: useCallback(async (): Promise<Wallet> => parseJsonOrThrow(await authed('/v1/wallet')), [authed]),
+    getWalletActivity: useCallback(
+      async (): Promise<WalletActivity> => parseJsonOrThrow(await authed('/v1/wallet/activity')),
+      [authed],
+    ),
     simulateKyc: useCallback(
       async (result: 'valid' | 'invalid'): Promise<KycStatus> =>
         parseJsonOrThrow(await authed('/v1/kyc/simulate', { method: 'POST', body: JSON.stringify({ result }) })),

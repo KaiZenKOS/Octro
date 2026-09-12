@@ -22,8 +22,10 @@ import {
   FakeLendingV1Adapter,
   GetCurrentUserUseCase,
   GetKycStatusUseCase,
+  FakeAccountActivityAdapter,
   GetLatestCreditAssessmentUseCase,
   GetLendingPositionsUseCase,
+  GetWalletActivityUseCase,
   GetWalletUseCase,
   ListLendingAssetsUseCase,
   GetPersonalProjectionUseCase,
@@ -93,10 +95,12 @@ import {
   createPgPool,
 } from "@octro/application";
 import {
+  type AccountActivityPort,
   type BufferDisbursementPort,
   HACKATHON_DEVNET,
   type LendingV1Port,
   type WalletProvisioningPort,
+  XrplAccountActivityAdapter,
   XrplBufferDisbursementAdapter,
   XrplLendingV1Adapter,
   XrplWalletProvisioningAdapter,
@@ -122,6 +126,7 @@ export interface AppDependencies {
   listLendingAssets: ListLendingAssetsUseCase;
   getLendingPositions: GetLendingPositionsUseCase;
   getWallet: GetWalletUseCase;
+  getWalletActivity: GetWalletActivityUseCase;
   lenderDeposit: LenderDepositUseCase;
   borrowerLoanRequest: BorrowerLoanRequestUseCase;
   repayLoan: RepayLoanUseCase;
@@ -256,6 +261,15 @@ function buildBufferDisbursementPort(): BufferDisbursementPort {
   return new FakeBufferDisbursementAdapter();
 }
 
+// Meme bascule : lecture seule (soldes + historique on-chain), jamais de
+// signature — active/desactive avec le reste des concerns XRPL reels.
+function buildAccountActivityPort(): AccountActivityPort {
+  if (process.env["LENDING_V1_ENABLED"] === "true") {
+    return new XrplAccountActivityAdapter(HACKATHON_DEVNET.wss);
+  }
+  return new FakeAccountActivityAdapter();
+}
+
 // Cle reelle (env) si presente ; sinon cle ephemere generee pour ce process
 // uniquement (tests, dev sans Postgres) — jamais persistee, jamais reutilisee
 // au redemarrage. infra/config/environment.mjs exige la vraie cle des que
@@ -294,6 +308,7 @@ export function buildDependencies(): AppDependencies {
   const walletProvisioning: WalletProvisioningPort = new XrplWalletProvisioningAdapter();
   const lending: LendingV1Port = buildLendingV1Port();
   const bufferDisbursement: BufferDisbursementPort = buildBufferDisbursementPort();
+  const accountActivity: AccountActivityPort = buildAccountActivityPort();
   // Secret plateforme unique (pas par utilisateur, jamais chiffre en base —
   // il n'existe qu'une fois, fourni via l'environnement, SEC-04).
   const bufferWalletSeed = process.env["BUFFER_WALLET_SEED"] ?? "";
@@ -329,6 +344,7 @@ export function buildDependencies(): AppDependencies {
     listLendingAssets: new ListLendingAssetsUseCase(lendingPools),
     getLendingPositions: new GetLendingPositionsUseCase(lenderDeposits, loanPositions, withdrawalRequests),
     getWallet: new GetWalletUseCase(wallets),
+    getWalletActivity: new GetWalletActivityUseCase(wallets, accountActivity),
     lenderDeposit: new LenderDepositUseCase(
       kycStatuses,
       wallets,

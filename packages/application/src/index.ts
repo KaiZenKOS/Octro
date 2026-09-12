@@ -115,6 +115,8 @@ export * from "./ports/tx-evidence-repository.js";
 export * from "./use-cases/list-lending-assets.js";
 export * from "./use-cases/get-lending-positions.js";
 export * from "./use-cases/get-wallet.js";
+export * from "./use-cases/get-wallet-activity.js";
+export * from "./adapters/in-memory/fake-account-activity-adapter.js";
 export * from "./adapters/in-memory/in-memory-tx-evidence-repository.js";
 export * from "./adapters/mongo/create-mongo-client.js";
 export * from "./adapters/mongo/mongo-tx-evidence-repository.js";
