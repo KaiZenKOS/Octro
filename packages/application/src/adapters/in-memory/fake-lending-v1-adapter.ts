@@ -37,6 +37,10 @@ export class FakeLendingV1Adapter implements LendingV1Port {
     return { outcome: "ready", data: {}, evidence: this.evidence("deposit", "VaultDeposit") };
   }
 
+  async depositCover(_params: Params<"depositCover">): ReturnType<LendingV1Port["depositCover"]> {
+    return { outcome: "ready", data: {}, evidence: this.evidence("cover_deposit", "LoanBrokerCoverDeposit") };
+  }
+
   async setLoanBroker(_params: Params<"setLoanBroker">): ReturnType<LendingV1Port["setLoanBroker"]> {
     return {
       outcome: "ready",

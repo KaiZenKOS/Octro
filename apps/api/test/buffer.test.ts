@@ -37,6 +37,7 @@ async function signUpVerifyLoginAndSimulateKyc(c: ReturnType<typeof client>, ema
 
 async function bootstrapPool(c: ReturnType<typeof client>) {
   await c.deps.bootstrapLendingPool.execute({
+    assetId: "xrpl:XRP",
     ownerAddress: "rPoolOwnerFake",
     ownerSeed: "sPoolOwnerFakeSeed",
     debtMaximumDrops: "1000000000",

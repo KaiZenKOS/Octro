@@ -15,6 +15,7 @@
     "@octro/credit": "0.1.0",
     "@octro/domain": "0.1.0",
     "@octro/xrpl": "0.1.0",
+    "mongodb": "^7.6.0",
     "pg": "^8.23.0"
   },
   "devDependencies": {

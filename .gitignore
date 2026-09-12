@@ -28,3 +28,11 @@ coverage/
 # Extension Lending/KYC/Credit — evidence produced by one-off admin scripts
 # (real devnet secrets/tx evidence; SEC-04, never committed).
 infra/scripts/*.evidence.json
+
+# Integration xrpl-lending-sim : depot de reference fourni pour porter sa
+# methodologie dans packages/xrpl et packages/application (deja fait, voir
+# packages/xrpl/src/iou-setup.ts et lending-v1.ts). Ce dossier lui-meme
+# contient node_modules/ ainsi que des seeds reels de wallets devnet
+# (wallets.json, transactions.json genere par ses propres runs) — jamais
+# commit (SEC-04).
+xrpl-lending-sim/

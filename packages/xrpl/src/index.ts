@@ -11,3 +11,6 @@ export * from "./wallet-provisioning.js";
 
 // Extension Lending/KYC/Credit — Phase F.
 export * from "./buffer-disbursement.js";
+
+// Integration xrpl-lending-sim — actifs IOU (RLUSD simule) + Cover XLS-66.
+export * from "./iou-setup.js";

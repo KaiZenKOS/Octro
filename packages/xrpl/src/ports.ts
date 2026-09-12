@@ -43,6 +43,15 @@ export interface BufferDisbursementPort {
  * stub because it requires real multi-party counterparty co-signing,
  * not yet built (see "next steps").
  */
+/**
+ * Montant natif attendu par VaultDeposit/VaultWithdraw/LoanPay/
+ * LoanBrokerCoverDeposit : une chaine de drops pour un Vault XRP, ou l'objet
+ * IssuedCurrencyAmount pour un Vault IOU (ex. RLUSD simule) — jamais de
+ * conversion cote adaptateur, l'appelant fournit deja la bonne forme
+ * (xrpl-lending-sim/simulate.js : amountField/toNative, verifie en reel).
+ */
+export type LedgerAmount = string | { currency: string; issuer: string; value: string };
+
 export interface LendingV1Port {
   createVault(params: {
     ownerSeed: string;
@@ -52,7 +61,7 @@ export interface LendingV1Port {
   depositToVault(params: {
     depositorSeed: string;
     vaultId: string;
-    amountDrops: string;
+    amountDrops: LedgerAmount;
   }): Promise<PortResult<{}>>;
 
   setLoanBroker(params: {
@@ -60,7 +69,23 @@ export interface LendingV1Port {
     vaultId: string;
     debtMaximumDrops: string;
     managementFeeRate: number;
+    // XLS-66 : capital de premiere perte du broker, optionnel (garde
+    // compatible avec les pools deja amorces sans Cover).
+    coverRateMinimum?: number;
+    coverRateLiquidation?: number;
   }): Promise<PortResult<{ loanBrokerId: string }>>;
+
+  /**
+   * LoanBrokerCoverDeposit (XLS-66) : le proprietaire du broker finance le
+   * Cover (protection contre impairment/default). Verifie en reel dans
+   * xrpl-lending-sim (VaultCreate -> LoanBrokerSet -> LoanBrokerCoverDeposit
+   * -> VaultDeposit).
+   */
+  depositCover(params: {
+    ownerSeed: string;
+    loanBrokerId: string;
+    amount: LedgerAmount;
+  }): Promise<PortResult<{}>>;
 
   /**
    * Verified 2026-09-12: the borrower signs normally, then the loan
@@ -71,6 +96,10 @@ export interface LendingV1Port {
     borrowerSeed: string;
     brokerOwnerSeed: string;
     loanBrokerId: string;
+    // Champ XRPLNumber de LoanSet (comme DebtMaximum de LoanBrokerSet) :
+    // toujours une chaine de valeur nue (drops XRP, ou valeur decimale pour
+    // un IOU) — jamais l'objet {currency,issuer,value}, verifie en reel
+    // dans xrpl-lending-sim (simulate.js: toNative, pas amountField).
     principalDrops: string;
     interestRateHundredThousandths: number; // e.g. 5000 = 5.000%, per LoanSet's InterestRate scale (max 100000)
     paymentIntervalSeconds: number; // must be >= 60
@@ -81,13 +110,35 @@ export interface LendingV1Port {
   repayLoan(params: {
     borrowerSeed: string;
     loanId: string;
-    amountDrops: string;
+    amountDrops: LedgerAmount;
   }): Promise<PortResult<{}>>;
 
   withdrawFromVault(params: {
     withdrawerSeed: string;
     vaultId: string;
-    amountDrops: string;
+    amountDrops: LedgerAmount;
+  }): Promise<PortResult<{}>>;
+}
+
+/**
+ * Mise en place d'un actif IOU (ex. RLUSD simule) pour le hackathon,
+ * verifiee en reel dans xrpl-lending-sim : DefaultRipple sur l'issuer,
+ * trustlines lender/borrower/buffer -> issuer, financement initial. N'a
+ * aucun effet sur le chemin XRP natif.
+ */
+export interface IouSetupPort {
+  activateDefaultRipple(params: { issuerSeed: string }): Promise<PortResult<{}>>;
+  createTrustline(params: {
+    holderSeed: string;
+    currency: string;
+    issuerAddress: string;
+    limit: string;
+  }): Promise<PortResult<{}>>;
+  sendIouPayment(params: {
+    issuerSeed: string;
+    destinationAddress: string;
+    currency: string;
+    value: string;
   }): Promise<PortResult<{}>>;
 }
 

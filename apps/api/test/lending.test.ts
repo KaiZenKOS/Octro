@@ -52,6 +52,7 @@ describe("Octro API — lending V1 sur vault/broker partage (Phase E, FakeLendin
   it("lender deposits into the shared vault once bootstrapped", async () => {
     const c = client();
     await c.deps.bootstrapLendingPool.execute({
+      assetId: "xrpl:XRP",
       ownerAddress: "rPoolOwnerFake",
       ownerSeed: "sPoolOwnerFakeSeed",
       debtMaximumDrops: "1000000000",
@@ -74,6 +75,7 @@ describe("Octro API — lending V1 sur vault/broker partage (Phase E, FakeLendin
   it("rejects a deposit without KYC (403)", async () => {
     const c = client();
     await c.deps.bootstrapLendingPool.execute({
+      assetId: "xrpl:XRP",
       ownerAddress: "rPoolOwnerFake",
       ownerSeed: "sPoolOwnerFakeSeed",
       debtMaximumDrops: "1000000000",
@@ -109,6 +111,7 @@ describe("Octro API — lending V1 sur vault/broker partage (Phase E, FakeLendin
   it("rejects a loan request without an approved credit assessment (404)", async () => {
     const c = client();
     await c.deps.bootstrapLendingPool.execute({
+      assetId: "xrpl:XRP",
       ownerAddress: "rPoolOwnerFake",
       ownerSeed: "sPoolOwnerFakeSeed",
       debtMaximumDrops: "1000000000",

@@ -77,6 +77,7 @@ async function main() {
   const bootstrap = new BootstrapLendingPoolUseCase(repository, lending, crypto, new SystemClock(), new UuidIdGenerator());
   console.log("Creating the shared open vault (VaultCreate) then the loan broker (LoanBrokerSet)...");
   const result = await bootstrap.execute({
+    assetId: process.env["BOOTSTRAP_ASSET_ID"] ?? "xrpl:XRP",
     ownerAddress: owner.address,
     ownerSeed: owner.seed,
     debtMaximumDrops,

@@ -35,10 +35,14 @@ import {
   InMemoryLoanPositionRepository,
   InMemoryOdooConnectionRepository,
   InMemorySessionRepository,
+  InMemoryTxEvidenceRepository,
   InMemoryUserRepository,
   InMemoryWalletRepository,
   InMemoryWithdrawalRequestRepository,
   InMemoryWorkspaceRepository,
+  createMongoClient,
+  MongoTxEvidenceRepository,
+  type TxEvidenceRepository,
   type KycStatusRepository,
   type LenderDepositRepository,
   LenderDepositUseCase,
@@ -132,6 +136,29 @@ export interface AppDependencies {
 // MAIL_ENABLED=true + les trois variables MAIL_API_* (voir .env.example) ->
 // adaptateur reel. Sinon (tests, dev sans mail configure) -> doublure qui
 // n'appelle jamais l'API reelle.
+// MONGODB_ENABLED=true -> le vrai client Mongo (journal d'audit brut des
+// transactions XRPL, integration xrpl-lending-sim — voir .env.example :
+// "optional raw documents only; no financial balances or access decisions").
+// Sinon (tests, dev sans Mongo) -> doublure en memoire, meme principe que
+// buildMailPort/buildPersistence ci-dessus.
+function buildTxEvidenceRepository(): TxEvidenceRepository {
+  if (process.env["MONGODB_ENABLED"] === "true") {
+    const client = createMongoClient({
+      host: process.env["MONGODB_HOST"] ?? "",
+      port: Number(process.env["MONGODB_PORT"] ?? 27017),
+      database: process.env["MONGODB_DATABASE"] ?? "",
+      username: process.env["MONGODB_USERNAME"] ?? "",
+      password: process.env["MONGODB_PASSWORD"] ?? "",
+      authSource: process.env["MONGODB_AUTH_SOURCE"] ?? "admin",
+      tls: process.env["MONGODB_TLS"] === "true",
+      tlsAllowInvalidCertificates: process.env["MONGODB_TLS_ALLOW_INVALID_CERTIFICATES"] === "true",
+      tlsAllowInvalidHostnames: process.env["MONGODB_TLS_ALLOW_INVALID_HOSTNAMES"] === "true",
+    });
+    return new MongoTxEvidenceRepository(client, process.env["MONGODB_DATABASE"] ?? "");
+  }
+  return new InMemoryTxEvidenceRepository();
+}
+
 function buildMailPort(): MailPort {
   const baseUrl = process.env["MAIL_API_BASE_URL"];
   const sendPath = process.env["MAIL_API_SEND_PATH"];
@@ -240,6 +267,7 @@ export function buildDependencies(): AppDependencies {
   const capabilities = new StaticNetworkCapabilitiesAdapter(UNVERIFIED_HACKATHON_CAPABILITIES);
 
   const mail = buildMailPort();
+  const txEvidence = buildTxEvidenceRepository();
   const {
     users,
     sessions,
@@ -292,7 +320,17 @@ export function buildDependencies(): AppDependencies {
       ids,
     ),
     getLatestCreditAssessment: new GetLatestCreditAssessmentUseCase(creditAssessments),
-    lenderDeposit: new LenderDepositUseCase(kycStatuses, wallets, lendingPools, lenderDeposits, lending, walletSeedCrypto, clock, ids),
+    lenderDeposit: new LenderDepositUseCase(
+      kycStatuses,
+      wallets,
+      lendingPools,
+      lenderDeposits,
+      lending,
+      walletSeedCrypto,
+      txEvidence,
+      clock,
+      ids,
+    ),
     borrowerLoanRequest: new BorrowerLoanRequestUseCase(
       kycStatuses,
       creditAssessments,
@@ -301,10 +339,11 @@ export function buildDependencies(): AppDependencies {
       loanPositions,
       lending,
       walletSeedCrypto,
+      txEvidence,
       clock,
       ids,
     ),
-    repayLoan: new RepayLoanUseCase(kycStatuses, wallets, loanPositions, lending, walletSeedCrypto),
+    repayLoan: new RepayLoanUseCase(kycStatuses, wallets, loanPositions, lending, walletSeedCrypto, txEvidence, clock),
     withdrawFromVault: new WithdrawFromVaultUseCase(
       kycStatuses,
       wallets,
@@ -315,6 +354,7 @@ export function buildDependencies(): AppDependencies {
       lending,
       bufferDisbursement,
       walletSeedCrypto,
+      txEvidence,
       bufferWalletSeed,
       bufferInitialBalanceDrops,
       clock,

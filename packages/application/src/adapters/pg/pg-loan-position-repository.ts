@@ -7,7 +7,8 @@ interface LoanPositionRow {
   borrower_user_id: string;
   credit_assessment_id: string;
   loan_broker_id: string;
-  loan_id: string;
+  loan_id: string | null;
+  asset_id: string;
   principal_drops: string;
   interest_rate: number;
   payment_interval_seconds: number;
@@ -25,6 +26,7 @@ function toDTO(row: LoanPositionRow): LoanPosition {
     credit_assessment_id: row.credit_assessment_id,
     loan_broker_id: row.loan_broker_id,
     loan_id: row.loan_id,
+    asset_id: row.asset_id,
     principal_drops: row.principal_drops,
     interest_rate_hundred_thousandths: row.interest_rate,
     payment_interval_seconds: row.payment_interval_seconds,
@@ -42,10 +44,10 @@ export class PgLoanPositionRepository implements LoanPositionRepository {
   async save(loan: LoanPosition): Promise<void> {
     await this.pool.query(
       `INSERT INTO loan_positions
-         (id, borrower_user_id, credit_assessment_id, loan_broker_id, loan_id, principal_drops,
+         (id, borrower_user_id, credit_assessment_id, loan_broker_id, loan_id, asset_id, principal_drops,
           interest_rate, payment_interval_seconds, payment_total, grace_period_seconds, status,
           tx_evidence, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, tx_evidence = EXCLUDED.tx_evidence`,
       [
         loan.id,
@@ -53,6 +55,7 @@ export class PgLoanPositionRepository implements LoanPositionRepository {
         loan.credit_assessment_id,
         loan.loan_broker_id,
         loan.loan_id,
+        loan.asset_id,
         loan.principal_drops,
         loan.interest_rate_hundred_thousandths,
         loan.payment_interval_seconds,

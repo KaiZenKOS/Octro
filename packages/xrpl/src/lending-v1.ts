@@ -30,7 +30,7 @@
  * adapter therefore never sets tfLoanFullPayment.
  */
 import { Client, Wallet, xrpToDrops, signLoanSetByCounterparty } from "xrpl";
-import { LendingV1Port } from "./ports.js";
+import { LedgerAmount, LendingV1Port } from "./ports.js";
 import { PortResult, TransactionEvidence } from "./types.js";
 
 const EXPLORER_PREFIX =
@@ -140,7 +140,7 @@ export class XrplLendingV1Adapter implements LendingV1Port {
   async depositToVault(params: {
     depositorSeed: string;
     vaultId: string;
-    amountDrops: string;
+    amountDrops: LedgerAmount;
   }): Promise<PortResult<{}>> {
     return this.withClient(async (client) => {
       const depositor = Wallet.fromSeed(params.depositorSeed);
@@ -161,6 +161,8 @@ export class XrplLendingV1Adapter implements LendingV1Port {
     vaultId: string;
     debtMaximumDrops: string;
     managementFeeRate: number;
+    coverRateMinimum?: number;
+    coverRateLiquidation?: number;
   }): Promise<PortResult<{ loanBrokerId: string }>> {
     return this.withClient(async (client) => {
       const owner = Wallet.fromSeed(params.ownerSeed);
@@ -169,6 +171,8 @@ export class XrplLendingV1Adapter implements LendingV1Port {
         VaultID: params.vaultId,
         DebtMaximum: params.debtMaximumDrops,
         ManagementFeeRate: params.managementFeeRate,
+        ...(params.coverRateMinimum !== undefined ? { CoverRateMinimum: params.coverRateMinimum } : {}),
+        ...(params.coverRateLiquidation !== undefined ? { CoverRateLiquidation: params.coverRateLiquidation } : {}),
       });
       const evidence = toEvidence("lending-v1", "broker_setup", "LoanBrokerSet", outcome);
       if (outcome.resultCode !== "tesSUCCESS") {
@@ -184,6 +188,23 @@ export class XrplLendingV1Adapter implements LendingV1Port {
         return { outcome: "degraded", reason: "LoanBrokerSet validated but no loan_broker object found" };
       }
       return { outcome: "ready", data: { loanBrokerId }, evidence };
+    });
+  }
+
+  // Verifie en reel dans xrpl-lending-sim (VaultCreate -> LoanBrokerSet ->
+  // LoanBrokerCoverDeposit -> VaultDeposit).
+  async depositCover(params: { ownerSeed: string; loanBrokerId: string; amount: LedgerAmount }): Promise<PortResult<{}>> {
+    return this.withClient(async (client) => {
+      const owner = Wallet.fromSeed(params.ownerSeed);
+      const outcome = await submitAndConfirm(client, owner, {
+        TransactionType: "LoanBrokerCoverDeposit",
+        LoanBrokerID: params.loanBrokerId,
+        Amount: params.amount,
+      });
+      const evidence = toEvidence("lending-v1", "loan_broker_cover_deposit", "LoanBrokerCoverDeposit", outcome);
+      return outcome.resultCode === "tesSUCCESS"
+        ? { outcome: "ready", data: {}, evidence }
+        : { outcome: "rejected", evidence };
     });
   }
 
@@ -243,7 +264,7 @@ export class XrplLendingV1Adapter implements LendingV1Port {
   async repayLoan(params: {
     borrowerSeed: string;
     loanId: string;
-    amountDrops: string;
+    amountDrops: LedgerAmount;
   }): Promise<PortResult<{}>> {
     return this.withClient(async (client) => {
       const borrower = Wallet.fromSeed(params.borrowerSeed);
@@ -267,7 +288,7 @@ export class XrplLendingV1Adapter implements LendingV1Port {
   async withdrawFromVault(params: {
     withdrawerSeed: string;
     vaultId: string;
-    amountDrops: string;
+    amountDrops: LedgerAmount;
   }): Promise<PortResult<{}>> {
     return this.withClient(async (client) => {
       const withdrawer = Wallet.fromSeed(params.withdrawerSeed);

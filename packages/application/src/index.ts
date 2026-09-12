@@ -104,3 +104,14 @@ export * from "./adapters/in-memory/in-memory-buffer-ledger-repository.js";
 export * from "./adapters/in-memory/fake-buffer-disbursement-adapter.js";
 export * from "./adapters/pg/pg-withdrawal-request-repository.js";
 export * from "./adapters/pg/pg-buffer-ledger-repository.js";
+
+// Integration xrpl-lending-sim — actifs multiples (XRP + RLUSD simule, IOU)
+// et journal d'audit brut des transactions dans MongoDB (donnees non
+// financieres/non decisionnelles, voir .env.example : "optional raw
+// documents only; no financial balances or access decisions").
+export * from "./decimal-support.js";
+export * from "./lending-asset.js";
+export * from "./ports/tx-evidence-repository.js";
+export * from "./adapters/in-memory/in-memory-tx-evidence-repository.js";
+export * from "./adapters/mongo/create-mongo-client.js";
+export * from "./adapters/mongo/mongo-tx-evidence-repository.js";

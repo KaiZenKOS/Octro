@@ -6,6 +6,7 @@ interface WithdrawalRequestRow {
   id: string;
   lender_user_id: string;
   vault_id: string;
+  asset_id: string;
   requested_amount_drops: string;
   fulfilled_amount_drops: string;
   funded_from: WithdrawalFundedFrom;
@@ -19,6 +20,7 @@ function toDTO(row: WithdrawalRequestRow): WithdrawalRequest {
     id: row.id,
     lender_user_id: row.lender_user_id,
     vault_id: row.vault_id,
+    asset_id: row.asset_id,
     requested_amount_drops: row.requested_amount_drops,
     fulfilled_amount_drops: row.fulfilled_amount_drops,
     funded_from: row.funded_from,
@@ -34,8 +36,8 @@ export class PgWithdrawalRequestRepository implements WithdrawalRequestRepositor
   async save(request: WithdrawalRequest): Promise<void> {
     await this.pool.query(
       `INSERT INTO withdrawal_requests
-         (id, lender_user_id, vault_id, requested_amount_drops, fulfilled_amount_drops, funded_from, status, evidence, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (id, lender_user_id, vault_id, asset_id, requested_amount_drops, fulfilled_amount_drops, funded_from, status, evidence, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO UPDATE SET
          fulfilled_amount_drops = EXCLUDED.fulfilled_amount_drops,
          status = EXCLUDED.status,
@@ -44,6 +46,7 @@ export class PgWithdrawalRequestRepository implements WithdrawalRequestRepositor
         request.id,
         request.lender_user_id,
         request.vault_id,
+        request.asset_id,
         request.requested_amount_drops,
         request.fulfilled_amount_drops,
         request.funded_from,

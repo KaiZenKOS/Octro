@@ -10,24 +10,26 @@ export class PgBufferLedgerRepository implements BufferLedgerRepository {
 
   async save(entry: BufferLedgerEntryRecord): Promise<void> {
     await this.pool.query(
-      `INSERT INTO buffer_ledger (id, withdrawal_request_id, entry_type, amount_drops, balance_after_drops, tx_evidence, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO buffer_ledger (id, asset_id, withdrawal_request_id, entry_type, amount_drops, balance_after_drops, tx_evidence, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         entry.id,
+        entry.assetId,
         entry.withdrawalRequestId,
         entry.entryType,
-        entry.amountDrops,
-        entry.balanceAfterDrops,
+        entry.amount,
+        entry.balanceAfter,
         entry.txEvidence ? JSON.stringify(entry.txEvidence) : null,
         entry.createdAt,
       ],
     );
   }
 
-  async getCurrentBalanceDrops(): Promise<bigint | null> {
+  async getCurrentBalance(assetId: string): Promise<string | null> {
     const { rows } = await this.pool.query<BufferLedgerRow>(
-      "SELECT balance_after_drops FROM buffer_ledger ORDER BY created_at DESC LIMIT 1",
+      "SELECT balance_after_drops FROM buffer_ledger WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 1",
+      [assetId],
     );
-    return rows[0] ? BigInt(rows[0].balance_after_drops) : null;
+    return rows[0] ? rows[0].balance_after_drops : null;
   }
 }

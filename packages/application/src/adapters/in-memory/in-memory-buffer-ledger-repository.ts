@@ -7,8 +7,8 @@ export class InMemoryBufferLedgerRepository implements BufferLedgerRepository {
     this.entries.push(entry);
   }
 
-  async getCurrentBalanceDrops(): Promise<bigint | null> {
-    if (this.entries.length === 0) return null;
-    return BigInt(this.entries[this.entries.length - 1]!.balanceAfterDrops);
+  async getCurrentBalance(assetId: string): Promise<string | null> {
+    const forAsset = this.entries.filter((e) => e.assetId === assetId);
+    return forAsset.length > 0 ? forAsset[forAsset.length - 1]!.balanceAfter : null;
   }
 }

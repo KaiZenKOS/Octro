@@ -6,7 +6,8 @@ interface LenderDepositRow {
   id: string;
   user_id: string;
   vault_id: string;
-  amount_drops: string; // pg renvoie bigint comme string JS (pas de perte de precision)
+  asset_id: string;
+  amount_drops: string;
   status: LenderDepositStatus;
   tx_evidence: Record<string, unknown> | null;
   created_at: Date;
@@ -17,6 +18,7 @@ function toDTO(row: LenderDepositRow): LenderDeposit {
     id: row.id,
     user_id: row.user_id,
     vault_id: row.vault_id,
+    asset_id: row.asset_id,
     amount_drops: row.amount_drops,
     status: row.status,
     tx_evidence: row.tx_evidence,
@@ -29,13 +31,14 @@ export class PgLenderDepositRepository implements LenderDepositRepository {
 
   async save(deposit: LenderDeposit): Promise<void> {
     await this.pool.query(
-      `INSERT INTO lender_deposits (id, user_id, vault_id, amount_drops, status, tx_evidence, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO lender_deposits (id, user_id, vault_id, asset_id, amount_drops, status, tx_evidence, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, tx_evidence = EXCLUDED.tx_evidence`,
       [
         deposit.id,
         deposit.user_id,
         deposit.vault_id,
+        deposit.asset_id,
         deposit.amount_drops,
         deposit.status,
         deposit.tx_evidence ? JSON.stringify(deposit.tx_evidence) : null,
