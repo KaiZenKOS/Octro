@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Octro",
+    "slug": "octro",
+    "scheme": "octro",
+    "version": "0.1.0",
+    "userInterfaceStyle": "dark",
+    "plugins": ["expo-router"],
+    "web": { "bundler": "metro", "output": "static", "name": "Octro — vos prévisions" }
+  }
+}
