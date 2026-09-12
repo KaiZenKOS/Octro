@@ -39,3 +39,6 @@ export const EconomicEventSchema = z.object({
 });
 
 export type EconomicEvent = z.infer<typeof EconomicEventSchema>;
+export type EventDirection = z.infer<typeof EventDirectionSchema>;
+export type Verification = z.infer<typeof VerificationSchema>;
+export type EventStatus = z.infer<typeof EventStatusSchema>;

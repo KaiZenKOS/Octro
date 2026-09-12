@@ -17,6 +17,7 @@ import {
   type CreditAssessmentRepository,
   CreateWorkspaceUseCase,
   type CryptoPort,
+  type EconomicEventRepository,
   type EmailVerificationRepository,
   FakeBufferDisbursementAdapter,
   FakeLendingV1Adapter,
@@ -53,6 +54,7 @@ import {
   type OdooPort,
   PgBufferLedgerRepository,
   PgCreditAssessmentRepository,
+  PgEconomicEventRepository,
   PgEmailVerificationRepository,
   PgKycStatusRepository,
   PgLenderDepositRepository,
@@ -63,6 +65,7 @@ import {
   PgUserRepository,
   PgWalletRepository,
   PgWithdrawalRequestRepository,
+  PgWorkspaceRepository,
   ProvisionWalletUseCase,
   RecordDeclaredEventUseCase,
   RecordingMailAdapter,
@@ -83,6 +86,7 @@ import {
   type WalletRepository,
   WithdrawFromVaultUseCase,
   type WithdrawalRequestRepository,
+  type WorkspaceRepository,
   createPgPool,
 } from "@octro/application";
 import {
@@ -143,6 +147,8 @@ function buildMailPort(): MailPort {
 }
 
 interface Persistence {
+  workspaces: WorkspaceRepository;
+  events: EconomicEventRepository;
   users: UserRepository;
   sessions: SessionRepository;
   emailVerifications: EmailVerificationRepository;
@@ -173,6 +179,8 @@ function buildPersistence(): Persistence {
       ...(process.env["PGSSLROOTCERT"] ? { sslRootCertPath: process.env["PGSSLROOTCERT"] } : {}),
     });
     return {
+      workspaces: new PgWorkspaceRepository(pool),
+      events: new PgEconomicEventRepository(pool),
       users: new PgUserRepository(pool),
       sessions: new PgSessionRepository(pool),
       emailVerifications: new PgEmailVerificationRepository(pool),
@@ -188,6 +196,8 @@ function buildPersistence(): Persistence {
     };
   }
   return {
+    workspaces: new InMemoryWorkspaceRepository(),
+    events: new InMemoryEconomicEventRepository(),
     users: new InMemoryUserRepository(),
     sessions: new InMemorySessionRepository(),
     emailVerifications: new InMemoryEmailVerificationRepository(),
@@ -232,8 +242,6 @@ function resolveEncryptionKey(envKeyName: string): string {
 }
 
 export function buildDependencies(): AppDependencies {
-  const workspaces = new InMemoryWorkspaceRepository();
-  const events = new InMemoryEconomicEventRepository();
   const clock = new SystemClock();
   const ids = new UuidIdGenerator();
   const optimizer = new SimulatedOptimizerAdapter();
@@ -241,6 +249,8 @@ export function buildDependencies(): AppDependencies {
 
   const mail = buildMailPort();
   const {
+    workspaces,
+    events,
     users,
     sessions,
     emailVerifications,

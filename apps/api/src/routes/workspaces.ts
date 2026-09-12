@@ -1,23 +1,11 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { requireSession, resolveTenant } from "../auth.js";
 import type { AppDependencies } from "../composition.js";
 import { sendError } from "../http-errors.js";
 
-// Placeholder d'authentification (S1). L'authentification reelle (OIDC/session,
-// chapitre 19 du CDC) n'est pas construite dans ce lot : ce header porte
-// deliberement un nom non ambigu pour ne jamais etre confondu avec une
-// session verifiee, et sera remplace en meme temps que l'adaptateur S3/S5.
-function requireTenantHeader(request: FastifyRequest, reply: FastifyReply): string | null {
-  const value = request.headers["x-dev-tenant-id"];
-  if (typeof value !== "string" || value.length === 0) {
-    reply.code(401).send({ code: "UNAUTHENTICATED", message: "x-dev-tenant-id header required (placeholder auth, S1)" });
-    return null;
-  }
-  return value;
-}
-
 const CreateWorkspaceBody = z.object({
-  owner_user_id: z.string().uuid(),
+  owner_user_id: z.string().uuid().optional(),
   kind: z.enum(["personal", "organization"]),
   organization_id: z.string().uuid().optional(),
   display_name: z.string().min(1).max(120),
@@ -35,8 +23,14 @@ export async function workspaceRoutes(app: FastifyInstance, deps: AppDependencie
   app.post("/v1/workspaces", async (request, reply) => {
     try {
       const body = CreateWorkspaceBody.parse(request.body);
+      let ownerUserId = body.owner_user_id;
+      if (!ownerUserId) {
+        const sessionUserId = await requireSession(request, reply, deps);
+        if (!sessionUserId) return reply;
+        ownerUserId = sessionUserId;
+      }
       const workspace = await deps.createWorkspace.execute({
-        ownerUserId: body.owner_user_id,
+        ownerUserId,
         kind: body.kind,
         displayName: body.display_name,
         ...(body.organization_id !== undefined ? { organizationId: body.organization_id } : {}),
@@ -48,10 +42,10 @@ export async function workspaceRoutes(app: FastifyInstance, deps: AppDependencie
   });
 
   app.get("/v1/workspaces/:id", async (request, reply) => {
-    const tenantId = requireTenantHeader(request, reply);
+    const { id } = request.params as { id: string };
+    const tenantId = await resolveTenant(request, reply, deps, id);
     if (!tenantId) return reply;
     try {
-      const { id } = request.params as { id: string };
       const workspace = await deps.getWorkspace.execute({ requestingTenantId: tenantId, workspaceId: id });
       return reply.send(workspace);
     } catch (err) {
@@ -60,7 +54,8 @@ export async function workspaceRoutes(app: FastifyInstance, deps: AppDependencie
   });
 
   app.post("/v1/workspaces/:id/events", async (request, reply) => {
-    const tenantId = requireTenantHeader(request, reply);
+    const { id } = request.params as { id: string };
+    const tenantId = await resolveTenant(request, reply, deps, id);
     if (!tenantId) return reply;
     try {
       const { id } = request.params as { id: string };

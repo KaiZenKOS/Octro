@@ -1,7 +1,10 @@
 .xrpl-devex/
+xrpl-devex-hook/
+.codex/
 .claude/settings.local.json
 __pycache__/
 *.pyc
+*.pen
 
 # S1 — socle monorepo (OPS-02, SEC-04)
 node_modules/

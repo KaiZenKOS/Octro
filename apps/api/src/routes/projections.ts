@@ -1,16 +1,8 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { resolveTenant } from "../auth.js";
 import type { AppDependencies } from "../composition.js";
 import { sendError } from "../http-errors.js";
-
-function requireTenantHeader(request: FastifyRequest, reply: FastifyReply): string | null {
-  const value = request.headers["x-dev-tenant-id"];
-  if (typeof value !== "string" || value.length === 0) {
-    reply.code(401).send({ code: "UNAUTHENTICATED", message: "x-dev-tenant-id header required (placeholder auth, S1)" });
-    return null;
-  }
-  return value;
-}
 
 const ProjectionBody = z.object({
   workspace_id: z.string().uuid(),
@@ -24,10 +16,10 @@ const ProjectionBody = z.object({
 // vit dans une route separee (approvals), jamais ici.
 export async function projectionRoutes(app: FastifyInstance, deps: AppDependencies): Promise<void> {
   app.post("/v1/projections", async (request, reply) => {
-    const tenantId = requireTenantHeader(request, reply);
-    if (!tenantId) return reply;
     try {
       const body = ProjectionBody.parse(request.body);
+      const tenantId = await resolveTenant(request, reply, deps, body.workspace_id);
+      if (!tenantId) return reply;
       const projection = await deps.getPersonalProjection.execute({
         requestingTenantId: tenantId,
         workspaceId: body.workspace_id,
@@ -41,3 +33,4 @@ export async function projectionRoutes(app: FastifyInstance, deps: AppDependenci
     }
   });
 }
+

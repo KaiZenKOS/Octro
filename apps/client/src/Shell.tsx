@@ -16,7 +16,8 @@ const destinations = [
     ['/', 'home', 'Accueil', 'Home'],
     ['/calendar', 'calendar', 'Calendrier', 'Calendar'],
     ['/sources', 'sources', 'Sources', 'Sources'],
-    ['/tracking', 'tracking', 'Suivi', 'Tracking']
+    ['/tracking', 'tracking', 'Suivi', 'Tracking'],
+    ['/account', 'shield', 'Compte & Vault', 'Account & Vault'],
 ] as const;
 
 export function Shell({ children }: {

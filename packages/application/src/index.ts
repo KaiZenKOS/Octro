@@ -59,6 +59,8 @@ export * from "./adapters/pg/pg-user-repository.js";
 export * from "./adapters/pg/pg-session-repository.js";
 export * from "./adapters/pg/pg-email-verification-repository.js";
 export * from "./adapters/pg/pg-kyc-status-repository.js";
+export * from "./adapters/pg/pg-workspace-repository.js";
+export * from "./adapters/pg/pg-economic-event-repository.js";
 
 // Extension Lending/KYC/Credit — Phase D (scoring credit Odoo BYO).
 export * from "./ports/odoo-port.js";

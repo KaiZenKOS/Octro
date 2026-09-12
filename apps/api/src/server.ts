@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import type { AppDependencies } from "./composition.js";
+import { agentRoutes } from "./routes/agent.js";
 import { authRoutes } from "./routes/auth.js";
 import { creditRoutes } from "./routes/credit.js";
 import { healthRoutes } from "./routes/health.js";
@@ -31,7 +32,7 @@ export function buildServer(deps: AppDependencies): FastifyInstance {
   void app.register(cors, {
     origin: buildAllowedOrigins(),
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Idempotency-Key"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Idempotency-Key", "x-dev-tenant-id"],
     credentials: true,
   });
   app.register(healthRoutes);
@@ -41,5 +42,6 @@ export function buildServer(deps: AppDependencies): FastifyInstance {
   app.register((instance) => kycRoutes(instance, deps));
   app.register((instance) => creditRoutes(instance, deps));
   app.register((instance) => lendingRoutes(instance, deps));
+  app.register(agentRoutes);
   return app;
 }

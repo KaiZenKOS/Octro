@@ -22,15 +22,35 @@ export function AgentExplainerModal({ visible, onClose }: { visible: boolean; on
             const recAction = proj ? `own_funds_transfer: ${proj.recommendedTransfer.toFixed(2)} EUR` : 'own_funds_transfer: 230.00 EUR';
             const horiz = proj ? proj.horizonDays : 30;
 
-            const orchestrator = new BoundedOrchestrator();
+            const apiBase = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) || 'http://localhost:3000';
+            let res: { summary: string; riskExplanation: string };
 
-            const res = await orchestrator.explainCashflow({
-                workspaceId: 'ws-personal-lina',
-                currentBalanceDecimal: curBal,
-                horizonDays: horiz,
-                deficitAmountDecimal: defBal,
-                recommendedAction: recAction,
-            }, question);
+            try {
+                const response = await fetch(`${apiBase}/v1/agent/explain`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        workspace_id: 'ws-personal-lina',
+                        current_balance_decimal: curBal,
+                        horizon_days: horiz,
+                        deficit_amount_decimal: defBal,
+                        recommended_action: recAction,
+                        question,
+                    }),
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                res = await response.json();
+            } catch {
+                // Offline fallback (PER-11, NET-02): deterministic in-client orchestrator
+                const orchestrator = new BoundedOrchestrator();
+                res = await orchestrator.explainCashflow({
+                    workspaceId: 'ws-personal-lina',
+                    currentBalanceDecimal: curBal,
+                    horizonDays: horiz,
+                    deficitAmountDecimal: defBal,
+                    recommendedAction: recAction,
+                }, question);
+            }
 
             setResponse(res.summary);
             setRiskInfo(res.riskExplanation);
