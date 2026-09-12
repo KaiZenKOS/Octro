@@ -1,0 +1,32 @@
+{
+  "primitive": {
+    "cream": "#F5F2E8",
+    "ink": "#20271F",
+    "forest": "#304B35",
+    "matcha": "#B8C98A",
+    "earth": "#9F3F31"
+  },
+  "semantic": {
+    "page": "cream",
+    "text": "ink",
+    "primary": "forest",
+    "highlight": "matcha",
+    "error": "earth"
+  },
+  "components": {
+    "document": {
+      "body_font": "Arial",
+      "heading_font": "Georgia",
+      "body_pt": 10.5,
+      "line_pt": 14.8
+    },
+    "app": {
+      "min_body_px": 16,
+      "spacing_grid_px": 8,
+      "languages": [
+        "fr",
+        "en"
+      ]
+    }
+  }
+}

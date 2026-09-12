@@ -1,0 +1,40 @@
+{
+  "id": "lina-fixture-v1",
+  "synthetic": true,
+  "asset_id": "fiat:EUR",
+  "opening_balances": {
+    "current": "650.00",
+    "savings": "300.00"
+  },
+  "current_reserve": "100.00",
+  "events": [
+    {
+      "day": 2,
+      "outflow": "600.00",
+      "label": "loyer"
+    },
+    {
+      "day": 4,
+      "outflow": "100.00",
+      "label": "courses"
+    },
+    {
+      "day": 6,
+      "outflow": "80.00",
+      "label": "transport"
+    },
+    {
+      "day": 10,
+      "inflow": "1600.00",
+      "label": "salaire"
+    }
+  ],
+  "expected": {
+    "own_funds_transfer": "230.00",
+    "current_before_salary": "100.00",
+    "savings_remaining": "70.00",
+    "current_after_salary": "1700.00",
+    "total_after_salary": "1770.00",
+    "new_debt": "0.00"
+  }
+}

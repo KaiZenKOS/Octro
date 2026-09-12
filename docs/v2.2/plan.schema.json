@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OctroActionPlanProposal",
+  "description": "Plan de proposition seulement. Ce schéma ne donne aucune autorisation de transaction.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_id",
+    "tenant_id",
+    "workspace_kind",
+    "purpose",
+    "execution_mode",
+    "horizon",
+    "data_quality",
+    "proposed_actions",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.1"
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workspace_kind": {
+      "enum": [
+        "personal",
+        "organization"
+      ]
+    },
+    "purpose": {
+      "enum": [
+        "cashflow_forecast",
+        "no_debt_plan",
+        "financing_comparison"
+      ]
+    },
+    "execution_mode": {
+      "const": "proposal_only"
+    },
+    "horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "steps",
+        "unit"
+      ],
+      "properties": {
+        "steps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 366
+        },
+        "unit": {
+          "enum": [
+            "day",
+            "hour"
+          ]
+        }
+      }
+    },
+    "data_quality": {
+      "enum": [
+        "declared",
+        "imported",
+        "provider_verified",
+        "ledger_verified",
+        "mixed"
+      ]
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "proposed_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "no_action"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "source_account_ref",
+              "destination_account_ref",
+              "asset_id",
+              "amount_decimal"
+            ],
+            "properties": {
+              "type": {
+                "const": "own_funds_transfer"
+              },
+              "source_account_ref": {
+                "type": "string"
+              },
+              "destination_account_ref": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "amount_decimal": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,18})?$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "budget_item_ref"
+            ],
+            "properties": {
+              "type": {
+                "const": "optional_expense_adjustment"
+              },
+              "budget_item_ref": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "obligation_ref"
+            ],
+            "properties": {
+              "type": {
+                "const": "due_date_change_request"
+              },
+              "obligation_ref": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "comparison_ref"
+            ],
+            "properties": {
+              "type": {
+                "const": "financing_comparison"
+              },
+              "comparison_ref": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

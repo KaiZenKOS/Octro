@@ -1,0 +1,542 @@
+{
+  "project": "Octro",
+  "version": "2.2",
+  "language": "fr",
+  "status": "implementation_specification_network_unverified",
+  "date": "2026-09-12",
+  "requirements": [
+    {
+      "id": "DATA-01",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Chaque événement est unique par tenant et source",
+      "acceptance": "Rejouer un webhook ne modifie pas deux fois le solde",
+      "chapter": 11
+    },
+    {
+      "id": "DATA-02",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Prévisions séparées des soldes confirmés",
+      "acceptance": "Une entrée attendue ne crédite pas le cash disponible",
+      "chapter": 11
+    },
+    {
+      "id": "DATA-03",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Montants décimaux et actifs identifiés",
+      "acceptance": "Refuser float, actif ambigu et relation inter-tenant",
+      "chapter": 11
+    },
+    {
+      "id": "ENG-01",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "MPC 30 jours personnel et 72 heures professionnel, avec événements ordonnés",
+      "acceptance": "Même snapshot et versions donnent le même plan",
+      "chapter": 13
+    },
+    {
+      "id": "ENG-02",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Vérifier toutes contraintes après arrondi",
+      "acceptance": "Une solution dépassant un plafond ne devient pas exécutable",
+      "chapter": 13
+    },
+    {
+      "id": "ENG-03",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "CVaR avec scénarios et poids explicites",
+      "acceptance": "Fixture pertes 0/0/100 donne CVaR95 100",
+      "chapter": 14
+    },
+    {
+      "id": "ENG-04",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Infaisabilité sans action financière",
+      "acceptance": "Besoin 90000 plafond 80000 retourne INFEASIBLE",
+      "chapter": 24
+    },
+    {
+      "id": "ENG-05",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Modéliser échéances et dette terminale",
+      "acceptance": "Aucune dette disparaît à H72",
+      "chapter": 13
+    },
+    {
+      "id": "UI-01",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Cinq écrans communs couvrent personnel, indépendant et organisation",
+      "acceptance": "Parcours complet clavier et écran mobile 390px",
+      "chapter": 7
+    },
+    {
+      "id": "UI-02",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Valeurs financières issues du plan",
+      "acceptance": "Texte LLM divergent remplacé par rendu déterministe",
+      "chapter": 15
+    },
+    {
+      "id": "AGT-01",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Orchestration bornée par outils MCP",
+      "acceptance": "12 appels max puis retour état durable",
+      "chapter": 15
+    },
+    {
+      "id": "AGT-02",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Aucune autorité de signature LLM",
+      "acceptance": "Outil signature absent et accès direct refusé",
+      "chapter": 15
+    },
+    {
+      "id": "AGT-03",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Parcours sans LLM",
+      "acceptance": "Panne fournisseur conserve simulation et validation manuelle",
+      "chapter": 22
+    },
+    {
+      "id": "SEC-01",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Isolation tenant et rôles",
+      "acceptance": "Tests lecture croisée et Analyst approbateur refusés",
+      "chapter": 21
+    },
+    {
+      "id": "SEC-02",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Idempotence transactionnelle",
+      "acceptance": "Même clé même corps une exécution ; autre corps 409",
+      "chapter": 19
+    },
+    {
+      "id": "SEC-03",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Approbation liée aux termes",
+      "acceptance": "Changement de montant invalide approbation",
+      "chapter": 20
+    },
+    {
+      "id": "SEC-04",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Secrets isolés",
+      "acceptance": "Scan dépôt et logs sans seeds ni tokens",
+      "chapter": 21
+    },
+    {
+      "id": "SEC-05",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Réservations exposition atomiques",
+      "acceptance": "Deux demandes concurrentes ne dépassent pas capacité",
+      "chapter": 22
+    },
+    {
+      "id": "XRP-01",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Gate réseau et amendements",
+      "acceptance": "Rapport network_id ledger version et smoke test",
+      "chapter": 16
+    },
+    {
+      "id": "XRP-02",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Vault dépôt prêt remboursement réels en dev",
+      "acceptance": "Hashes et états validés conservés pour chaque étape",
+      "chapter": 16
+    },
+    {
+      "id": "XRP-03",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Résultat inconnu réconcilié",
+      "acceptance": "Crash après submit ne génère pas second prêt",
+      "chapter": 20
+    },
+    {
+      "id": "XRP-04",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Calendrier et coût protocole",
+      "acceptance": "Paiement respecte échéancier et identité borrower",
+      "chapter": 16
+    },
+    {
+      "id": "DID-01",
+      "priority": "P1",
+      "owner": "Augustin",
+      "must": "DID facultatif, jamais requis pour le socle personnel",
+      "acceptance": "Résolution valide ; replay mauvais réseau et mauvais signataire refusés",
+      "chapter": 17
+    },
+    {
+      "id": "DID-02",
+      "priority": "P1",
+      "owner": "Samet",
+      "must": "Éligibilité distincte du DID",
+      "acceptance": "DID valide et attestation révoquée bloque nouvelle action",
+      "chapter": 17
+    },
+    {
+      "id": "OPS-01",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Audit et traces corrélées",
+      "acceptance": "Plan rejoint approval execution et hash ledger",
+      "chapter": 22
+    },
+    {
+      "id": "OPS-02",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "CI et build reproductibles",
+      "acceptance": "Lockfiles scans et tests P0 verts",
+      "chapter": 23
+    },
+    {
+      "id": "OPS-03",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Backup et reprise",
+      "acceptance": "Restauration isolée puis réconciliation avant réouverture",
+      "chapter": 22
+    },
+    {
+      "id": "CMP-01",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Identity test et webhook vérifié",
+      "acceptance": "Faux webhook refusé ; aucun KYC réel dans fixture",
+      "chapter": 18
+    },
+    {
+      "id": "REL-01",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Recette et preuves honnêtes",
+      "acceptance": "Mode simulé distinct du mode réseau réel",
+      "chapter": 24
+    },
+    {
+      "id": "REL-02",
+      "priority": "PILOT",
+      "owner": "Kevin",
+      "must": "Gates légaux avant fonds réels",
+      "acceptance": "Matrice pays prêteur actif signée par responsables habilités",
+      "chapter": 18
+    },
+    {
+      "id": "ACC-01",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Onboarding personnel sans entreprise wallet ou DID",
+      "acceptance": "Créer espace personnel et première projection sans identifiant société",
+      "chapter": 7
+    },
+    {
+      "id": "ACC-02",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Socle utile sans financement ni connecteur",
+      "acceptance": "Retirer toutes capacités crédit et conserver saisie import projection",
+      "chapter": 7
+    },
+    {
+      "id": "ACC-03",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Interface FR EN et accessibilité",
+      "acceptance": "Tester clavier lecteur écran zoom 200 pourcent et mobile 390px",
+      "chapter": 8
+    },
+    {
+      "id": "PER-01",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Comparer une solution sans dette",
+      "acceptance": "Fixture Lina propose transfert 230 EUR sans prêt",
+      "chapter": 5
+    },
+    {
+      "id": "PER-02",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Protéger dépenses essentielles et réserves",
+      "acceptance": "Réserve protégée ne sert pas de variable automatique de réduction",
+      "chapter": 13
+    },
+    {
+      "id": "PER-03",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Workspace personnel sans Organization",
+      "acceptance": "Schéma DB accepte personal et refuse accès inter-espace",
+      "chapter": 11
+    },
+    {
+      "id": "PER-04",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Transfert propre sans faux revenu",
+      "acceptance": "Deux jambes liées conservent total des avoirs",
+      "chapter": 11
+    },
+    {
+      "id": "PER-05",
+      "priority": "P0",
+      "owner": "Augustin",
+      "must": "Éviter le crédit forcé",
+      "acceptance": "Aucune solution valide retourne diagnostic sans recommandation inventée",
+      "chapter": 13
+    },
+    {
+      "id": "PER-06",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Données manuelles explicitement déclarées",
+      "acceptance": "Import ne reçoit pas automatiquement provider_verified",
+      "chapter": 11
+    },
+    {
+      "id": "PER-07",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "État non transactionnel explicite",
+      "acceptance": "Acquitter une proposition ne marque jamais fonds transférés",
+      "chapter": 20
+    },
+    {
+      "id": "PER-08",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Onboarding mesuré",
+      "acceptance": "Au moins trois novices testent objectif de trois minutes et résultats consignés",
+      "chapter": 24
+    },
+    {
+      "id": "PER-09",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "Aucun partage implicite",
+      "acceptance": "Employeur et foyer ne lisent pas les données personnelles",
+      "chapter": 21
+    },
+    {
+      "id": "PER-10",
+      "priority": "P0",
+      "owner": "Kevin",
+      "must": "Trois démos obligatoires",
+      "acceptance": "Personnel sans dette indépendant retard organisation XRPL sont rejouables",
+      "chapter": 6
+    },
+    {
+      "id": "PER-11",
+      "priority": "P0",
+      "owner": "Samet",
+      "must": "KYC progressif par capacité",
+      "acceptance": "Prévision persiste sans session Stripe Identity",
+      "chapter": 18
+    },
+    {
+      "id": "HACK-01",
+      "priority": "P0",
+      "owner": "Augustin",
+      "chapter": 16,
+      "must": "Verrouiller Track 1 V1 et SDK stable exact",
+      "acceptance": "G0 et Payment validé avec preuves"
+    },
+    {
+      "id": "HACK-02",
+      "priority": "P0",
+      "owner": "Augustin",
+      "chapter": 16,
+      "must": "Exécuter tout le minimum Track 1",
+      "acceptance": "Vault, dépôt, broker, prêt accepté, décaissement, remboursement, retrait avec rendement"
+    },
+    {
+      "id": "HACK-03",
+      "priority": "P0",
+      "owner": "Augustin",
+      "chapter": 33,
+      "must": "Démontrer une protection du protocole",
+      "acceptance": "Refus réel, code et état financier rapproché"
+    },
+    {
+      "id": "LOAD-01",
+      "priority": "P0",
+      "owner": "Augustin",
+      "chapter": 29,
+      "must": "Intégrer Credentials et Domain au vault privé",
+      "acceptance": "Dépôt refusé sans attestation puis accepté avec attestation reconnue"
+    },
+    {
+      "id": "LOAD-02",
+      "priority": "P0",
+      "owner": "Samet",
+      "chapter": 29,
+      "must": "Séparer éligibilité prêteur et emprunteur",
+      "acceptance": "Décisions application et ledger identifiées et testées"
+    },
+    {
+      "id": "LOAD-03",
+      "priority": "P0",
+      "owner": "Augustin",
+      "chapter": 29,
+      "must": "Tester expiration et droits de sortie",
+      "acceptance": "Comportement observé du retrait de parts existantes après expiration"
+    },
+    {
+      "id": "SPON-01",
+      "priority": "P1",
+      "owner": "Augustin",
+      "chapter": 30,
+      "must": "Vérifier sponsoring natif sur le réseau Track 1",
+      "acceptance": "SP0 et opération sponsorisée réellement validée"
+    },
+    {
+      "id": "SPON-02",
+      "priority": "P1",
+      "owner": "Samet",
+      "chapter": 30,
+      "must": "Limiter budget et bénéficiaires du sponsor",
+      "acceptance": "Refus plafond dépassé et bénéficiaire interdit sans double consommation"
+    },
+    {
+      "id": "SPON-03",
+      "priority": "P1",
+      "owner": "Samet",
+      "chapter": 30,
+      "must": "Séparer frais consommés et réserves immobilisées",
+      "acceptance": "Concurrence timeout et révocation rapprochés"
+    },
+    {
+      "id": "WAL-01",
+      "priority": "P0",
+      "owner": "Kevin",
+      "chapter": 31,
+      "must": "Isoler wallet web et signatures",
+      "acceptance": "Tests réseau personnalisé, refus, changement compte et LoanSet"
+    },
+    {
+      "id": "MCP-02",
+      "priority": "P0",
+      "owner": "Kevin",
+      "chapter": 31,
+      "must": "Séparer Docs MCP et MCP métier",
+      "acceptance": "Aucun outil LLM ne signe ou ne soumet"
+    },
+    {
+      "id": "EVID-01",
+      "priority": "P0",
+      "owner": "Augustin",
+      "chapter": 33,
+      "must": "Conserver preuves sans faux résultats",
+      "acceptance": "validated, codes, hashes et rejets pré-inclusion distingués"
+    },
+    {
+      "id": "DEVEX-01",
+      "priority": "P0",
+      "owner": "Tous",
+      "chapter": 33,
+      "must": "Installer et vérifier le hook sur chaque machine",
+      "acceptance": "Trois états de fonctionnement et versions enregistrés"
+    },
+    {
+      "id": "DEVEX-02",
+      "priority": "P0",
+      "owner": "Tous",
+      "chapter": 33,
+      "must": "Rédiger personnellement les observations réelles",
+      "acceptance": "Rapport humain racine de trois pages maximum"
+    },
+    {
+      "id": "SUB-01",
+      "priority": "P0",
+      "owner": "Kevin",
+      "chapter": 27,
+      "must": "Respecter soumission et pitch",
+      "acceptance": "Dépôt public README preuves dix slides maximum formulaire ; pitch quatre minutes"
+    },
+    {
+      "id": "NET-02",
+      "priority": "P0",
+      "owner": "Samet",
+      "chapter": 32,
+      "must": "Désactiver les capacités non prouvées",
+      "acceptance": "Réseau ou capability inconnue bloque finance mais pas prévision"
+    },
+    {
+      "id": "SEC-LOAD-01",
+      "priority": "P0",
+      "owner": "Samet",
+      "chapter": 32,
+      "must": "Protéger issuer et sponsor",
+      "acceptance": "Secrets hors LLM dépôt et CI de PR externes"
+    },
+    {
+      "id": "ARCH-LOAD-01",
+      "priority": "P0",
+      "owner": "Samet",
+      "chapter": 31,
+      "must": "Isoler les adapters Loaded",
+      "acceptance": "Moteur et UI sans dépendance aux secrets ni au SDK ledger direct"
+    }
+  ],
+  "invariants": [
+    "LLM cannot sign or submit",
+    "No forecast booked as settled cash",
+    "No execution on unknown network capability",
+    "No new transaction after ambiguous submit without reconciliation",
+    "No personal identity data on public ledger",
+    "Personal forecasting requires no legal company or crypto wallet",
+    "Unavailable credit never blocks baseline forecasting",
+    "Essential expenses and protected reserves cannot be silently sacrificed",
+    "Acknowledged proposal is not an executed transfer"
+  ],
+  "parameters": {
+    "step_hours": 1,
+    "replan_minutes": 15,
+    "scenario_weights": [
+      0.8,
+      0.15,
+      0.05
+    ],
+    "cvar_alpha": 0.95,
+    "solver_timeout_seconds": 5,
+    "approval_ttl_seconds": 300,
+    "mainnet_enabled": false,
+    "personal_horizon_days": 30,
+    "professional_horizon_hours": 72
+  },
+  "audiences": [
+    "personal",
+    "independent",
+    "organization"
+  ],
+  "normative_files": [
+    "docs/v2.2/Octro_CDC_v2.2.md",
+    "requirements.json",
+    "docs/v2.2/hackathon.config.json"
+  ],
+  "network_verification": "not_performed_in_document_delivery"
+}

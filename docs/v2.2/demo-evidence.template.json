@@ -1,0 +1,134 @@
+{
+  "spec_version": "2.2",
+  "status": "template_not_executed",
+  "commit": null,
+  "network_snapshot": null,
+  "steps": [
+    {
+      "id": "basic_payment",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "vault_create",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "deposit",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "broker_setup",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "loan_acceptance",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "drawdown",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "repayment",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "withdraw_with_yield",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "protocol_rejection",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "credential_denied",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "credential_accepted",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "credential_expired_redemption",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "sponsorship_success",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "sponsorship_budget_rejection",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    }
+  ]
+}
