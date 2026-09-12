@@ -9,7 +9,9 @@ import { toOdooConnectionDTO, type OdooConnectionRepository } from "../ports/odo
 export interface SaveOdooConnectionCommand {
   userId: string;
   odooUrl: string;
-  odooDb: string;
+  // Optionnel (on-premise mono-base, decision actee) : ne pas demander un
+  // nom de base a l'utilisateur pour rien.
+  odooDb?: string | null;
   odooApiKey: string;
 }
 
@@ -34,7 +36,7 @@ export class SaveOdooConnectionUseCase {
       userId: command.userId,
       provider: "odoo" as const,
       odooUrl: command.odooUrl,
-      odooDb: command.odooDb,
+      odooDb: command.odooDb ?? null,
       apiKeyCiphertext: await this.crypto.encrypt(command.odooApiKey),
       createdAt: this.clock.now(),
       lastUsedAt: null,

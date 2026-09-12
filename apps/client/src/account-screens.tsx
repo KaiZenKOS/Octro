@@ -3,7 +3,7 @@ import { Modal, View } from 'react-native';
 import { Badge, Button, Card, Field, Typography as T, tokens } from '@octro/ui';
 import { useAuth } from './auth';
 import { useLendingApi } from './lending-data';
-import type { CreditAssessment, KycStatus, OdooConnection } from './lending-data';
+import type { CreditAssessment, KycStatus, OdooCompany, OdooConnection } from './lending-data';
 
 const c = tokens.color;
 
@@ -139,7 +139,6 @@ function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void })
 function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnection) => void }) {
   const api = useLendingApi();
   const [odooUrl, setOdooUrl] = useState('');
-  const [odooDb, setOdooDb] = useState('');
   const [odooApiKey, setOdooApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,7 +147,7 @@ function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnec
     setBusy(true);
     setError(null);
     try {
-      const connection = await api.saveOdooConnection(odooUrl.trim(), odooDb.trim(), odooApiKey.trim());
+      const connection = await api.saveOdooConnection(odooUrl.trim(), odooApiKey.trim());
       onConnected(connection);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');
@@ -162,25 +161,67 @@ function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnec
       <T variant="title">Connecter votre Odoo</T>
       <T variant="muted">
         Le score de crédit est calculé depuis vos propres données Odoo (Ventes, Facturation, Comptabilité) — un seul
-        fournisseur pour l'instant. Votre clé API n'est jamais réaffichée.
+        fournisseur pour l'instant. Votre clé API n'est jamais réaffichée. Odoo on-premise : pas besoin du nom de la
+        base de données.
       </T>
-      <Field label="URL Odoo" value={odooUrl} onChangeText={setOdooUrl} placeholder="https://mon-entreprise.odoo.com" autoCapitalize="none" />
-      <Field label="Base de données Odoo" value={odooDb} onChangeText={setOdooDb} autoCapitalize="none" />
+      <Field label="URL Odoo" value={odooUrl} onChangeText={setOdooUrl} placeholder="https://mon-entreprise.example.com" autoCapitalize="none" />
       <Field label="Clé API Odoo" value={odooApiKey} onChangeText={setOdooApiKey} secureTextEntry />
       <ErrorNote message={error} />
-      <Button busy={busy} disabled={!odooUrl || !odooDb || !odooApiKey} onPress={submit}>
+      <Button busy={busy} disabled={!odooUrl || !odooApiKey} onPress={submit}>
         Connecter
       </Button>
     </Card>
   );
 }
 
+// Selecteur d'entreprise : affiche des qu'il y en a plus d'une accessible a
+// la cle API (decision actee) — jamais un choix implicite silencieux.
+function CompanySelector({
+  connection,
+  onSelected,
+}: {
+  connection: OdooConnection;
+  onSelected: (companyId: number) => void;
+}) {
+  const api = useLendingApi();
+  const [companies, setCompanies] = useState<OdooCompany[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .listOdooCompanies(connection.id)
+      .then((list) => {
+        setCompanies(list);
+        if (list.length <= 1) onSelected(list[0]?.id ?? 0);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Unexpected error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection.id]);
+
+  if (error) return <Card style={{ gap: 8 }}><ErrorNote message={error} /></Card>;
+  if (!companies || companies.length <= 1) return <T variant="muted">Chargement des entreprises…</T>;
+
+  return (
+    <Card style={{ gap: 16 }}>
+      <T variant="title">Choisir l'entreprise</T>
+      <T variant="muted">Plusieurs entreprises sont accessibles à cette clé API Odoo.</T>
+      {companies.map((company) => (
+        <Button key={company.id} variant="secondary" onPress={() => onSelected(company.id)}>
+          {company.name}
+        </Button>
+      ))}
+    </Card>
+  );
+}
+
 function CreditAssessmentPanel({
   connection,
+  companyId,
   assessment,
   onAssessed,
 }: {
   connection: OdooConnection;
+  companyId: number;
   assessment: CreditAssessment | null;
   onAssessed: (assessment: CreditAssessment) => void;
 }) {
@@ -195,7 +236,7 @@ function CreditAssessmentPanel({
     setBusy(true);
     setError(null);
     try {
-      onAssessed(await api.requestCreditAssessment(connection.id));
+      onAssessed(await api.requestCreditAssessment(connection.id, companyId));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');
     } finally {
@@ -314,6 +355,7 @@ export function AccountScreen() {
   const api = useLendingApi();
   const [kyc, setKyc] = useState<KycStatus | null>(null);
   const [odooConnection, setOdooConnection] = useState<OdooConnection | null>(null);
+  const [companyId, setCompanyId] = useState<number | null>(null);
   const [assessment, setAssessment] = useState<CreditAssessment | null>(null);
 
   useEffect(() => {
@@ -354,8 +396,10 @@ export function AccountScreen() {
           <Badge tone="success">KYC simulé : valide</Badge>
           {!odooConnection ? (
             <OdooConnectForm onConnected={setOdooConnection} />
+          ) : companyId === null ? (
+            <CompanySelector connection={odooConnection} onSelected={setCompanyId} />
           ) : (
-            <CreditAssessmentPanel connection={odooConnection} assessment={assessment} onAssessed={setAssessment} />
+            <CreditAssessmentPanel connection={odooConnection} companyId={companyId} assessment={assessment} onAssessed={setAssessment} />
           )}
           <LendingPanel assessment={assessment} />
         </>

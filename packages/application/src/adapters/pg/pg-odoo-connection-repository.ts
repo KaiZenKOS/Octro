@@ -6,7 +6,7 @@ interface OdooConnectionRow {
   id: string;
   user_id: string;
   odoo_url: string;
-  odoo_db: string;
+  odoo_db: string | null;
   api_key_ciphertext: string;
   created_at: Date;
   last_used_at: Date | null;

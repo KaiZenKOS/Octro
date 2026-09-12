@@ -68,6 +68,7 @@ import {
   RecordingMailAdapter,
   RepayLoanUseCase,
   RequestCreditAssessmentUseCase,
+  ListOdooCompaniesUseCase,
   SaveOdooConnectionUseCase,
   type SessionRepository,
   SignUpUseCase,
@@ -108,6 +109,7 @@ export interface AppDependencies {
   simulateKyc: SimulateKycUseCase;
   getKycStatus: GetKycStatusUseCase;
   saveOdooConnection: SaveOdooConnectionUseCase;
+  listOdooCompanies: ListOdooCompaniesUseCase;
   requestCreditAssessment: RequestCreditAssessmentUseCase;
   getLatestCreditAssessment: GetLatestCreditAssessmentUseCase;
   lenderDeposit: LenderDepositUseCase;
@@ -279,6 +281,7 @@ export function buildDependencies(): AppDependencies {
     simulateKyc: new SimulateKycUseCase(kycStatuses, clock, ids),
     getKycStatus: new GetKycStatusUseCase(kycStatuses),
     saveOdooConnection: new SaveOdooConnectionUseCase(odooConnections, kycStatuses, odooApiKeyCrypto, clock, ids),
+    listOdooCompanies: new ListOdooCompaniesUseCase(odooConnections, kycStatuses, odoo, odooApiKeyCrypto),
     requestCreditAssessment: new RequestCreditAssessmentUseCase(
       odooConnections,
       creditAssessments,

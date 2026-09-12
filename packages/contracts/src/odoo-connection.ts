@@ -14,7 +14,9 @@ export const OdooConnectionSchema = z.object({
   user_id: IdSchema,
   provider: OdooConnectionProviderSchema,
   odoo_url: z.string().url(),
-  odoo_db: z.string().min(1),
+  // Optionnel : un Odoo on-premise mono-base (cas BYO vise ici) n'en a pas
+  // besoin — ne pas le demander a l'utilisateur pour rien (decision actee).
+  odoo_db: z.string().min(1).nullable(),
   created_at: IsoDateTimeSchema,
   last_used_at: IsoDateTimeSchema.nullable(),
 });

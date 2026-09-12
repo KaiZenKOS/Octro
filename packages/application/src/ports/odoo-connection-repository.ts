@@ -8,7 +8,9 @@ export interface OdooConnectionRecord {
   userId: string;
   provider: OdooConnectionProvider;
   odooUrl: string;
-  odooDb: string;
+  // Optionnel (on-premise mono-base, decision actee) : ne pas demander un
+  // nom de base a l'utilisateur pour rien.
+  odooDb: string | null;
   apiKeyCiphertext: string;
   createdAt: Date;
   lastUsedAt: Date | null;
