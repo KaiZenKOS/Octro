@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { tokens } from '@octro/ui';
 // Lucide-style 24 px outlined primitives, rendered as vectors on every platform.
@@ -25,5 +26,10 @@ export function Icon({ name, color = tokens.color.muted, size = 24 }: {
         plus: <><Line x1="12" y1="5" x2="12" y2="19"/><Line x1="5" y1="12" x2="19" y2="12"/></>,
         warning: <><Path d="m12 3 10 18H2Z"/><Path d="M12 9v5m0 3v1"/></>,
     };
-    return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" accessible={false}>{shapes[name] ?? shapes.circle}</Svg>;
+    // Icons decorate already-labelled controls. Native accessibility props must
+    // not leak to DOM SVG elements, where `accessible` is not a boolean attribute.
+    const accessibilityProps = Platform.OS === 'web'
+        ? { 'aria-hidden': true as const, focusable: false }
+        : { accessible: false };
+    return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" {...accessibilityProps}>{shapes[name] ?? shapes.circle}</Svg>;
 }
