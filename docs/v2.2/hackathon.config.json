@@ -8,17 +8,18 @@
   "network": "custom-hackathon-devnet",
   "wss": "wss://lending-hackathon.dev.ripplex.io:51233",
   "rpc": "https://lending-hackathon.dev.ripplex.io:51234",
-  "network_id": null,
+  "network_id": 4001,
   "sdk_package": "xrpl",
-  "sdk_version": null,
-  "ledger_verified": false,
+  "sdk_version": "5.2.0",
+  "ledger_verified": true,
+  "g0_evidence_ref": "docs/progress/augustin/evidence/g0-network-and-payment.json",
   "capabilities": {
-    "lending_v1": "unverified",
-    "single_asset_vault": "unverified",
-    "credentials": "unverified",
-    "permissioned_domains": "unverified",
-    "sponsorship": "unverified",
-    "did": "unverified"
+    "lending_v1": "verified_full_cycle_vault_deposit_broker_loan_accept_repay_withdraw_with_yield",
+    "single_asset_vault": "verified",
+    "credentials": "amendment_enabled_flow_unverified",
+    "permissioned_domains": "amendment_enabled_flow_unverified",
+    "sponsorship": "amendment_enabled_sp0_not_run",
+    "did": "amendment_enabled_unused"
   },
   "primary_loaded": [
     "credentials",

@@ -1,0 +1,15 @@
+{
+  "vaultId": "9DD2DE66664336228C06FA0D2D36ACC5ABF481903E460D7AFA8A3F2994A15B27",
+  "withdrawStep": {
+    "id": "vault_withdraw",
+    "tx_type": "VaultWithdraw",
+    "tx_hash": "72752DB4D47B15AA31EB048D1E8C36F87D5F89EAD8B6582D4E3DE9279F0E3F69",
+    "submit_preliminary_result": "tesSUCCESS",
+    "validated": true,
+    "result_code": "tesSUCCESS",
+    "ledger_index": 64727,
+    "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/72752DB4D47B15AA31EB048D1E8C36F87D5F89EAD8B6582D4E3DE9279F0E3F69"
+  },
+  "balance_before_drops": "937999964",
+  "balance_after_drops": "947999952"
+}

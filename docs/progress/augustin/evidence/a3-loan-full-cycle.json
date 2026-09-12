@@ -1,0 +1,53 @@
+{
+  "vaultId": "9DD2DE66664336228C06FA0D2D36ACC5ABF481903E460D7AFA8A3F2994A15B27",
+  "loanBrokerId": "51E312C7C51FFCBBCE56D2B5773F412457A4FCD6F116CE9B3BB9E13BD2DB7CF6",
+  "loanId": "347DB57FDC13B2B9A9173214DEDC2B5EB2731E68164F5BB321A3E773C0036B35",
+  "owner": "r3nYksFboCmVM6UGnM7y5Q1hhEiVay25g5",
+  "borrower": "rnLPWf6dExshk3hdecASNaj5P3yqekCtfJ",
+  "explorer_prefix": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/",
+  "steps": [
+    {
+      "id": "loan_acceptance_coordinated",
+      "tx_type": "LoanSet",
+      "tx_hash": "693C846FF98C75E74FDF147E549500101320EDF1A193E95E19592660929B6FE2",
+      "result_code": "tesSUCCESS",
+      "validated": true,
+      "ledger_index": 65045,
+      "note": "Borrower signed with wallet.sign(), then the loan broker owner co-signed the same tx_blob with xrpl.js's signLoanSetByCounterparty(). Submitting the resulting blob directly (no combine step needed for a single counterparty signer) succeeded where the uncoordinated single-signer attempt in a3-vault-broker-loanset-attempt.json was rejected with temBAD_SIGNER."
+    },
+    {
+      "id": "disbursement_reconciled_from_ledger_effects",
+      "tx_type": null,
+      "tx_hash": null,
+      "note": "No separate Drawdown transaction exists in this SDK/build; disbursement is an effect of the validated LoanSet. Confirmed by balance deltas: borrower balance 1000000000 -> 1009999976 drops (+10 XRP minus fee); vault AssetsAvailable 40000000 -> 30000000 drops (-10 XRP), AssetsTotal unchanged at 40000000 (principal still counted as a vault asset while outstanding)."
+    },
+    {
+      "id": "repayment_attempt_full_payment_flag",
+      "tx_type": "LoanPay",
+      "tx_hash": "28343EEE820EB27EEC7A1B5CC02E22005E6CD87E37E05365BF85ED3869B546BD",
+      "result_code": "tecKILLED",
+      "validated": true,
+      "ledger_index": 65064,
+      "note": "LoanPay with Amount = TotalValueOutstanding (10001370, the ledger-displayed rounded value) and Flags = tfLoanFullPayment (131072) was included in a validated ledger but rolled back with tecKILLED ('No funds transferred and no offer created'). Likely cause: the true payoff amount is the unrounded PeriodicPayment (10001369.86301369963 drops, not representable as an integer drop amount) and tfLoanFullPayment enforces an exact match. A fee was still charged for this tec-class attempt."
+    },
+    {
+      "id": "repayment",
+      "tx_type": "LoanPay",
+      "tx_hash": "EA2B4816AE06E08DA64FD8C6131C0410691951D3350A21A387ED092334A3C1F1",
+      "result_code": "tesSUCCESS",
+      "validated": true,
+      "ledger_index": null,
+      "note": "Same Amount (10001370 drops), Flags = 0 (no tfLoanFullPayment). Succeeded and closed the loan: the Loan ledger entry lost PrincipalOutstanding/TotalValueOutstanding/PaymentRemaining/NextPaymentDueDate and gained PreviousPaymentDueDate, i.e. it is now a closed record, not an active obligation."
+    },
+    {
+      "id": "withdraw_with_yield",
+      "tx_type": "VaultWithdraw",
+      "tx_hash": "9522A975D39FA516FACCD8E376E86E02447A83A3744C415B7FB47A9C88EE173B",
+      "result_code": "tesSUCCESS",
+      "validated": true,
+      "ledger_index": null,
+      "note": "Owner withdrew the full AssetsAvailable (10001370 drops) after repayment. Owner balance 977999940 -> 988001298 drops (+10001358 net of a 12-drop fee). The 1370-drop delta over the original 10000000-drop principal (~0.00137 XRP) is the interest actually collected: matches 10,000,000 drops x 5% annual x (1/365 day) = 1369.86, rounded to 1370 by the ledger, confirming this is real accrued yield and not merely principal returned."
+    }
+  ],
+  "caveat": "An earlier, out-of-order VaultWithdraw for the full then-available balance (30000000 drops) was submitted between the failed and successful LoanPay attempts, before the loan was actually repaid (see a3-vault-withdraw.json's sibling script run). That was principal-only capital return, not yield, and is not the 'withdraw_with_yield' step above. It does not affect the loan/vault ledger correctness demonstrated here, only the order this session happened to run scripts in."
+}
