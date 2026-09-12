@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Typography as T, tokens } from '@octro/ui';
 import { Icon } from './Icon';
-import { useSession } from './session';
+import { useClientData, useSession } from './session';
 import { BoundedOrchestrator } from '@octro/agents';
 
 export function AgentExplainerModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
     const { t, language } = useSession();
+    const { data } = useClientData();
     const [loading, setLoading] = useState(false);
     const [response, setResponse] = useState<string | null>(null);
     const [riskInfo, setRiskInfo] = useState<string | null>(null);
@@ -17,12 +18,18 @@ export function AgentExplainerModal({ visible, onClose }: { visible: boolean; on
     const askAgent = async (question: string) => {
         setLoading(true);
         try {
+            const proj = data?.computedProjection;
+            const curBal = proj ? proj.openingCurrent.toFixed(2) : '650.00';
+            const defBal = proj ? Math.max(0, -proj.lowestBalanceWithoutAction).toFixed(2) : '130.00';
+            const recAction = proj ? `own_funds_transfer: ${proj.recommendedTransfer.toFixed(2)} EUR` : 'own_funds_transfer: 230.00 EUR';
+            const horiz = proj ? proj.horizonDays : 30;
+
             const res = await orchestrator.explainCashflow({
                 workspaceId: 'ws-personal-lina',
-                currentBalanceDecimal: '650.00',
-                horizonDays: 30,
-                deficitAmountDecimal: '130.00',
-                recommendedAction: 'own_funds_transfer: 230.00 EUR',
+                currentBalanceDecimal: curBal,
+                horizonDays: horiz,
+                deficitAmountDecimal: defBal,
+                recommendedAction: recAction,
             }, question);
 
             setResponse(res.summary);

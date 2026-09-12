@@ -80,6 +80,74 @@ function EventRows({ short = false, allowDelete = false }: {
         />;
     })}</View>;
 }
+function PeriodSelector() {
+    const { t } = useSession();
+    const { data } = useClientData();
+    const setHorizon = useSetHorizon();
+    const activeDays = data?.computedProjection?.horizonDays ?? 30;
+    const periods = [
+        { key: '7J', label: t('7 J', '7 D'), days: 7 },
+        { key: '14J', label: t('14 J', '14 D'), days: 14 },
+        { key: '30J', label: t('30 J', '30 D'), days: 30 },
+        { key: '3M', label: t('3 M', '3 M'), days: 90 },
+        { key: '1AN', label: t('1 AN', '1 Y'), days: 365 },
+    ];
+
+    return (
+        <View style={{ gap: 6 }}>
+            <View style={s.periods}>{periods.map(p => {
+                const isSelected = activeDays === p.days;
+                return (
+                    <Pressable
+                        key={p.key}
+                        onPress={() => setHorizon.mutate(p.days)}
+                        style={[s.period, isSelected && { backgroundColor: c.raised, borderColor: '#5B454C' }]}
+                    >
+                        <T style={[s.note, { color: isSelected ? c.text : c.muted, fontFamily: isSelected ? tokens.font.medium : tokens.font.regular }]}>
+                            {p.label}
+                        </T>
+                    </Pressable>
+                );
+            })}</View>
+        </View>
+    );
+}
+
+function SimulationToolbar() {
+    const { t } = useSession();
+    const createEvent = useCreateEvent();
+    const resetEvents = useResetEvents();
+
+    const handleAddSimulatedExpense = () => {
+        createEvent.mutate({
+            direction: 'outflow',
+            amount_decimal: '150.00',
+            asset_id: 'EUR',
+            label: 'imprévu',
+            expected_settlement_at: '2026-09-15T10:00:00Z',
+        });
+    };
+
+    return (
+        <Card style={{ gap: 12, backgroundColor: '#1E1920', borderColor: '#483942' }}>
+            <View style={[s.between, { flexWrap: 'wrap', gap: 8 }]}>
+                <View style={{ gap: 4, flex: 1, minWidth: 200 }}>
+                    <T style={{ fontFamily: tokens.font.medium, fontSize: 14 }}>{t('⚡ Recalcul réactif en direct', '⚡ Live reactive recalculation')}</T>
+                    <Note>{t('Modifiez les échéances : la courbe SVG, le point bas et le plan s’adaptent instantanément.', 'Update events: SVG curve, lowest point and plan adapt immediately.')}</Note>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                    <Button variant="secondary" busy={createEvent.isPending} onPress={handleAddSimulatedExpense}>
+                        {t('+ Imprévu 150 €', '+ Expense 150 €')}
+                    </Button>
+                    <Button variant="ghost" busy={resetEvents.isPending} onPress={() => resetEvents.mutate()}>
+                        {t('↺ Réinitialiser', '↺ Reset')}
+                    </Button>
+                </View>
+            </View>
+        </Card>
+    );
+}
+
 function Chart() {
     const { t, language } = useSession();
     const { data } = useClientData();
@@ -92,19 +160,24 @@ function Chart() {
     const pointsWithout = proj ? proj.pointsWithoutAction.slice(0, 6).map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithoutAction.map(v => euro(v, language)).join(' · ');
     const pointsWith = proj ? proj.pointsWithProposal.slice(0, 6).map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithProposal.map(v => euro(v, language)).join(' · ');
     const timelineLabels = proj?.svg.timelineLabels ?? ['Auj.', 'J+2', 'J+6', 'J+10', 'J+20', 'J+30'];
+    const activeDays = proj?.horizonDays ?? 30;
 
-    return <View style={{ gap: 18 }}>
-  <View style={[s.inline, { flexWrap: 'wrap' }]}><View style={s.inline}><View style={{ width: 24, height: 2, backgroundColor: c.text }}/><Note>{t('━━ Sans action', '━━ Without action')}</Note></View><View style={s.inline}><View style={{ width: 24, borderTopColor: c.success, borderTopWidth: 2, borderStyle: 'dashed' }}/><Note>{t('┄┄ Avec le plan proposé', '┄┄ With the proposed plan')}</Note></View></View>
-  <Svg width="100%" height={196} viewBox="0 0 736 196" preserveAspectRatio="none" accessibilityRole="image" accessibilityLabel={t('Illustration synthétique de la prévision. Les valeurs détaillées figurent sous la courbe.', 'Synthetic forecast illustration. Detailed values appear below the chart.')}>
-    {gridLines.map(y => <Line key={y} x1={0} y1={y} x2={736} y2={y} stroke={c.border} strokeWidth={.7}/>)}
-    <Line x1={0} y1={reserveY} x2={736} y2={reserveY} stroke={c.warning} strokeWidth={1}/>
-    <Path d={withoutActionPath} fill="none" stroke={c.text} strokeWidth={2}/>
-    <Path d={withActionPath} fill="none" stroke={c.success} strokeWidth={2} strokeDasharray="6 6"/>
-  </Svg>
-  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>{timelineLabels.map(day => <Note key={day}>{day}</Note>)}</View>
-  <Note>{t('Repère ambre : réserve à préserver de ', 'Amber line: protected reserve of ')}{euro(reserveVal, language)}</Note>
-  <Note>{t('Sans action : ', 'Without action: ')}{pointsWithout}{t('. Avec le plan : ', '. With the plan: ')}{pointsWith}.</Note>
-  </View>;
+    return <View style={{ gap: 14 }}>
+        <PeriodSelector />
+        <View style={[s.inline, { flexWrap: 'wrap' }]}>
+            <View style={s.inline}><View style={{ width: 24, height: 2, backgroundColor: c.text }}/><Note>{t('━━ Sans action', '━━ Without action')}</Note></View>
+            <View style={s.inline}><View style={{ width: 24, borderTopColor: c.success, borderTopWidth: 2, borderStyle: 'dashed' }}/><Note>{t('┄┄ Avec le plan proposé', '┄┄ With the proposed plan')}</Note></View>
+        </View>
+        <Svg width="100%" height={196} viewBox="0 0 736 196" preserveAspectRatio="none" accessibilityRole="image" accessibilityLabel={t('Illustration synthétique de la prévision. Les valeurs détaillées figurent sous la courbe.', 'Synthetic forecast illustration. Detailed values appear below the chart.')}>
+            {gridLines.map(y => <Line key={y} x1={0} y1={y} x2={736} y2={y} stroke={c.border} strokeWidth={.7}/>)}
+            <Line x1={0} y1={reserveY} x2={736} y2={reserveY} stroke={c.warning} strokeWidth={1}/>
+            <Path d={withoutActionPath} fill="none" stroke={c.text} strokeWidth={2}/>
+            <Path d={withActionPath} fill="none" stroke={c.success} strokeWidth={2} strokeDasharray="6 6"/>
+        </Svg>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>{timelineLabels.map(day => <Note key={day}>{day}</Note>)}</View>
+        <Note>{t('Repère ambre : réserve à préserver de ', 'Amber line: protected reserve of ')}{euro(reserveVal, language)} · {t(`Horizon : ${activeDays} jours`, `Horizon: ${activeDays} days`)}</Note>
+        <Note>{t('Sans action : ', 'Without action: ')}{pointsWithout}{t('. Avec le plan : ', '. With the plan: ')}{pointsWith}.</Note>
+    </View>;
 }
 
 function TransferSummary() {
@@ -145,80 +218,30 @@ function Home() {
     return <><Title>{t('Bonjour, Lina.', 'Hello, Lina.')}</Title><Split main={<>
   <Card warm style={[s.hero, desktop && { padding: 32 }]}><T>{t('Argent disponible sur le courant', 'Money available in your current account')}</T><Money value={currentVal} size={desktop ? 72 : 64}/>{desktop ? <T>{t('Épargne : ', 'Savings: ')}{euro(savingsVal, language)} · {t('Total déclaré : ', 'Declared total: ')}{euro(totalVal, language)}</T> : <View style={s.between}><T>{t('Épargne', 'Savings')}</T><T>{euro(savingsVal, language)}</T></View>}<Note>{t('Saisie réactive · mise à jour en temps réel', 'Reactive entry · real-time update')}</Note></Card>
   {!desktop && <><View style={{ gap: 8, paddingVertical: 4 }}><Heading>{t('Votre loyer arrive avant le salaire', 'Your rent is due before payday')}</Heading><T>{t(`À J+${lowestDay}, le courant serait à `, `On day ${lowestDay}, the account would reach `)}{euro(lowestVal, language)}{t('. Un transfert de ', '. A ')}{euro(transferVal, language)}{t(' peut préserver votre réserve.', ' transfer can preserve your reserve.')}</T></View><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button></>}
-  {desktop && <Chart />}<View><Heading>{t('Vos prochaines échéances', 'Your upcoming payments')}</Heading><EventRows short/></View>
+  
+  <Chart />
+  <SimulationToolbar />
+
+  <View><Heading>{t('Vos prochaines échéances', 'Your upcoming payments')}</Heading><EventRows short/></View>
   {!desktop && <><View style={[s.inline, { paddingVertical: 16 }]}><Icon name="shield"/><T>{euro(fixture.current_reserve, language)}{t(' à préserver sur le courant', ' to preserve in your current account')}</T></View><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button></>}
-  </>} aside={desktop ? <Rail><Notice title={t('Une attention nécessaire', 'Something needs your attention')}>{t('Le loyer arrive avant le salaire. Le point bas prévu est de ', 'Rent is due before payday. The forecast low is ')}{euro(lowestVal, language)}.</Notice><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button><Note>{t('Date de référence synthétique : 12 septembre 2026.', 'Synthetic reference date: September 12, 2026.')}</Note></Rail> : undefined}/></>;
+  </>} aside={desktop ? <Rail><Notice title={t('Une attention nécessaire', 'Something needs your attention')}>{t('Le loyer arrive avant le salaire. Le point bas prévu est de ', 'Rent is due before payday. The forecast low is ')}{euro(lowestVal, language)}.</Notice><Button onPress={() => router.push('/calendar')}>{t('Voir mon calendrier', 'View my calendar')}</Button><Button variant="secondary" onPress={() => router.push('/options')}>{t('Explorer les options (sans dette)', 'Explore options (no-debt)')}</Button><Button variant="secondary" onPress={() => router.push('/sources')}>{t('Modifier mes soldes déclarés', 'Edit declared balances')}</Button><Button variant="ghost" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button><Note>{t('Date de référence synthétique : 12 septembre 2026.', 'Synthetic reference date: September 12, 2026.')}</Note></Rail> : undefined}/></>;
 }
 
 function Calendar() {
     const { t, language } = useSession();
     const desktop = useDesktop();
     const { data } = useClientData();
-    const createEvent = useCreateEvent();
-    const resetEvents = useResetEvents();
-    const setHorizon = useSetHorizon();
     const proj = data?.computedProjection;
     const lowestVal = proj ? proj.lowestBalanceWithoutAction.toFixed(2) : reference.pointsWithoutAction[3]!;
     const lowestDay = proj ? proj.lowestDayWithoutAction : 6;
     const currentWithPlan = proj ? proj.currentBeforeSalaryWithPlan.toFixed(2) : fixture.expected.current_before_salary;
-    const [selectedPeriod, setSelectedPeriod] = useState(2);
-    const periods = [
-        { key: '7J', label: t('7 J', '7 D'), days: 7 },
-        { key: '14J', label: t('14 J', '14 D'), days: 14 },
-        { key: '30J', label: t('30 J', '30 D'), days: 30 },
-        { key: '3M', label: t('3 M', '3 M'), days: 90 },
-        { key: '1AN', label: t('1 AN', '1 Y'), days: 365 },
-    ];
-
-    const handleAddSimulatedExpense = () => {
-        createEvent.mutate({
-            direction: 'outflow',
-            amount_decimal: '150.00',
-            asset_id: 'EUR',
-            label: 'imprévu',
-            expected_settlement_at: '2026-09-15T10:00:00Z',
-        });
-    };
 
     return <><Title>{t('Calendrier', 'Calendar')}</Title><Split main={<>
   <T style={{ fontSize: desktop ? 20 : 16 }}>{t('SOLDE PRÉVU DU COURANT', 'PROJECTED CURRENT ACCOUNT BALANCE')}</T>
   <View style={[s.between, { alignItems: 'flex-end', gap: 16 }]}><View style={{ flex: 1 }}><Money value={lowestVal} size={desktop ? 56 : 52}/><Note>{t(`Au plus bas à J+${lowestDay}, avant le salaire`, `Lowest at day ${lowestDay}, before payday`)}</Note></View><View style={{ maxWidth: '45%', gap: 6 }}><Money value={currentWithPlan} size={30}/><Note>{t('avec le plan', 'with the plan')}</Note></View></View>
-  <View style={s.periods}>{periods.map((p, idx) => {
-      const isSelected = selectedPeriod === idx;
-      return (
-          <Pressable
-              key={p.key}
-              onPress={() => {
-                  setSelectedPeriod(idx);
-                  setHorizon.mutate(p.days);
-              }}
-              style={[s.period, isSelected && { backgroundColor: c.raised, borderColor: '#5B454C' }]}
-          >
-              <T style={[s.note, { color: isSelected ? c.text : c.muted, fontFamily: isSelected ? tokens.font.medium : tokens.font.regular }]}>
-                  {p.label}
-              </T>
-          </Pressable>
-      );
-  })}</View>
-  <Note>{t(`Horizon actif : ${periods[selectedPeriod].label} · La courbe SVG et les soldes s’ajustent en direct.`, `Active horizon: ${periods[selectedPeriod].label} · SVG curve and balances adjust live.`)}</Note>
+  
   <Chart />
-
-  <Card style={{ gap: 12, backgroundColor: '#1E1920', borderColor: '#483942' }}>
-      <View style={[s.between, { flexWrap: 'wrap', gap: 8 }]}>
-          <View style={{ gap: 4, flex: 1, minWidth: 200 }}>
-              <T style={{ fontFamily: tokens.font.medium, fontSize: 14 }}>{t('⚡ Recalcul réactif en direct', '⚡ Live reactive recalculation')}</T>
-              <Note>{t('Modifiez les échéances : la courbe SVG, le point bas et le plan s’adaptent instantanément.', 'Update events: SVG curve, lowest point and plan adapt immediately.')}</Note>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              <Button variant="secondary" busy={createEvent.isPending} onPress={handleAddSimulatedExpense}>
-                  {t('+ Imprévu 150 €', '+ Expense 150 €')}
-              </Button>
-              <Button variant="ghost" busy={resetEvents.isPending} onPress={() => resetEvents.mutate()}>
-                  {t('↺ Réinitialiser', '↺ Reset')}
-              </Button>
-          </View>
-      </View>
-  </Card>
+  <SimulationToolbar />
 
   {!desktop && <TransferSummary />}
   <View>
