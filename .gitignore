@@ -1,2 +1,11 @@
 .xrpl-devex/
 .claude/settings.local.json
+
+# S1 — socle monorepo (OPS-02, SEC-04)
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/

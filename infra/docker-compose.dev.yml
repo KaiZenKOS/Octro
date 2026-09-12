@@ -1,0 +1,19 @@
+# Compose de developpement local (S1). Fournit seulement PostgreSQL, requis
+# par le port de persistance (packages/application) avant que l'adaptateur
+# reel n'arrive en S3. Ce n'est pas le Compose complet du CDC chapitre 10
+# (reverse proxy Caddy, S3, SMTP, Stripe Identity) : cela reste le lot S6.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: octro
+      POSTGRES_PASSWORD: octro_dev_only
+      POSTGRES_DB: octro
+    ports:
+      - "5432:5432"
+    volumes:
+      - octro_postgres_dev:/var/lib/postgresql/data
+
+volumes:
+  octro_postgres_dev:
