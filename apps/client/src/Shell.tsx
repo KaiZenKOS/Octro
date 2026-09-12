@@ -86,7 +86,7 @@ export function Shell({ children }: {
       <View style={{ gap: 16 }}>{nav(false)}</View>
       <Button variant="secondary" onPress={() => setAgentOpen(true)} style={{ paddingVertical: 10, minHeight: 44 }}>
         <Icon name="sparkles" size={18} color={tokens.color.accent} />
-        <T style={{ fontSize: 13 }}>{t('Agent MCP', 'MCP Agent')}</T>
+        <T style={{ fontSize: 13 }}>{t('Comprendre', 'Insights')}</T>
       </Button>
       <Button variant="secondary" onPress={() => setWalletOpen(true)} style={{ paddingVertical: 10, minHeight: 44 }}>
         <Icon name="shield" size={18} color={tokens.color.accent} />
@@ -107,7 +107,7 @@ export function Shell({ children }: {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Pressable onPress={() => setAgentOpen(true)} accessibilityRole="button" style={s.walletBtn}>
                 <Icon name="sparkles" size={16} color={tokens.color.accent} />
-                <T style={s.tiny}>IA</T>
+                <T style={s.tiny}>{t('Aide', 'Help')}</T>
               </Pressable>
               <Pressable onPress={() => setWalletOpen(true)} accessibilityRole="button" style={s.walletBtn}>
                 <Icon name="shield" size={16} color={tokens.color.accent} />
