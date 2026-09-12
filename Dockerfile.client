@@ -8,16 +8,14 @@ WORKDIR /app
 # Sources completes du monorepo : le client depend de @octro/contracts et
 # @octro/ui via les workspaces npm, et lit directement les annexes officielles
 # docs/v2.2 (metro.config.cjs les ajoute a watchFolders ; voir src/data.ts).
-COPY package.json package-lock.json tsconfig.base.json ./
+COPY package.json package-lock.json tsconfig.json tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
 COPY docs/v2.2 ./docs/v2.2
 
 RUN npm ci
-# @octro/contracts expose ./dist (voir son package.json "main") : le
-# precompiler avant le bundle client. @octro/ui expose src/ directement et
-# n'a pas besoin d'etre precompile.
-RUN npm run build --workspace @octro/contracts
+# Precompiler tous les packages exposes via ./dist (contracts, domain, application, agents)
+RUN npm run build
 RUN npm run build --workspace @octro/client
 
 FROM nginx:1.27-alpine
