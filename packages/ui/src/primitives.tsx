@@ -15,7 +15,7 @@ export function Card({ children, warm = false, style }: {
     style?: StyleProp<ViewStyle>;
 }) {
     return warm
-        ? <LinearGradient colors={['#51352D', '#30252B', '#17141B']} locations={[0, 0.42, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.42, y: 1 }} style={[styles.card, style]}>{children}</LinearGradient>
+        ? <LinearGradient colors={['#51352D', '#30252B', '#17141B']} locations={[0, 0.42, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.42, y: 1 }} style={[styles.card, styles.warmCard, style]}>{children}</LinearGradient>
         : <View style={[styles.card, style]}>{children}</View>;
 }
 export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
@@ -31,7 +31,7 @@ export function Button({ children, variant = 'primary', busy = false, disabled, 
     const foreground = variant === 'primary' ? tokens.color.buttonText : tokens.color.text;
     return <Pressable {...props} accessibilityRole="button" accessibilityState={{ ...accessibilityState, disabled: unavailable, busy }} disabled={unavailable} onFocus={(event) => { setFocused(true); onFocus?.(event); }} onBlur={(event) => { setFocused(false); onBlur?.(event); }} style={({ pressed }) => [styles.button, buttonVariants[variant], style, focused && styles.focused, (unavailable || pressed) && styles.dimmed]}>
     {busy && <ActivityIndicator color={foreground} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"/>}
-    <Typography variant="label" style={{ color: foreground, textAlign: 'center', flexShrink: 1 }}>{children}</Typography>
+    <Typography variant="label" style={{ color: foreground, textAlign: 'center', flexShrink: 1, fontSize: 15, fontWeight: '500' }}>{children}</Typography>
   </Pressable>;
 }
 type Tone = 'neutral' | 'success' | 'warning' | 'error';
@@ -56,13 +56,14 @@ export const Field = forwardRef<TextInput, FieldProps>(function Field({ label, e
 });
 const styles = StyleSheet.create({
     text: { fontFamily: tokens.font.regular, fontSize: 16, lineHeight: 24, color: tokens.color.text, flexShrink: 1 },
-    card: { backgroundColor: tokens.color.surface, borderColor: tokens.color.border, borderWidth: 1, borderRadius: tokens.radius.card, padding: 24, gap: 16, minWidth: 0 },
-    button: { minHeight: 56, borderRadius: tokens.radius.control, padding: 16, borderWidth: 2, borderColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    card: { backgroundColor: tokens.color.surface, borderColor: tokens.color.border, borderWidth: 1, borderRadius: tokens.radius.card, padding: 24, gap: 16, minWidth: 0, overflow: 'hidden' },
+    warmCard: { borderColor: '#5B454C', borderWidth: 1 },
+    button: { minHeight: 56, borderRadius: tokens.radius.control, paddingHorizontal: 20, paddingVertical: 16, borderWidth: 1.5, borderColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
     focused: { borderColor: tokens.color.success },
     dimmed: { opacity: 0.6 },
     badge: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: tokens.radius.pill, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: tokens.color.raised },
     fieldGroup: { gap: 8, minWidth: 0 },
-    input: { minHeight: 56, padding: 16, borderRadius: tokens.radius.control, borderWidth: 2, borderColor: tokens.color.border, backgroundColor: tokens.color.surface, color: tokens.color.text, fontFamily: tokens.font.regular, fontSize: 16, lineHeight: 24 },
+    input: { minHeight: 56, padding: 16, borderRadius: tokens.radius.control, borderWidth: 1.5, borderColor: tokens.color.border, backgroundColor: tokens.color.surface, color: tokens.color.text, fontFamily: tokens.font.regular, fontSize: 16, lineHeight: 24 },
     invalid: { borderColor: tokens.color.error },
 });
 const typography = StyleSheet.create({
@@ -73,7 +74,8 @@ const typography = StyleSheet.create({
     amount: { fontSize: 48, lineHeight: 58, letterSpacing: -2 },
 });
 const buttonVariants = StyleSheet.create({
-    primary: { backgroundColor: tokens.color.button },
-    secondary: { backgroundColor: tokens.color.raised, borderColor: tokens.color.border },
-    ghost: { backgroundColor: 'transparent' },
+    primary: { backgroundColor: tokens.color.button, borderColor: 'transparent', shadowColor: '#EDBA79', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 4 } },
+    secondary: { backgroundColor: tokens.color.surface, borderColor: tokens.color.border },
+    ghost: { backgroundColor: 'transparent', borderColor: 'transparent' },
 });
+
