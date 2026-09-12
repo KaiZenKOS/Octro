@@ -55,6 +55,23 @@ export function validateBackendEnvironment(env) {
     integer("PGPORT", 1, 65535);
     for (const key of ["PGDATABASE", "PGUSER", "PGPASSWORD"]) required(key);
     if (value("PGSSLMODE") !== "verify-full") issue("PGSSLMODE", "must be verify-full for the remote database");
+    // Extension Lending/KYC/Credit (Phase C) : chiffrement au repos des
+    // secrets qui doivent survivre un redemarrage (seed de wallet, cle API
+    // Odoo BYO). Sans Postgres il n'y a nulle part ou stocker ce ciphertext.
+    for (const key of ["WALLET_SEED_ENCRYPTION_KEY", "ODOO_API_KEY_ENCRYPTION_KEY"]) {
+      const raw = value(key);
+      if (!raw) {
+        issue(key, "required when POSTGRES_ENABLED is true");
+      } else {
+        let decodedLength = -1;
+        try {
+          decodedLength = Buffer.from(raw, "base64").length;
+        } catch {
+          decodedLength = -1;
+        }
+        if (decodedLength !== 32) issue(key, "must be a base64-encoded 32-byte AES-256 key");
+      }
+    }
   }
 
   services.mongodb = flag("MONGODB_ENABLED");

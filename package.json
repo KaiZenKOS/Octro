@@ -16,7 +16,8 @@
     "test": "npm run build && npm run test --workspaces --if-present",
     "ci": "npm run config:test && npm run typecheck && npm run test --workspaces --if-present",
     "config:check": "node --env-file=.env scripts/check-backend-config.mjs",
-    "config:test": "node --test infra/config/environment.test.mjs"
+    "config:test": "node --test infra/config/environment.test.mjs",
+    "db:migrate": "node --env-file=.env infra/db/migrate.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

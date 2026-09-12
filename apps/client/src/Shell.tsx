@@ -17,6 +17,10 @@ export function Shell({ children }: {
     const [settings, setSettings] = useState(false);
     const scroll = useRef<ScrollView>(null);
     const activePath = ['/proposal', '/options'].includes(path) ? '/calendar' : ['/add', '/import'].includes(path) ? '/sources' : path;
+    // Le compte reel (Phase G) n'a ni persona ni scenario de demonstration :
+    // le selecteur "Personnel · Lina" et le badge "Donnees synthetiques"
+    // n'ont pas de sens sur ces routes et resteraient une trace de maquette.
+    const isRealFlow = path === '/' || path === '/account';
     useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); if (Platform.OS === 'web') {
         document.documentElement.lang = language;
         document.title = `Octro — ${t('vos prévisions', 'your forecast')}`;
@@ -25,14 +29,14 @@ export function Shell({ children }: {
     const profile = persona === 'personal' ? t('Personnel · Lina', 'Personal · Lina') : persona === 'independent' ? t('Activité indépendante', 'Independent activity') : t('Organisation', 'Organization');
     const nav = (mobile: boolean) => destinations.map(([href, icon, fr, en]) => <Link href={href} key={href} asChild><Pressable accessibilityLabel={t(fr, en)} accessibilityRole="link" accessibilityState={{ selected: activePath === href }} style={({ pressed }) => [mobile ? s.mobileLink : s.navLink, activePath === href && s.selected, pressed && { opacity: .65 }]}><Icon name={icon} size={22} color={activePath === href ? tokens.color.text : tokens.color.muted}/><T style={[mobile && s.navLabel, { color: activePath === href ? tokens.color.text : tokens.color.muted }]}>{t(fr, en)}</T></Pressable></Link>);
     return <View style={s.root}>
-    {desktop && <View style={s.sidebar}><T style={s.wordmark}>octro</T><Pressable onPress={() => setSettings(true)} accessibilityRole="button" accessibilityLabel={t('Choisir le scénario de démonstration', 'Choose demo scenario')} style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable><View style={{ gap: 20 }}>{nav(false)}</View><T style={[s.small, { marginTop: 8 }]}>{t('Vos prévisions restent accessibles sans connexion bancaire.', 'Your forecasts remain accessible without a bank connection.')}</T><View style={{ flex: 1 }}/><T style={s.small}>Octro · v2.2</T></View>}
+    {desktop && <View style={s.sidebar}><T style={s.wordmark}>octro</T>{!isRealFlow && <Pressable onPress={() => setSettings(true)} accessibilityRole="button" accessibilityLabel={t('Choisir le scénario de démonstration', 'Choose demo scenario')} style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable>}<View style={{ gap: 20 }}>{nav(false)}</View>{!isRealFlow && <T style={[s.small, { marginTop: 8 }]}>{t('Vos prévisions restent accessibles sans connexion bancaire.', 'Your forecasts remain accessible without a bank connection.')}</T>}<View style={{ flex: 1 }}/><T style={s.small}>Octro · v2.2</T></View>}
     <View style={{ flex: 1, minWidth: 0 }}>
       <ScrollView ref={scroll} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={['#0D0C12', '#0D0C12', '#2E201E']} locations={[0, .7, 1]} style={[s.canvas, desktop ? s.desktopCanvas : s.mobileCanvas]}>
-          {!desktop && <View style={s.mobileHeader}><T style={{ fontSize: 24, letterSpacing: -.6 }}>octro</T><Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable></View>}
-          <View style={s.demoBar}><Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.demoTag}><View style={s.dot}/><T style={s.tiny}>{t('Données synthétiques', 'Synthetic data')}</T></Pressable><Pressable onPress={() => setLanguage(language === 'fr' ? 'en' : 'fr')} accessibilityRole="button" accessibilityLabel={t('Passer en anglais', 'Switch to French')} style={s.language}><T style={s.tiny}>{language.toUpperCase()} ↗</T></Pressable></View>
+          {!desktop && <View style={s.mobileHeader}><T style={{ fontSize: 24, letterSpacing: -.6 }}>octro</T>{!isRealFlow && <Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable>}</View>}
+          <View style={s.demoBar}>{!isRealFlow && <Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.demoTag}><View style={s.dot}/><T style={s.tiny}>{t('Données synthétiques', 'Synthetic data')}</T></Pressable>}<Pressable onPress={() => setLanguage(language === 'fr' ? 'en' : 'fr')} accessibilityRole="button" accessibilityLabel={t('Passer en anglais', 'Switch to French')} style={s.language}><T style={s.tiny}>{language.toUpperCase()} ↗</T></Pressable></View>
           {children}
-          <T style={[s.tiny, { marginTop: 32, color: tokens.color.muted }]}>{t('Démonstration · aucune connexion bancaire · aucun transfert exécuté', 'Demonstration · no bank connection · no executed transfer')}</T>
+          <T style={[s.tiny, { marginTop: 32, color: tokens.color.muted }]}>{isRealFlow ? t('Octro — plateforme de coordination financière et prêts XRPL.', 'Octro — financial coordination platform and XRPL lending.') : t('Démonstration · aucune connexion bancaire · aucun transfert exécuté', 'Demonstration · no bank connection · no executed transfer')}</T>
         </LinearGradient>
       </ScrollView>
       {!desktop && <View style={s.mobileNav}>{nav(true)}</View>}

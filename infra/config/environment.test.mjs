@@ -9,12 +9,30 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const template = Object.fromEntries(readFileSync(new URL("../../.env.example", import.meta.url), "utf8")
   .split(/\r?\n/).filter((line) => line && !line.startsWith("#"))
   .map((line) => { const i = line.indexOf("="); return [line.slice(0, i), line.slice(i + 1)]; }));
-const valid = () => ({ ...template, PGPASSWORD: "unit-test-only", S3_ACCESS_KEY_ID: "unit-test-only", S3_SECRET_ACCESS_KEY: "unit-test-only" });
+const TEST_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
+const valid = () => ({
+  ...template,
+  PGPASSWORD: "unit-test-only",
+  S3_ACCESS_KEY_ID: "unit-test-only",
+  S3_SECRET_ACCESS_KEY: "unit-test-only",
+  WALLET_SEED_ENCRYPTION_KEY: TEST_ENCRYPTION_KEY,
+  ODOO_API_KEY_ENCRYPTION_KEY: TEST_ENCRYPTION_KEY,
+});
 const variables = (env) => validateBackendEnvironment(env).issues.map((issue) => issue.variable);
 
 test("template fails until locally provisioned secrets are supplied", () => {
-  assert.deepEqual(variables(template).sort(), ["PGPASSWORD", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"].sort());
+  assert.deepEqual(
+    variables(template).sort(),
+    ["PGPASSWORD", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "WALLET_SEED_ENCRYPTION_KEY", "ODOO_API_KEY_ENCRYPTION_KEY"].sort(),
+  );
   assert.equal(validateBackendEnvironment(valid()).valid, true);
+});
+
+test("encryption keys must decode to exactly 32 bytes", () => {
+  for (const key of ["WALLET_SEED_ENCRYPTION_KEY", "ODOO_API_KEY_ENCRYPTION_KEY"]) {
+    assert.ok(variables({ ...valid(), [key]: "" }).includes(key));
+    assert.ok(variables({ ...valid(), [key]: "dG9vLXNob3J0" }).includes(key));
+  }
 });
 
 test("optional providers do not require credentials for the base configuration", () => {

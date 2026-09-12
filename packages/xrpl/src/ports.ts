@@ -22,6 +22,21 @@ export interface PaymentPort {
 }
 
 /**
+ * Extension Lending/KYC/Credit — Phase F. Decaissement reel depuis le
+ * wallet buffer de liquidite (avance de retrait quand le vault n'a pas
+ * encore assez de liquidite). Deliberement distinct de PaymentPort : ce
+ * dernier est explicitement le smoke test G0 (scenario_id "g0", jamais
+ * relabelise pour un decaissement de production).
+ */
+export interface BufferDisbursementPort {
+  sendPayment(params: {
+    sourceSeed: string;
+    destinationAddress: string;
+    amountDrops: string;
+  }): Promise<PortResult<{ txHash: string }>>;
+}
+
+/**
  * Lending V1 vault/broker/loan cycle (XRP-02, XRP-04, HACK-02).
  * Status as of the A1/A3 run recorded in docs/progress/augustin.md:
  * vault + deposit + broker are implemented and verified; loanSet is a
@@ -129,4 +144,16 @@ export interface WalletInterfacePort {
   disconnect(): Promise<void>;
   // sign() is intentionally not declared here: it lives in the
   // human-driven wallet flow, never behind an LLM-callable tool.
+}
+
+/**
+ * Extension Lending/KYC/Credit — Phase E. Wallet genere a l'inscription
+ * pour la custody serveur du hackathon : keypair seul, jamais fonde ici
+ * (aucun Client, aucun appel faucet — voir wallet-provisioning.ts). Ceci
+ * est un ecart documente vis-a-vis de WalletInterfacePort/WAL-01
+ * (signature cote client) : ces wallets sont signes cote serveur pour la
+ * duree du hackathon, voir docs/adr.
+ */
+export interface WalletProvisioningPort {
+  generate(): Promise<{ address: string; seed: string }>;
 }
