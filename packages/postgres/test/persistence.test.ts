@@ -149,6 +149,24 @@ describe("PostgreSQL persistence adapter (DATA-03, SEC-01/02, OPS-01, PER-11)", 
     expect(pool.statements.filter((entry) => entry.text.includes("INSERT INTO economic_events"))).toHaveLength(2);
   });
 
+  it("compares NUMERIC fixed-scale values semantically on a database replay (DATA-01/03)", async () => {
+    const pool = new RecordingPool();
+    const repository = new PostgresEconomicEventRepository(pool, tenant);
+    const base: EconomicEvent = {
+      id: "22222222-2222-4222-8222-222222222222", tenant_id: tenant, source_event_id: "bank-event-fixed-scale",
+      connection_ref: "bank-connection-1", direction: "inflow",
+      amount: { amount_decimal: "100.25", asset_id: "fiat:EUR" }, status: "expected", verification: "imported",
+      label: "Platform payment", observed_at: "2026-09-12T10:00:00.000Z",
+    };
+    await repository.save(base);
+    pool.priorEvent!["amount_decimal"] = "100.250000000000000000";
+    pool.eventConflict = true;
+    await expect(repository.save({ ...base, id: "33333333-3333-4333-8333-333333333333" })).resolves.toMatchObject({
+      id: base.id,
+      amount: { amount_decimal: "100.250000000000000000", asset_id: "fiat:EUR" },
+    });
+  });
+
   it("replays an identical key/body once, including key-order independent JSON (SEC-02)", async () => {
     const pool = new IdempotencyPool();
     const executor = new PostgresIdempotencyExecutor(pool, tenant);

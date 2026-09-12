@@ -1,7 +1,7 @@
 import type { EconomicEvent, Workspace, Projection, ActionPlan, Approval, Execution } from "@octro/contracts";
 import { IdempotencyConflictError } from "@octro/application";
 import type { EconomicEventRepository, WorkspaceRepository } from "@octro/application";
-import { assertNumeric38Scale18 } from "./decimal.js";
+import { assertNumeric38Scale18, canonicalDecimal } from "./decimal.js";
 import { inWorkspaceTransaction, type SqlPool } from "./sql.js";
 
 interface DbWorkspace extends Record<string, unknown> {
@@ -138,7 +138,10 @@ function economicEventFingerprint(event: EconomicEvent): string {
     connection_ref: event.connection_ref,
     source_event_id: event.source_event_id,
     direction: event.direction,
-    amount: event.amount,
+    amount: {
+      ...event.amount,
+      amount_decimal: canonicalDecimal(event.amount.amount_decimal),
+    },
     status: event.status,
     verification: event.verification,
     label: event.label,

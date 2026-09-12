@@ -37,6 +37,11 @@ Les fichiers d'observation pertinents : [G0 et Payment](progress/augustin/eviden
 
 La version `2.1` du schéma et de l'exemple est volontairement conservée par la livraison v2.2. Elle décrit une proposition, pas une API complète, une autorisation de transaction ou une ancienne spécification active. Aucun nouveau DOCX v2.2 n'est fourni par le pack.
 
+## Présentation
+
+- [Pitch deck](presentation/pitch-deck.md) : périmètre livré, limites explicites et preuves XRPL séparées du parcours produit.
+- [Script vidéo quatre minutes](presentation/video-demo-script.md) : prévision personnelle synthétique et rejeu des preuves historiques ; aucune signature depuis l’interface.
+
 ## Archives et instructions
 
 Les trois fichiers v2.0 ont été déplacés sans modification sous [archive/v2.0/](archive/v2.0/). Voir la [règle d'archivage](archive/README.md). Ne pas charger les archives dans le contexte de développement.

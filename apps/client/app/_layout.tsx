@@ -11,9 +11,7 @@ export default function Layout() {
     const [fontsLoaded, error] = useFonts({ Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold });
     if (!fontsLoaded && !error)
         return <View style={{ flex: 1, backgroundColor: '#0D0C12', justifyContent: 'center' }}><ActivityIndicator accessibilityLabel="Chargement des polices / Loading fonts" color="#E7DEDA"/></View>;
-    // AuthProvider est compose a cote de SessionProvider (fixture Lina),
-    // jamais a sa place : le commutateur d'etats de demo existant reste
-    // intact, le compte reel (auth/KYC/credit/lending) est un contexte
-    // additif independant (Phase G).
-    return <SafeAreaProvider><SessionProvider><AuthProvider><Shell><Slot /></Shell></AuthProvider></SessionProvider></SafeAreaProvider>;
+    // The session context owns the API-backed data source, so it must read the
+    // actual account token from the outer AuthProvider.
+    return <SafeAreaProvider><AuthProvider><SessionProvider><Shell><Slot /></Shell></SessionProvider></AuthProvider></SafeAreaProvider>;
 }

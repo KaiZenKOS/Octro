@@ -11,9 +11,8 @@ export interface ValidatedSession {
   userId: string;
 }
 
-// Remplace le placeholder x-dev-tenant-id (apps/api/src/routes/workspaces.ts)
-// pour toutes les routes ajoutees a partir de la Phase A (auth/kyc/credit/
-// lending) — voir apps/api/src/auth.ts (requireSession).
+// Valide la session Bearer utilisée par les routes Workspace, prévision,
+// KYC, crédit et lending — voir apps/api/src/auth.ts (requireSession).
 export class ValidateSessionUseCase {
   constructor(
     private readonly sessions: SessionRepository,

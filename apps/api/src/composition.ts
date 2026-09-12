@@ -18,6 +18,7 @@ import {
   GetCurrentUserUseCase,
   GetKycStatusUseCase,
   GetLatestCreditAssessmentUseCase,
+  ListOdooCompaniesUseCase,
   GetPersonalProjectionUseCase,
   GetNetworkCapabilitiesUseCase,
   GetWorkspaceUseCase,
@@ -104,6 +105,7 @@ export interface DependencyOverrides {
   networkCapabilities?: NetworkCapabilitiesPort;
   hackathonConfigPath?: string;
   clock?: Clock;
+  databaseReadiness?: () => Promise<void>;
 }
 
 export interface AppDependencies {
@@ -124,6 +126,7 @@ export interface AppDependencies {
   saveOdooConnection: SaveOdooConnectionUseCase;
   requestCreditAssessment: RequestCreditAssessmentUseCase;
   getLatestCreditAssessment: GetLatestCreditAssessmentUseCase;
+  listOdooCompanies: ListOdooCompaniesUseCase;
   lenderDeposit: LenderDepositUseCase;
   borrowerLoanRequest: BorrowerLoanRequestUseCase;
   repayLoan: RepayLoanUseCase;
@@ -139,6 +142,8 @@ export interface AppDependencies {
   // Expose tel quel pour que les tests puissent forcer un retrait "rejected"
   // sur le FakeLendingV1Adapter (declenche le repli buffer, Phase F).
   lending: LendingV1Port;
+  checkReadiness: () => Promise<void>;
+  close: () => Promise<void>;
 }
 
 // MAIL_ENABLED=true + les trois variables MAIL_API_* (voir .env.example) ->
@@ -169,6 +174,8 @@ interface Persistence {
   loanPositions: LoanPositionRepository;
   withdrawalRequests: WithdrawalRequestRepository;
   bufferLedger: BufferLedgerRepository;
+  checkReadiness: () => Promise<void>;
+  close: () => Promise<void>;
 }
 
 interface PostgresConfig {
@@ -218,8 +225,8 @@ function buildPersistence(): Persistence {
       host: process.env["PGHOST"] ?? "",
       port: Number(process.env["PGPORT"] ?? 5432),
       database: process.env["PGDATABASE"] ?? "",
-      user: process.env["PGUSER"] ?? "",
-      password: process.env["PGPASSWORD"] ?? "",
+      user: process.env["PGAPPUSER"] ?? "",
+      password: process.env["PGAPPPASSWORD"] ?? "",
       sslMode: process.env["PGSSLMODE"] ?? "",
       ...(process.env["PGSSLROOTCERT"] ? { sslRootCertPath: process.env["PGSSLROOTCERT"] } : {}),
     });
@@ -239,6 +246,66 @@ function buildPersistence(): Persistence {
       loanPositions: new PgLoanPositionRepository(pool),
       withdrawalRequests: new PgWithdrawalRequestRepository(pool),
       bufferLedger: new PgBufferLedgerRepository(pool),
+      checkReadiness: async () => {
+        await pool.query("SELECT 1");
+        const requiredTables = [
+          "users", "sessions", "email_verifications", "kyc_statuses", "odoo_connections",
+          "credit_assessments", "wallets", "lending_pool", "lender_deposits", "loan_positions",
+          "withdrawal_requests", "buffer_ledger", "workspaces", "economic_events",
+        ];
+        const relations = await pool.query<{ relation: string; present: string | null }>(
+          `SELECT name AS relation, to_regclass(name) AS present
+           FROM unnest($1::text[]) AS names(name)`,
+          [requiredTables],
+        );
+        if (relations.rows.length !== requiredTables.length || relations.rows.some((row) => row.present === null)) {
+          throw new Error("OPS-02: PostgreSQL schema is incomplete; apply pending migrations before serving traffic");
+        }
+        const financialColumns = await pool.query<{
+          table_name: string;
+          column_name: string;
+          data_type: string;
+          numeric_precision: number | null;
+          numeric_scale: number | null;
+        }>(
+          `SELECT table_name, column_name, data_type, numeric_precision, numeric_scale
+           FROM information_schema.columns
+           WHERE table_schema = current_schema()
+             AND ((table_name = 'workspaces' AND column_name = 'tenant_id')
+               OR (table_name = 'economic_events' AND column_name IN ('tenant_id', 'connection_ref', 'amount_decimal')))`
+        );
+        const columns = new Map(financialColumns.rows.map((row) => [`${row.table_name}.${row.column_name}`, row]));
+        const amount = columns.get("economic_events.amount_decimal");
+        if (!columns.has("workspaces.tenant_id")
+          || !columns.has("economic_events.tenant_id")
+          || !columns.has("economic_events.connection_ref")
+          || amount?.data_type !== "numeric"
+          || amount.numeric_precision !== 38
+          || amount.numeric_scale !== 18) {
+          throw new Error("DATA-03: PostgreSQL schema does not enforce NUMERIC(38,18) Workspace event storage");
+        }
+        const security = await pool.query<{
+          table_name: string;
+          row_security: boolean;
+          force_row_security: boolean;
+        }>(
+          `SELECT c.relname AS table_name, c.relrowsecurity AS row_security,
+                  c.relforcerowsecurity AS force_row_security
+           FROM pg_class c
+           WHERE c.relnamespace = current_schema()::regnamespace
+             AND c.relname IN ('workspaces', 'economic_events')`
+        );
+        if (security.rows.length !== 2 || security.rows.some((row) => !row.row_security || !row.force_row_security)) {
+          throw new Error("SEC-01: PostgreSQL Workspace row-level security is not enabled and forced");
+        }
+        const role = await pool.query<{ rolsuper: boolean; rolbypassrls: boolean }>(
+          "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
+        );
+        if (!role.rows[0] || role.rows[0].rolsuper || role.rows[0].rolbypassrls) {
+          throw new Error("SEC-01: PostgreSQL application role must not be superuser or BYPASSRLS");
+        }
+      },
+      close: async () => pool.end(),
     };
   }
   const memoryConfig: PostgresConfig = { kind: "memory" };
@@ -257,6 +324,8 @@ function buildPersistence(): Persistence {
     loanPositions: new InMemoryLoanPositionRepository(),
     withdrawalRequests: new InMemoryWithdrawalRequestRepository(),
     bufferLedger: new InMemoryBufferLedgerRepository(),
+    checkReadiness: async () => undefined,
+    close: async () => undefined,
   };
 }
 
@@ -313,6 +382,8 @@ export function buildDependencies(overrides: DependencyOverrides = {}): AppDepen
     loanPositions,
     withdrawalRequests,
     bufferLedger,
+    checkReadiness,
+    close,
   } = buildPersistence();
   const odooApiKeyCrypto: CryptoPort = new NodeAesGcmAdapter(resolveEncryptionKey("ODOO_API_KEY_ENCRYPTION_KEY"));
   const walletSeedCrypto: CryptoPort = new NodeAesGcmAdapter(resolveEncryptionKey("WALLET_SEED_ENCRYPTION_KEY"));
@@ -352,19 +423,23 @@ export function buildDependencies(overrides: DependencyOverrides = {}): AppDepen
       ids,
     ),
     getLatestCreditAssessment: new GetLatestCreditAssessmentUseCase(creditAssessments),
-    lenderDeposit: new LenderDepositUseCase(kycStatuses, wallets, lendingPools, lenderDeposits, lending, walletSeedCrypto, clock, ids),
+    listOdooCompanies: new ListOdooCompaniesUseCase(odooConnections, kycStatuses, odoo, odooApiKeyCrypto),
+    lenderDeposit: new LenderDepositUseCase(
+      kycStatuses, wallets, lendingPools, lenderDeposits, capabilities, lending, walletSeedCrypto, clock, ids,
+    ),
     borrowerLoanRequest: new BorrowerLoanRequestUseCase(
       kycStatuses,
       creditAssessments,
       wallets,
       lendingPools,
       loanPositions,
+      capabilities,
       lending,
       walletSeedCrypto,
       clock,
       ids,
     ),
-    repayLoan: new RepayLoanUseCase(kycStatuses, wallets, loanPositions, lending, walletSeedCrypto),
+    repayLoan: new RepayLoanUseCase(kycStatuses, wallets, loanPositions, capabilities, lending, walletSeedCrypto),
     withdrawFromVault: new WithdrawFromVaultUseCase(
       kycStatuses,
       wallets,
@@ -372,6 +447,7 @@ export function buildDependencies(overrides: DependencyOverrides = {}): AppDepen
       lenderDeposits,
       withdrawalRequests,
       bufferLedger,
+      capabilities,
       lending,
       bufferDisbursement,
       walletSeedCrypto,
@@ -383,5 +459,9 @@ export function buildDependencies(overrides: DependencyOverrides = {}): AppDepen
     bootstrapLendingPool: new BootstrapLendingPoolUseCase(lendingPools, lending, walletSeedCrypto, clock, ids),
     mail,
     lending,
+    checkReadiness: overrides.databaseReadiness ?? checkReadiness,
+    close: async () => {
+      await close();
+    },
   };
 }

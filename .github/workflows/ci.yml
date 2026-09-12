@@ -10,44 +10,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-test:
-    name: Build, typecheck, test (OPS-02)
+  verify:
+    name: Verify (OPS-02, SEC-04, EVID-01)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "22.17.0"
           cache: "npm"
 
-      # OPS-02 : lockfile pin exacte, jamais `npm install` en CI.
-      - name: Install (lockfile only)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install locked dependencies
         run: npm ci
 
-      - name: Secret scan (SEC-04)
-        run: npm run security:scan
-
-      - name: Dependency audit (high and critical)
-        run: npm run security:audit
-
-      - name: Backend configuration tests (offline; no provider credentials)
-        run: npm run config:test
-
-      - name: Traceability and evidence semantics (EVID-01, REL-01)
-        run: npm run traceability:check
-
-      - name: Typecheck (project references, tsc -b)
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-      - name: Build client export
-        run: npm run build:client
-
-      - name: Test (P0, deterministe — aucun test reseau/Devnet ici)
-        run: npm run test --workspaces --if-present
-
-      - name: Test optimizer (Python déterministe)
-        run: npm run test:optimizer
+      # npm run ci is the single local/CI verification entry point. Its order is:
+      # config tests, secret scan, high/critical audit, traceability, typecheck,
+      # TypeScript tests, Python optimizer tests, and the Expo web build.
+      - name: Run deterministic CI checks
+        run: npm run ci

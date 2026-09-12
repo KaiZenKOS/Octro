@@ -18,17 +18,40 @@ const evidenceDir = dirname(resolve(root, evidencePath));
 
 expect(requirements.version === "2.2", "requirements.json must remain v2.2");
 expect(requirements.requirements.length === 62, "requirements.json must contain the 62 v2.2 requirements");
-expect(new Set(requirements.requirements.map(({ id }) => id)).size === 62, "requirement IDs must be unique");
+const requirementIds = requirements.requirements.map(({ id }) => id);
+const requirementIdSet = new Set(requirementIds);
+expect(requirementIdSet.size === 62, "requirement IDs must be unique");
 expect(
   JSON.stringify(requirements.requirements) === JSON.stringify(packRequirements.requirements),
-  "root and preserved pack requirement entries diverge",
+  "root and preserved pack requirement entries diverge (including IDs, priority, owner, must, acceptance, and chapter)",
 );
 expect(
   JSON.stringify(requirements.invariants) === JSON.stringify(packRequirements.invariants),
   "root and preserved pack invariants diverge",
 );
+expect(JSON.stringify(requirements.parameters) === JSON.stringify(packRequirements.parameters), "root and preserved pack parameters diverge");
+expect(JSON.stringify(requirements.audiences) === JSON.stringify(packRequirements.audiences), "root and preserved pack audiences diverge");
+expect(requirements.project === packRequirements.project, "root and preserved pack project names diverge");
+expect(requirements.language === packRequirements.language, "root and preserved pack language diverge");
+expect(requirements.status === packRequirements.status, "root and preserved pack status diverge");
+expect(requirements.date === packRequirements.date, "root and preserved pack dates diverge");
 for (const path of requirements.normative_files) {
   expect(existsSync(resolve(root, path)), `missing normative file: ${path}`);
+}
+
+const knownRequirementPrefixes = [...new Set(requirementIds.map((id) => id.replace(/-\d+$/, "")))];
+for (const path of [
+  "docs/implementation-status.md",
+  "docs/presentation/pitch-deck.md",
+  "docs/presentation/video-demo-script.md",
+]) {
+  const text = readFileSync(resolve(root, path), "utf8");
+  const mentionedIds = text.match(/\b[A-Z][A-Z0-9-]*-\d{2}\b/g) ?? [];
+  for (const id of mentionedIds) {
+    if (knownRequirementPrefixes.some((prefix) => id.startsWith(`${prefix}-`))) {
+      expect(requirementIdSet.has(id), `${path}: unknown requirement ID ${id}`);
+    }
+  }
 }
 
 expect(config.spec_version === "2.2", "hackathon config must target spec v2.2");
@@ -41,24 +64,41 @@ if (config.ledger_verified) {
   expect(typeof config.sdk_version === "string" && !config.sdk_version.includes("beta"), "verified Track 1 requires an exact stable SDK version");
   expect(typeof config.checked_at === "string", "verified capabilities require checked_at");
   expect(existsSync(resolve(root, config.g0_evidence_ref)), "verified ledger requires its G0 evidence file");
+  expect(evidence.network_snapshot?.network_id === config.network_id, "G0 evidence network_id must match the active config");
+  expect(evidence.network_snapshot?.sdk_package === config.sdk_package, "G0 evidence SDK package must match the active config");
+  expect(evidence.network_snapshot?.sdk_version === config.sdk_version, "G0 evidence SDK version must match the active config");
 }
 for (const [capability, status] of Object.entries(config.capabilities)) {
   expect(["verified", "unverified", "unsupported"].includes(status), `invalid capability status: ${capability}=${status}`);
+  if (status === "verified") {
+    const note = config.capability_notes?.[capability] ?? "";
+    const references = note.match(/(?:docs\/progress\/augustin\/evidence\/)?[A-Za-z0-9._-]+\.json/g) ?? [];
+    let existingReferenceCount = 0;
+    for (const ref of references) {
+      const path = ref.startsWith("docs/") ? resolve(root, ref) : join(evidenceDir, ref);
+      if (existsSync(path)) existingReferenceCount += 1;
+    }
+    expect(existingReferenceCount > 0, `verified capability ${capability} must cite an existing evidence file`);
+  }
 }
 
 for (const step of evidence.steps) {
   if (step.status === "validated") {
     expect(step.validated === true, `${step.id}: validated status requires validated=true`);
     expect(typeof step.result_code === "string", `${step.id}: validated status requires result_code`);
-    if (step.tx_hash) expect(typeof step.explorer_url === "string", `${step.id}: on-ledger hash requires explorer_url`);
+    expect(typeof step.tx_hash === "string" && step.tx_hash.length > 0, `${step.id}: validated ledger result requires tx_hash`);
+    expect(typeof step.explorer_url === "string" && step.explorer_url.startsWith("https://"), `${step.id}: validated ledger result requires an HTTPS explorer URL`);
   } else if (step.status === "rejected_pre_inclusion") {
     expect(step.validated === false, `${step.id}: pre-inclusion rejection requires validated=false`);
+    expect(typeof step.result_code === "string", `${step.id}: pre-inclusion rejection requires an observed result code`);
     expect(step.explorer_url === null, `${step.id}: pre-inclusion rejection must not claim an explorer proof`);
   } else if (step.status === "not_run") {
     expect(step.validated === null, `${step.id}: not_run requires validated=null`);
-    expect(step.tx_hash === null && step.explorer_url === null, `${step.id}: not_run must not contain ledger proof`);
+    expect(step.tx_hash === null && step.explorer_url === null && step.result_code === null, `${step.id}: not_run must not contain ledger proof or result code`);
   } else if (step.status === "reconciled_from_ledger_effects") {
     expect(step.validated === true, `${step.id}: reconciled ledger effects require validated=true`);
+    expect(step.tx_hash === null && step.explorer_url === null, `${step.id}: a derived reconciliation must not claim its own transaction hash or explorer URL`);
+    expect(typeof step.evidence_refs?.[0] === "string", `${step.id}: ledger-effect reconciliation requires supporting evidence`);
   } else {
     failures.push(`${step.id}: unknown evidence status ${step.status}`);
   }

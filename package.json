@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Octro monorepo — moteur de coordination financiere et integration XRPL Track 1 Loaded.",
   "engines": {
-    "node": ">=18"
+    "node": "22.17.x"
   },
   "workspaces": [
     "packages/*",
@@ -13,16 +13,19 @@
   "scripts": {
     "build": "tsc -b tsconfig.json",
     "build:client": "npm run build --workspace @octro/client",
+    "build:web": "npm run build:client",
     "typecheck": "tsc -b tsconfig.json && npm run typecheck --workspace @octro/client",
     "test": "npm run build && npm run test --workspaces --if-present",
+    "test:typescript": "npm run test --workspaces --if-present",
     "test:optimizer": "node scripts/test-optimizer.mjs",
     "security:scan": "node scripts/scan-secrets.mjs",
     "security:audit": "npm audit --audit-level=high",
     "traceability:check": "node scripts/check-traceability.mjs",
-    "ci": "npm run config:test && npm run security:scan && npm run security:audit && npm run traceability:check && npm run typecheck && npm run test --workspaces --if-present && npm run test:optimizer && npm run build:client",
+    "ci": "npm run config:test && npm run security:scan && npm run security:audit && npm run traceability:check && npm run typecheck && npm run test:typescript && npm run test:optimizer && npm run build:web",
     "config:check": "node --env-file=.env scripts/check-backend-config.mjs",
     "config:test": "node --test infra/config/environment.test.mjs",
-    "db:migrate": "node --env-file=.env infra/db/migrate.mjs"
+    "db:migrate": "node --env-file=.env --env-file=.env.db-admin infra/db/migrate.mjs",
+    "db:provision-runtime": "node --env-file=.env --env-file=.env.db-admin infra/db/provision-app-role.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

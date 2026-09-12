@@ -53,7 +53,18 @@ export function validateBackendEnvironment(env) {
   if (services.postgres) {
     host("PGHOST");
     integer("PGPORT", 1, 65535);
-    for (const key of ["PGDATABASE", "PGUSER", "PGPASSWORD"]) required(key);
+    for (const key of ["PGDATABASE", "PGAPPUSER", "PGAPPPASSWORD"]) required(key);
+    const adminUser = value("PGADMINUSER");
+    const adminPassword = value("PGADMINPASSWORD");
+    if (Boolean(adminUser) !== Boolean(adminPassword)) {
+      issue(adminUser ? "PGADMINPASSWORD" : "PGADMINUSER", "both migration administrator credentials must be supplied together");
+    }
+    if (adminUser && adminUser === value("PGAPPUSER")) {
+      issue("PGAPPUSER", "runtime and migration administrator roles must be distinct");
+    }
+    if (adminPassword && adminPassword === value("PGAPPPASSWORD")) {
+      issue("PGAPPPASSWORD", "runtime and migration administrator passwords must be distinct");
+    }
     if (value("PGSSLMODE") !== "verify-full") issue("PGSSLMODE", "must be verify-full for the remote database");
     // Extension Lending/KYC/Credit (Phase C) : chiffrement au repos des
     // secrets qui doivent survivre un redemarrage (seed de wallet, cle API

@@ -14,6 +14,7 @@ import {
   InvalidCredentialsError,
   LendingOperationFailedError,
   NotFoundError,
+  OdooRequestFailedError,
   OptimizerTimeoutError,
   OptimizerUnavailableError,
   VerificationCodeInvalidError,
@@ -89,6 +90,13 @@ export function sendError(reply: FastifyReply, err: unknown): FastifyReply {
       return reply.code(503).send({ code: "LEDGER_OUTCOME_UNKNOWN", message: err.message, retryable: true, details: { reason: err.detail } });
     }
     return reply.code(409).send({ code: "LEDGER_OUTCOME_UNKNOWN", message: err.message, retryable: false, details: { reason: err.detail } });
+  }
+  if (err instanceof OdooRequestFailedError) {
+    return reply.code(422).send({
+      code: "INVALID_REQUEST",
+      message: err.message,
+      retryable: false,
+    });
   }
   reply.log.error(err);
   return reply.code(500).send({ code: "INTERNAL", message: "unexpected error" });

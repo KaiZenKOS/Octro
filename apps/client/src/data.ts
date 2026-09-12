@@ -12,7 +12,7 @@ import type {
     Workspace,
 } from '@octro/contracts';
 import fixture from '../../../docs/v2.2/personal.fixture.json';
-import { apiClient, type EconomicEventPayload, type OctroApiClient, type ProjectionInputs } from './api';
+import { ApiAuthenticationRequiredError, type EconomicEventPayload, type OctroApiClient, type ProjectionInputs } from './api';
 
 export type ClientSourceState = 'ready' | 'stale' | 'unavailable';
 
@@ -24,6 +24,7 @@ export interface ClientSnapshot {
     events: EconomicEvent[];
     executions: Execution[];
     sourceState: ClientSourceState;
+    sessionRequired?: boolean;
     sourceMessage?: string;
     provenance: {
         synthetic: boolean;
@@ -53,8 +54,6 @@ export interface ClientDataSource {
     setHorizon?(days: number): Promise<void>;
 }
 
-const workspaceId = 'a1000000-0000-4000-8000-000000000001';
-const ownerId = 'a3000000-0000-4000-8000-000000000001';
 const asOf = '2026-09-12T00:00:00Z';
 const defaultInputs: ProjectionInputs = ProjectionRequestSchema.omit({ workspace_id: true }).parse({
     asset_id: fixture.asset_id,
@@ -74,13 +73,13 @@ function newId(): string {
     });
 }
 
-function createFixtureWorkspace(id = workspaceId): Workspace {
+function createFixtureWorkspace(id = newId(), ownerUserId = newId()): Workspace {
     return WorkspaceSchema.parse({
         id,
         tenant_id: id,
         kind: 'personal',
-        display_name: 'Lina',
-        owner_user_id: ownerId,
+        display_name: 'Mon espace',
+        owner_user_id: ownerUserId,
         created_at: asOf,
     });
 }
@@ -129,15 +128,36 @@ function toEventPayload(event: EconomicEvent): EconomicEventPayload {
     };
 }
 
-export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWorkspace' | 'recordEvent' | 'getProjection'> = apiClient): ClientDataSource {
+export function createFixtureSource(api?: Pick<OctroApiClient, 'createPersonalWorkspace' | 'recordEvent' | 'getProjection'>): ClientDataSource {
     let workspace = createFixtureWorkspace();
     let remoteWorkspace: Workspace | null = null;
     let remoteNeedsBootstrap = true;
     let requestInputs = defaultInputs;
     let events = createFixtureEvents(workspace.tenant_id);
-    let sourceState: ClientSourceState = 'ready';
-    let sourceMessage: string | undefined;
+    let sourceState: ClientSourceState = api ? 'ready' : 'unavailable';
+    let sessionRequired = false;
+    let sourceMessage: string | undefined = api ? undefined : 'Mode découverte : les données sont fictives et aucune projection serveur n’a été calculée.';
     let acknowledgedHash: string | null = null;
+
+    const blankInputs = () => ProjectionRequestSchema.omit({ workspace_id: true }).parse({
+        asset_id: fixture.asset_id,
+        opening_balances: { current: '0.00', savings: '0.00' },
+        current_reserve: '0.00',
+        savings_protected_reserve: '0.00',
+        horizon: { steps: 30, unit: 'day' },
+    });
+
+    function clearAfterAuthenticationFailure(): void {
+        workspace = createFixtureWorkspace();
+        remoteWorkspace = null;
+        remoteNeedsBootstrap = true;
+        requestInputs = blankInputs();
+        events = [];
+        acknowledgedHash = null;
+        sourceState = 'unavailable';
+        sessionRequired = true;
+        sourceMessage = 'La session a expiré ou ne donne plus accès à cet espace. Reconnectez-vous ; aucune donnée locale de démonstration n’est affichée à la place.';
+    }
 
     const projectionRequest = (): ProjectionRequest => ProjectionRequestSchema.parse({
         workspace_id: workspace.id,
@@ -145,6 +165,7 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
     });
 
     async function ensureRemoteWorkspace(): Promise<void> {
+        if (!api) return;
         if (remoteWorkspace && !remoteNeedsBootstrap) return;
         const created = await api.createPersonalWorkspace(workspace.display_name);
         try {
@@ -172,6 +193,7 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
             events: [...events],
             executions: [],
             sourceState,
+            ...(sessionRequired ? { sessionRequired: true } : {}),
             ...(sourceMessage ? { sourceMessage } : {}),
             provenance: {
                 synthetic: result ? result.provenance.source === 'synthetic' : true,
@@ -185,6 +207,7 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
     return {
         async read(signal) {
             if (signal?.aborted) throw new Error('Aborted');
+            if (!api) return localSnapshot(null);
             try {
                 await ensureRemoteWorkspace();
                 const result = await api.getProjection(remoteWorkspace!.id, requestInputs);
@@ -192,6 +215,10 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
                 sourceMessage = undefined;
                 return localSnapshot(result);
             } catch (error) {
+                if (error instanceof ApiAuthenticationRequiredError) {
+                    clearAfterAuthenticationFailure();
+                    return localSnapshot(null);
+                }
                 sourceState = events.length ? 'stale' : 'unavailable';
                 sourceMessage = error instanceof Error ? error.message : 'Projection indisponible';
                 return localSnapshot(null);
@@ -225,6 +252,7 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
             acknowledgedHash = null;
             sourceState = 'stale';
             sourceMessage = 'Les données ont changé. La projection attend un nouveau calcul serveur.';
+            if (!api) return;
             try {
                 const addToExistingRemote = remoteWorkspace !== null && !remoteNeedsBootstrap;
                 await ensureRemoteWorkspace();
@@ -235,6 +263,10 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
                 sourceState = 'ready';
                 sourceMessage = undefined;
             } catch (error) {
+                if (error instanceof ApiAuthenticationRequiredError) {
+                    clearAfterAuthenticationFailure();
+                    throw error;
+                }
                 sourceState = 'stale';
                 sourceMessage = error instanceof Error ? error.message : 'Projection indisponible';
             }
@@ -246,6 +278,7 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
             acknowledgedHash = null;
             sourceState = 'stale';
             sourceMessage = 'Les données ont changé. La projection attend un nouveau calcul serveur.';
+            if (!api) return;
             try {
                 const addToExistingRemote = remoteWorkspace !== null && !remoteNeedsBootstrap;
                 await ensureRemoteWorkspace();
@@ -261,6 +294,10 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
                 sourceState = 'ready';
                 sourceMessage = undefined;
             } catch (error) {
+                if (error instanceof ApiAuthenticationRequiredError) {
+                    clearAfterAuthenticationFailure();
+                    throw error;
+                }
                 sourceState = 'stale';
                 sourceMessage = error instanceof Error ? error.message : 'Projection indisponible';
             }

@@ -12,12 +12,15 @@ import pg from "pg";
 const { Client } = pg;
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "migrations");
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const CORE_MIGRATIONS_DIR = join(REPO_ROOT, "infra", "migrations");
 
 // PGSSLROOTCERT epingle un certificat auto-signe precis (voir .env) : verifie
 // ce certificat exact, jamais "n'importe quel certificat" (rejectUnauthorized
 // reste true) — plus sur que de desactiver la verification TLS.
 function buildSslConfig() {
-  if (process.env["PGSSLMODE"] !== "verify-full") return undefined;
+  if (process.env["PGSSLMODE"] !== "verify-full") {
+    throw new Error("PGSSLMODE must be verify-full before applying migrations");
+  }
   const rootCertPath = process.env["PGSSLROOTCERT"];
   if (rootCertPath) {
     const resolved = join(REPO_ROOT, rootCertPath);
@@ -40,15 +43,37 @@ function requiredEnv(key) {
   return value;
 }
 
+function requiredPort() {
+  const raw = process.env["PGPORT"] ?? "5432";
+  if (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 65535) {
+    throw new Error("PGPORT must be an integer between 1 and 65535");
+  }
+  return Number(raw);
+}
+
+async function listMigrationFiles(directory, prefix) {
+  return (await readdir(directory))
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((filename) => ({
+      filename,
+      path: join(directory, filename),
+      key: `${prefix}${filename}`,
+    }));
+}
+
 async function main() {
   const client = new Client({
     host: requiredEnv("PGHOST"),
-    port: Number(process.env["PGPORT"] ?? 5432),
+    port: requiredPort(),
     database: requiredEnv("PGDATABASE"),
-    user: requiredEnv("PGUSER"),
-    password: requiredEnv("PGPASSWORD"),
+    user: requiredEnv("PGADMINUSER"),
+    password: requiredEnv("PGADMINPASSWORD"),
     ssl: buildSslConfig(),
   });
+  if (process.env["PGADMINUSER"] === process.env["PGAPPUSER"]) {
+    throw new Error("PGADMINUSER must be distinct from PGAPPUSER");
+  }
   await client.connect();
 
   try {
@@ -58,21 +83,25 @@ async function main() {
     const { rows: applied } = await client.query("SELECT filename FROM schema_migrations");
     const appliedSet = new Set(applied.map((row) => row.filename));
 
-    const filenames = (await readdir(MIGRATIONS_DIR))
-      .filter((name) => name.endsWith(".sql"))
-      .sort();
+    // The legacy account/lending schema keeps its historical migration keys.
+    // The v2.2 Workspace/forecast/outbox baseline is tracked under a namespace
+    // so its 0001 file does not collide with the older 0001_init.sql.
+    const migrations = [
+      ...(await listMigrationFiles(MIGRATIONS_DIR, "")),
+      ...(await listMigrationFiles(CORE_MIGRATIONS_DIR, "core/")),
+    ];
 
-    for (const filename of filenames) {
-      if (appliedSet.has(filename)) {
-        console.log(`skip (already applied): ${filename}`);
+    for (const migration of migrations) {
+      if (appliedSet.has(migration.key)) {
+        console.log(`skip (already applied): ${migration.key}`);
         continue;
       }
-      const sql = await readFile(join(MIGRATIONS_DIR, filename), "utf-8");
-      console.log(`applying: ${filename}`);
+      const sql = await readFile(migration.path, "utf-8");
+      console.log(`applying: ${migration.key}`);
       await client.query("BEGIN");
       try {
         await client.query(sql);
-        await client.query("INSERT INTO schema_migrations (filename) VALUES ($1)", [filename]);
+        await client.query("INSERT INTO schema_migrations (filename) VALUES ($1)", [migration.key]);
         await client.query("COMMIT");
       } catch (err) {
         await client.query("ROLLBACK");

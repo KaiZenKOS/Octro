@@ -71,7 +71,7 @@ Pour la démo web, lancer d’abord l’API dans un terminal, puis Expo dans un 
 
 ```powershell
 npm run dev --workspace @octro/api
-$env:EXPO_PUBLIC_API_URL="http://localhost:3000"
+$env:EXPO_PUBLIC_API_BASE_URL="http://localhost:3000"
 npm run start --workspace @octro/client -- --port 8082 --offline
 ```
 

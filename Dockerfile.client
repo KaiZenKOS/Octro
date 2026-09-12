@@ -1,7 +1,7 @@
 # Image web pour apps/client. Construit l'export
 # web statique d'Expo Router (`expo export --platform web`, deja configure en
 # "output": "static" dans apps/client/app.json) et le sert avec nginx.
-FROM node:22-alpine AS build
+FROM node:22.17.0-alpine AS build
 WORKDIR /app
 
 # Sources completes du monorepo : le client depend de @octro/contracts et
@@ -11,12 +11,14 @@ COPY package.json package-lock.json tsconfig.json tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
 COPY docs/v2.2 ./docs/v2.2
+COPY infra/config/environment.mjs ./infra/config/environment.mjs
+COPY infra/config/environment.d.mts ./infra/config/environment.d.mts
 
 RUN npm ci
 # Precompiler tous les packages exposes via ./dist (contracts, domain, application, agents)
 RUN npm run build
-ARG EXPO_PUBLIC_API_URL=/api
-ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
+ARG EXPO_PUBLIC_API_BASE_URL=/api
+ENV EXPO_PUBLIC_API_BASE_URL=$EXPO_PUBLIC_API_BASE_URL
 RUN npm run build --workspace @octro/client
 
 FROM nginx:1.27-alpine

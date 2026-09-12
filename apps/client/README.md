@@ -18,7 +18,7 @@ npm run dev --workspace @octro/api
 npm run start --workspace @octro/client -- --port 8082 --offline
 ```
 
-L’API écoute par défaut sur le port 3000. Le client utilise `EXPO_PUBLIC_API_URL` si défini, sinon `http://localhost:3000`. Routes : `/`, `/calendar`, `/sources`, `/proposal`, `/tracking`, `/options`, `/add`, `/import`. Le serveur API actuel est une démo à données en mémoire : un redémarrage efface les Workspaces et événements. L’authentification n’est pas livrée ; l’API documente explicitement son en-tête de développement.
+L’API écoute par défaut sur le port 3000. Le client utilise `EXPO_PUBLIC_API_BASE_URL` si défini, sinon `http://localhost:3000`. Routes : `/`, `/calendar`, `/sources`, `/proposal`, `/tracking`, `/options`, `/add`, `/import`. En mode authentifié, Workspaces, événements et projections utilisent une session Bearer et la composition PostgreSQL. En mode découverte, les données Lina restent explicitement synthétiques et ne remplacent jamais silencieusement les données d’un compte expiré.
 
 ## Vérifier
 

@@ -1,8 +1,7 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
+import { API_BASE_URL } from './api';
 
-// URL de l'API reelle (Phases A-F). Variable Expo publique (inlinee au
-// build) — jamais un secret, juste l'adresse du serveur.
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
+export { API_BASE_URL } from './api';
 
 export interface AuthUser {
   id: string;
@@ -43,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     const created: AuthUser = await parseJsonOrThrow(response);
+    setToken(null);
     setUser(created);
     return created;
   }, []);
@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ user_id: userId, code }),
     });
     const verified: AuthUser = await parseJsonOrThrow(response);
+    setToken(null);
     setUser(verified);
     return verified;
   }, []);

@@ -30,7 +30,9 @@ export function AgentExplainerModal({ visible, onClose }: { visible: boolean; on
                 <ScrollView contentContainerStyle={{ gap: 14 }}>
                     {!result && <Card style={s.card}>
                         <T variant="label">{t('Résultat indisponible', 'Result unavailable')}</T>
-                        <T>{t('Les hypothèses restent visibles, mais aucune proposition précédente n’est présentée comme actuelle. Réessayez le calcul lorsque le service sera disponible.', 'Your assumptions remain available, but no previous proposal is presented as current. Retry the calculation when the service is available.')}</T>
+                        <T>{data?.sessionRequired
+                            ? t('Reconnectez-vous pour retrouver votre espace et recalculer. Aucune donnée de démonstration ne remplace vos hypothèses.', 'Sign in again to access your workspace and recalculate. Demo data is not shown as a substitute for your assumptions.')
+                            : t('Les hypothèses restent visibles, mais aucune proposition précédente n’est présentée comme actuelle. Réessayez le calcul lorsque le service sera disponible.', 'Your assumptions remain available, but no previous proposal is presented as current. Retry the calculation when the service is available.')}</T>
                     </Card>}
                     {result && <Card warm style={s.card}>
                         <View style={s.row}><T variant="label">{t('Statut', 'Status')}</T><T style={{ color: feasible ? tokens.color.success : tokens.color.error, fontFamily: tokens.font.medium }}>{feasible ? t('Action faisable', 'Feasible action') : t('Aucune action sûre', 'No safe action')}</T></View>

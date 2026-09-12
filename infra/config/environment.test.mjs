@@ -12,7 +12,7 @@ const template = Object.fromEntries(readFileSync(new URL("../../.env.example", i
 const TEST_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
 const valid = () => ({
   ...template,
-  PGPASSWORD: "unit-test-only",
+  PGAPPPASSWORD: "unit-test-only",
   S3_ACCESS_KEY_ID: "unit-test-only",
   S3_SECRET_ACCESS_KEY: "unit-test-only",
   WALLET_SEED_ENCRYPTION_KEY: TEST_ENCRYPTION_KEY,
@@ -23,7 +23,7 @@ const variables = (env) => validateBackendEnvironment(env).issues.map((issue) =>
 test("template fails until locally provisioned secrets are supplied", () => {
   assert.deepEqual(
     variables(template).sort(),
-    ["PGPASSWORD", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "WALLET_SEED_ENCRYPTION_KEY", "ODOO_API_KEY_ENCRYPTION_KEY"].sort(),
+    ["PGAPPPASSWORD", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "WALLET_SEED_ENCRYPTION_KEY", "ODOO_API_KEY_ENCRYPTION_KEY"].sort(),
   );
   assert.equal(validateBackendEnvironment(valid()).valid, true);
 });
@@ -53,6 +53,13 @@ test("remote TLS verification cannot be disabled", () => {
   }
 });
 
+test("runtime PostgreSQL credentials are distinct from optional migration credentials", () => {
+  assert.equal(validateBackendEnvironment(valid()).valid, true);
+  assert.ok(variables({ ...valid(), PGADMINUSER: "db-admin", PGADMINPASSWORD: "admin-secret", PGAPPUSER: "db-admin" }).includes("PGAPPUSER"));
+  assert.ok(variables({ ...valid(), PGADMINUSER: "db-admin", PGADMINPASSWORD: "same", PGAPPPASSWORD: "same" }).includes("PGAPPPASSWORD"));
+  assert.ok(variables({ ...valid(), PGADMINUSER: "db-admin" }).includes("PGADMINPASSWORD"));
+});
+
 test("bucket URL cannot be substituted for service endpoint; TTL is bounded", () => {
   assert.ok(variables({ ...valid(), S3_ENDPOINT_URL: "https://octro.fr-par-1.linodeobjects.com" }).includes("S3_ENDPOINT_URL"));
   for (const ttl of ["0", "901", "300seconds"]) {
@@ -80,7 +87,7 @@ test("required PostgreSQL and syntactically valid hosts/bucket cannot be omitted
 
 test("CLI never emits supplied secrets or erroneous raw values", () => {
   const marker = "offline-sensitive-marker";
-  const env = { ...valid(), PGPASSWORD: marker, S3_SECRET_ACCESS_KEY: marker, PGPORT: marker,
+  const env = { ...valid(), PGAPPPASSWORD: marker, S3_SECRET_ACCESS_KEY: marker, PGPORT: marker,
     API_PUBLIC_URL: `https://test:${marker}@example.invalid`, MAIL_API_TOKEN: marker };
   const result = spawnSync(process.execPath, ["scripts/check-backend-config.mjs"], { cwd: root, env, encoding: "utf8" });
   assert.equal(result.status, 1);

@@ -1,6 +1,6 @@
 import type { LoanPosition } from "@octro/contracts";
 import type { LendingV1Port } from "@octro/xrpl";
-import { assertCreditApproved, assertKycValid } from "@octro/domain";
+import { assertCreditApproved, assertFinancingCapability, assertKycValid } from "@octro/domain";
 import { NotFoundError } from "../errors.js";
 import type { Clock } from "../ports/clock.js";
 import type { CreditAssessmentRepository } from "../ports/credit-assessment-repository.js";
@@ -9,6 +9,7 @@ import type { IdGenerator } from "../ports/id-generator.js";
 import type { KycStatusRepository } from "../ports/kyc-status-repository.js";
 import type { LendingPoolRepository } from "../ports/lending-pool-repository.js";
 import type { LoanPositionRepository } from "../ports/loan-position-repository.js";
+import type { NetworkCapabilitiesPort } from "../ports/network-capabilities-port.js";
 import type { WalletRepository } from "../ports/wallet-repository.js";
 import { assertReady } from "../xrpl-support.js";
 
@@ -41,6 +42,7 @@ export class BorrowerLoanRequestUseCase {
     private readonly wallets: WalletRepository,
     private readonly pools: LendingPoolRepository,
     private readonly loans: LoanPositionRepository,
+    private readonly capabilities: NetworkCapabilitiesPort,
     private readonly lending: LendingV1Port,
     private readonly crypto: CryptoPort,
     private readonly clock: Clock,
@@ -48,6 +50,7 @@ export class BorrowerLoanRequestUseCase {
   ) {}
 
   async execute(command: BorrowerLoanRequestCommand): Promise<LoanPosition> {
+    assertFinancingCapability(await this.capabilities.get(), "lending_v1");
     const kyc = await this.kycStatuses.findByUserId(command.userId);
     assertKycValid(kyc?.status ?? "not_started");
 

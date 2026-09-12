@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EconomicEventSchema, ProjectionResultSchema, WorkspaceSchema } from '@octro/contracts';
 import type { ProjectionResult } from '@octro/contracts';
 import { createFixtureSource, euro } from '../src/data';
+import { ApiAuthenticationRequiredError } from '../src/api';
 import type { EconomicEventPayload } from '../src/api';
 
 const workspaceId = 'a1000000-0000-4000-8000-000000000001';
@@ -89,6 +90,36 @@ describe('structured projection boundary — UI-02, ACC-01, PER-02/05/07, REL-01
         expect(acknowledged.status).toBe('ACKNOWLEDGED');
         expect(before.executions).toEqual([]);
         expect((await source.read()).events).toEqual(before.events);
+    });
+
+    it('fails closed after an unauthenticated workspace response instead of showing fixture values', async () => {
+        const source = createFixtureSource({
+            async createPersonalWorkspace() { throw new ApiAuthenticationRequiredError(401); },
+            async recordEvent() { throw new Error('must not record events without a workspace'); },
+            async getProjection() { throw new Error('must not calculate without a workspace'); },
+        });
+
+        const data = await source.read();
+        expect(data.sourceState).toBe('unavailable');
+        expect(data.sessionRequired).toBe(true);
+        expect(data.events).toEqual([]);
+        expect(data.result).toBeNull();
+        expect(data.request.opening_balances).toEqual({ current: '0.00', savings: '0.00' });
+        expect(data.sourceMessage).toContain('session');
+    });
+
+    it('clears seeded local display data after a forbidden projection response', async () => {
+        const api = {
+            ...mockApi(),
+            async getProjection() { throw new ApiAuthenticationRequiredError(403); },
+        };
+        const data = await createFixtureSource(api).read();
+        expect(data.sourceState).toBe('unavailable');
+        expect(data.sessionRequired).toBe(true);
+        expect(data.events).toEqual([]);
+        expect(data.result).toBeNull();
+        expect(data.request.opening_balances).toEqual({ current: '0.00', savings: '0.00' });
+        expect(data.sourceMessage).toContain('aucune donnée locale de démonstration');
     });
 
     it('formats decimal strings without binary-float loss', () => {

@@ -1,76 +1,69 @@
-﻿# Octro v2.2 — Pitch Deck (4 minutes / 10 slides)
+# Octro v2.2 — Pitch Deck (4 minutes / 10 slides maximum)
 
-## Slide 1 — Titre & Vision
-**Octro** : L’infrastructure prédictive de trésorerie et de crédit décentralisé.
-*Combler les décalages de règlement (settlement gaps) sans dette inutile, avec exécution vérifiée sur XRPL.*
-- **Présentateurs** : Kevin (Produit & Frontend), Samet (API & Infra), Augustin (Moteur & XRPL).
-- **Track** : Track 1 Loaded (XLS-65 / XLS-66 SingleAssetVault, LoanBroker, Credentials & Domains).
+## Slide 1 — Octro : anticiper, protéger, choisir
 
----
+**Octro aide à voir les décalages de trésorerie avant l’échéance.**
 
-## Slide 2 — Le Problème : Le gouffre de liquidité (Settlement Gap)
-- Une entreprise, un indépendant ou un particulier peut être **rentable ou solvable**, mais manquer de liquidités à l'instant $T$ où une échéance arrive avant un encaissement.
-- *Exemple concret* : Le loyer/fournisseur arrive à J+2, le virement client ou salaire n'arrive qu'à J+10.
-- Les solutions actuelles : découverts coûteux, affacturage opaque ou stress financier.
+Prototype de prévision personnelle sans dette, accompagné de preuves XRPL observées séparément sur le Custom Hackathon Devnet.
 
----
+- Présentateurs : Kevin (produit/client), Samet (API/infra), Augustin (moteur/XRPL).
+- Track 1 Loaded — Lending Protocol V1 ; Credentials et Permissioned Domains comme extension principale.
 
-## Slide 3 — Notre Réponse : Le principe « Sans dette d'abord »
-- **Calcul Déterministe** : Analyse de la courbe de trésorerie sur 30 jours / 72h.
-- **Priorité aux fonds propres** : Si une réserve d'épargne mobilisable existe (ex. scénario Lina : 230 € de transfert interne), Octro propose l'arbitrage sans emprunt.
-- **Crédit uniquement si nécessaire** : Si le besoin dépasse les fonds disponibles, activation de facilités de liquidité courtes autorisées.
+## Slide 2 — Le problème : l’argent arrive au mauvais moment
 
----
+- Un loyer, une facture ou une charge peut arriver avant le salaire ou le règlement attendu.
+- Une somme attendue est une prévision, pas de l’argent disponible.
+- Les particuliers comme les indépendants et les organisations ont besoin de comprendre le manque avant de choisir une action.
 
-## Slide 4 — Architecture : Séparation stricte Calcul / IA / Ledger
-- **Moteur Financier (Python)** : LP / CVaR95 déterministe avec calculs décimaux stricts (`Decimal`, zéro float).
-- **Agents & MCP (TypeScript)** : Rôle *Analyst* & *Explainer* pour vulgariser le plan. Aucun droit de signature.
-- **Ledger XRPL** : Exécution non-custodial via XLS-65 / XLS-66.
+## Slide 3 — Commencer par les options sans dette
 
----
+- La démonstration Lina utilise des données synthétiques : 650 € sur le compte courant, 300 € d’épargne, puis 780 € de dépenses avant un salaire attendu.
+- Le moteur personnel propose un transfert de 230 € depuis les fonds propres disponibles, tout en conservant la réserve courante de 100 €.
+- Le résultat est une proposition ; l’application ne déplace pas l’argent.
 
-## Slide 5 — La Démonstration Produit (Live Demo)
-1. **Accueil & Calendrier** : Vue instantanée du point bas de trésorerie (−130 € à J+6) et de la réserve de sécurité (100 €).
-2. **Recommandation claire** : Proposition de transfert de 230 € avec explication automatique.
-3. **Ajout d'échéance dynamique** : Saisie en temps réel d'une facture ou dépense avec recalcul immédiat.
+## Slide 4 — Ce qui calcule, explique et prouve
 
----
+- Le client appelle l’API pour la projection personnelle ; le calcul Python utilise des montants décimaux et renvoie un résultat structuré `FEASIBLE` ou `INFEASIBLE`.
+- Le texte d’explication ne remplace pas le résultat structuré. Les composants agents/MCP existent, mais ne sont pas raccordés au parcours produit présenté ici.
+- L’interface ne signe ni ne soumet de transaction XRPL. Elle affiche un registre de preuves historiques en lecture seule.
 
-## Slide 6 — L'Intégration XRPL Réelle (XLS-65 / XLS-66)
-- **Cycle complet validé sur Devnet** :
-  - `VaultDeposit` & `LoanBrokerSet`
-  - Co-signature `LoanSet` entre emprunteur et broker (`temBAD_SIGNER` évité)
-  - Décaissement automatique & confirmation de solde
-  - Remboursement `LoanPay`
-  - Retrait `VaultWithdraw` avec rendement d'intérêt réel constaté (1370 drops).
+## Slide 5 — Démonstration de la prévision personnelle
 
----
+1. Accueil et calendrier de Lina : événements synthétiques datés et passage sous la réserve choisie.
+2. Proposition : transfert de 230 € issu du plan structuré, avec l’épargne restante visible.
+3. Ajout d’une dépense déclarée de 150 € : le recalcul peut retourner un diagnostic sans solution sans dette plutôt que d’inventer une action.
 
-## Slide 7 — Track 1 Loaded : Permissioned Domains & Compliance
-- Contrôle d'accès au crédit via **Credentials & Permissioned Domains**.
-- Dépôt refusé sans attestation, accepté dès la reconnaissance du credential.
-- Séparation stricte entre conformité réglementaire (off-chain) et exécution sécurisée (on-chain).
+La démonstration porte sur la projection ; aucune connexion bancaire, import effectif de fichier ou exécution de transfert n’est revendiquée.
 
----
+## Slide 6 — Cycle Lending V1 observé sur le Devnet
 
-## Slide 8 — Les 3 Publics Cibles
-1. **Particuliers (Lina)** : Gestion de budget sans dette, accessible sans wallet ni KYC obligatoire.
-2. **Indépendants & Freelances** : Protection des provisions fiscales et float sur factures en retard.
-3. **PSP & Marketplaces B2B** : Optimisation de float institutionnel et facilités de crédit court terme automatisées.
+- Les transactions validées du vault ouvert, dépôt, configuration du broker, LoanSet, LoanPay et retrait sont consignées dans le registre de preuves.
+- Le décaissement est rapproché par les variations de soldes de la LoanSet validée ; il n’existe pas de transaction `Drawdown` distincte dans cette preuve.
+- Le retrait après remboursement inclut 1 370 drops d’intérêt constaté.
 
----
+Ces opérations ont été exécutées séparément de l’interface Octro. L’écran produit rejoue les preuves enregistrées et ouvre leurs liens d’explorateur ; il n’effectue pas le cycle en direct.
 
-## Slide 9 — Modèle Économique & Go-to-Market
-- **SaaS B2B** : Abonnement pour le moteur d'optimisation et les connecteurs ERP/Banques.
-- **Frais d'infrastructure API** : Micro-frais à l'arbitrage de liquidité.
-- **Pilote B2B encadré** : Lancement pilote sur un corridor spécifique avant expansion multi-devises (RLUSD / EUR).
+## Slide 7 — Loaded : contrôler le dépôt dans un vault privé
 
----
+- Sur le Devnet, un dépôt dans un vault privé est refusé sans Credential reconnue puis accepté avec l’attestation correspondante.
+- Après expiration, un nouveau dépôt est refusé tandis que le retrait des parts déjà détenues reste possible dans le scénario observé.
+- Ce contrôle de dépôt n’est pas une décision de solvabilité ou d’éligibilité au prêt ; cette décision applicative distincte reste à livrer.
 
-## Slide 10 — Conclusion & Équipe
-- **Ce qui est livré aujourd'hui** :
-  - 5 écrans React Native / Expo Web fluides et dynamiques.
-  - Moteur mathématique pur vérifié par 26 tests unitaires.
-  - Cycle de prêt XRPL réel exécuté et documenté sur le devnet.
-  - Serveur MCP et orchestrateur d'agents bornés.
-- **Octro** : Donnez à chaque trésorerie le pouvoir de l'anticipation.
+## Slide 8 — Trois publics, un périmètre encore en construction
+
+- Le parcours relié au moteur présenté aujourd’hui est le scénario personnel quotidien.
+- Les vues indépendant et organisation sont des scénarios de démonstration, pas des Workspaces professionnels persistants.
+- La projection professionnelle à 72 heures et la recette complète des trois publics restent ouvertes.
+
+## Slide 9 — Modèle économique à valider
+
+- Hypothèse de travail : socle personnel gratuit, options d’automatisation et offre d’équipe/API.
+- Tarifs, frais et intérêt utilisateur restent à tester ; aucun pilote commercial ni corridor multi-devises n’est revendiqué.
+
+## Slide 10 — État du prototype et prochaine étape
+
+- Présent : cinq écrans web, projection personnelle structurée, diagnostic sans solution, et preuves XRPL historiques consultables.
+- À raccorder : persistance et authentification durables, parcours professionnels, décision de crédit applicative et exécution Loaded depuis le produit.
+- À mesurer avant toute revendication : accessibilité complète, tests utilisateurs et feedback personnel de chaque développeur (`DEVEX-01`, `DEVEX-02`).
+
+**Octro rend le manque visible avant de transformer une prévision en action.**

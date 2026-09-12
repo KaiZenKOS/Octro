@@ -4,7 +4,7 @@
 # La composition peut activer PostgreSQL et les adaptateurs lending lorsque la
 # configuration correspondante est présente ; le calcul reste délégué au
 # moteur Python déterministe inclus dans l'image.
-FROM node:22-bookworm-slim
+FROM node:22.17.0-bookworm-slim
 
 WORKDIR /app
 
@@ -20,6 +20,8 @@ COPY packages ./packages
 COPY apps ./apps
 COPY services ./services
 COPY docs/v2.2/hackathon.config.json ./docs/v2.2/hackathon.config.json
+COPY infra/config/environment.mjs ./infra/config/environment.mjs
+COPY infra/config/environment.d.mts ./infra/config/environment.d.mts
 # Certificat public (pas une cle privee) epingle pour la verification TLS du
 # Postgres distant (PGSSLROOTCERT dans .env) — sans lui l'API ne peut pas
 # ouvrir de connexion chiffree verifiee au demarrage en conteneur.

@@ -198,15 +198,15 @@ function DesktopMetricStrip() {
     return <View style={s.metricStrip}>
         <View style={s.metricPill}>
             <T style={s.metricLabel}>{t('Compte', 'Current')}</T>
-            <T style={[s.money, s.metricValue]}>{euro(data.request.opening_balances.current, language)}</T>
+            <T style={[s.money, s.metricValue]}>{data.sessionRequired ? '—' : euro(data.request.opening_balances.current, language)}</T>
         </View>
         <View style={s.metricPill}>
             <T style={s.metricLabel}>{t('Épargne', 'Savings')}</T>
-            <T style={[s.money, s.metricValue]}>{euro(data.request.opening_balances.savings, language)}</T>
+            <T style={[s.money, s.metricValue]}>{data.sessionRequired ? '—' : euro(data.request.opening_balances.savings, language)}</T>
         </View>
         <View style={s.metricPill}>
             <T style={s.metricLabel}>{t('Réserve', 'Reserve')}</T>
-            <T style={[s.money, s.metricValue]}>{euro(data.request.current_reserve, language)}</T>
+            <T style={[s.money, s.metricValue]}>{data.sessionRequired ? '—' : euro(data.request.current_reserve, language)}</T>
         </View>
     </View>;
 }
@@ -370,8 +370,10 @@ function RecalculationNotice() {
     if (planView.state === 'stale') return <Notice title={t('Projection à recalculer', 'Forecast needs recalculation')}>
         {t('Les hypothèses ont changé. Le plan précédent n’est plus affiché ; aucun transfert n’est recommandé avant le nouveau résultat.', 'Assumptions changed. The previous plan is hidden; no transfer is recommended until a fresh result is available.')}
     </Notice>;
-    if (planView.state === 'unavailable') return <Notice title={t('Calcul indisponible', 'Calculation unavailable')}>
-        {t('Le service de projection ne répond pas. Les événements déclarés restent consultables, mais aucune action n’est recommandée.', 'The forecast service is unavailable. Declared events remain visible, but no action is recommended.')}
+    if (planView.state === 'unavailable') return <Notice title={data?.sessionRequired ? t('Session requise', 'Session required') : t('Calcul indisponible', 'Calculation unavailable')}>
+        {data?.sessionRequired
+            ? t('Reconnectez-vous pour enregistrer vos hypothèses et recalculer. La prévision ne requiert ni wallet ni KYC ; aucune donnée de démonstration ne remplace votre espace.', 'Sign in to save your assumptions and recalculate. Forecasting requires neither a wallet nor KYC; demo data is not shown as a substitute for your workspace.')
+            : data?.sourceMessage ?? t('Le service de projection ne répond pas. Les événements déclarés restent consultables, mais aucune action n’est recommandée.', 'The forecast service is unavailable. Declared events remain visible, but no action is recommended.')}
     </Notice>;
     return null;
 }
@@ -435,13 +437,13 @@ function Home() {
                 <View style={s.heroTop}>
                     <View style={{ gap: 7 }}>
                         <T style={s.eyebrow}>{t('SOLDE DÉCLARÉ · COMPTE COURANT', 'DECLARED BALANCE · CURRENT ACCOUNT')}</T>
-                        {data ? <Money value={data.request.opening_balances.current} size={desktop ? 68 : 54} /> : <ActivityIndicator color={c.accent} />}
+                        {data?.sessionRequired ? <T style={s.heroValue}>—</T> : data ? <Money value={data.request.opening_balances.current} size={desktop ? 68 : 54} /> : <ActivityIndicator color={c.accent} />}
                     </View>
                     <View style={s.heroMark}><Icon name="calendar" size={22} color={c.accent} /></View>
                 </View>
                 <View style={s.heroFooter}>
                     <Note>{t('Épargne déclarée', 'Declared savings')}</Note>
-                    <T style={s.heroValue}>{data ? euro(data.request.opening_balances.savings, language) : '—'}</T>
+                    <T style={s.heroValue}>{data && !data.sessionRequired ? euro(data.request.opening_balances.savings, language) : '—'}</T>
                 </View>
                 <Note>{t('Espace personnel · données déclarées', 'Personal workspace · declared data')}</Note>
             </Card>
@@ -450,7 +452,7 @@ function Home() {
                 <Card style={[s.chartCard, desktop ? s.chartCardDesktop : undefined]}><ProjectionChart /></Card>
                 {lowest && <View style={s.lowSummary}>
                     <View style={{ flex: 1, minWidth: 0 }}><T style={s.eyebrow}>{t('POINT BAS PRÉVU', 'PROJECTED LOW')}</T><Money value={lowest.expected_balance} size={28} /><Note>{t('À ', 'On ')}{daysLabel(lowest.t, language)}</Note></View>
-                    <View style={s.reserveSummary}><Icon name="shield" size={19} color={c.accent} /><T style={s.reserveSummaryText}>{t('Réserve à préserver : ', 'Protected reserve: ')}{data ? euro(data.request.current_reserve, language) : '—'}</T></View>
+                    <View style={s.reserveSummary}><Icon name="shield" size={19} color={c.accent} /><T style={s.reserveSummaryText}>{t('Réserve à préserver : ', 'Protected reserve: ')}{data && !data.sessionRequired ? euro(data.request.current_reserve, language) : '—'}</T></View>
                 </View>}
             </View>
             <SimulationToolbar />
@@ -501,7 +503,7 @@ function Comparison() {
     ].filter((entry): entry is [string, string] => entry[1] !== undefined);
     return <View style={s.comparison}>
         <CardTitle eyebrow={t('RÉSULTAT STRUCTURÉ', 'STRUCTURED RESULT')} title={t('Hypothèses et prévision', 'Inputs and forecast')} />
-        {entries.map(([label, amount]) => <View key={label} style={s.comparisonRow}><T style={{ flex: 1 }}>{label}</T><T style={s.rowValue}>{euro(amount, language)}</T></View>)}
+        {entries.map(([label, amount]) => <View key={label} style={s.comparisonRow}><T style={{ flex: 1 }}>{label}</T><T style={s.rowValue}>{data?.sessionRequired ? '—' : euro(amount, language)}</T></View>)}
         <Note>{t('Les entrées attendues restent séparées des soldes confirmés.', 'Expected inflows remain separate from confirmed balances.')}</Note>
     </View>;
 }
@@ -584,9 +586,9 @@ function Sources() {
     const [savings, setSavings] = useState(data?.request.opening_balances.savings ?? demoFixture.opening_balances.savings);
     const [reserve, setReserve] = useState(data?.request.current_reserve ?? demoFixture.current_reserve);
     const [protectedSavings, setProtectedSavings] = useState(data?.request.savings_protected_reserve ?? '0.00');
-    const currentValue = data?.request.opening_balances.current ?? demoFixture.opening_balances.current;
-    const savingsValue = data?.request.opening_balances.savings ?? demoFixture.opening_balances.savings;
-    const reserveValue = data?.request.current_reserve ?? demoFixture.current_reserve;
+    const currentValue = data?.sessionRequired ? null : data?.request.opening_balances.current ?? demoFixture.opening_balances.current;
+    const savingsValue = data?.sessionRequired ? null : data?.request.opening_balances.savings ?? demoFixture.opening_balances.savings;
+    const reserveValue = data?.sessionRequired ? null : data?.request.current_reserve ?? demoFixture.current_reserve;
 
     return <PageTransition key="sources">
         <Title>{t('Vos sources', 'Your sources')}</Title>
@@ -594,7 +596,7 @@ function Sources() {
         <RecalculationNotice />
         <Split main={<>
             <Card warm style={s.detail}>
-                <View style={s.sectionHeader}><CardTitle eyebrow={t('ESPACE PERSONNEL', 'PERSONAL WORKSPACE')} title={t('Soldes déclarés', 'Declared balances')} /><Button variant="secondary" onPress={() => { setEditing(!editing); setError(null); }}>{editing ? t('Annuler', 'Cancel') : t('Modifier', 'Edit')}</Button></View>
+                <View style={s.sectionHeader}><CardTitle eyebrow={t('ESPACE PERSONNEL', 'PERSONAL WORKSPACE')} title={t('Soldes déclarés', 'Declared balances')} /><Button variant="secondary" disabled={data?.sessionRequired} onPress={() => { setEditing(!editing); setError(null); }}>{editing ? t('Annuler', 'Cancel') : t('Modifier', 'Edit')}</Button></View>
                 {editing ? <View style={{ gap: 14 }}>
                     <Field label={t('Compte courant (€)', 'Current account (€)')} value={current} onChangeText={setCurrent} keyboardType="decimal-pad" accessibilityHint={t('Solde déclaré du compte courant', 'Declared current account balance')} />
                     <Field label={t('Épargne totale (€)', 'Total savings (€)')} value={savings} onChangeText={setSavings} keyboardType="decimal-pad" />
@@ -613,9 +615,9 @@ function Sources() {
                         });
                     }}>{t('Recalculer avec ces soldes', 'Recalculate with these balances')}</Button>
                 </View> : <View>
-                    <SourceRow title={t('Compte courant', 'Current account')} subtitle={t('Déclaré par vous', 'Declared by you')} value={euro(currentValue, language)} icon="sources" />
-                    <SourceRow title={t('Épargne', 'Savings')} subtitle={t('Déclarée par vous', 'Declared by you')} value={euro(savingsValue, language)} icon="shield" />
-                    <SourceRow title={t('Réserve courante', 'Current reserve')} subtitle={t('Seuil que le plan doit préserver', 'Floor the plan must preserve')} value={euro(reserveValue, language)} icon="shield" />
+                    <SourceRow title={t('Compte courant', 'Current account')} subtitle={t('Déclaré par vous', 'Declared by you')} value={currentValue === null ? '—' : euro(currentValue, language)} icon="sources" />
+                    <SourceRow title={t('Épargne', 'Savings')} subtitle={t('Déclarée par vous', 'Declared by you')} value={savingsValue === null ? '—' : euro(savingsValue, language)} icon="shield" />
+                    <SourceRow title={t('Réserve courante', 'Current reserve')} subtitle={t('Seuil que le plan doit préserver', 'Floor the plan must preserve')} value={reserveValue === null ? '—' : euro(reserveValue, language)} icon="shield" />
                 </View>}
                 <Note>{t('Ces données ne sont pas vérifiées par une banque.', 'These values have not been verified by a bank.')}</Note>
             </Card>

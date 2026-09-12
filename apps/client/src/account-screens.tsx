@@ -3,7 +3,7 @@ import { Modal, View } from 'react-native';
 import { Badge, Button, Card, Field, PageTransition, Typography as T, tokens } from '@octro/ui';
 import { useAuth } from './auth';
 import { useLendingApi } from './lending-data';
-import type { CreditAssessment, KycStatus, OdooConnection } from './lending-data';
+import type { CreditAssessment, KycStatus, OdooCompany, OdooConnection } from './lending-data';
 
 const c = tokens.color;
 
@@ -139,7 +139,6 @@ function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void })
 function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnection) => void }) {
   const api = useLendingApi();
   const [odooUrl, setOdooUrl] = useState('');
-  const [odooDb, setOdooDb] = useState('');
   const [odooApiKey, setOdooApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,7 +147,7 @@ function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnec
     setBusy(true);
     setError(null);
     try {
-      const connection = await api.saveOdooConnection(odooUrl.trim(), odooDb.trim(), odooApiKey.trim());
+      const connection = await api.saveOdooConnection(odooUrl.trim(), odooApiKey.trim());
       onConnected(connection);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');
@@ -162,25 +161,88 @@ function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnec
       <T variant="title">Connecter votre Odoo</T>
       <T variant="muted">
         Le score de crédit est calculé depuis vos propres données Odoo (Ventes, Facturation, Comptabilité) — un seul
-        fournisseur pour l'instant. Votre clé API n'est jamais réaffichée.
+        fournisseur pour l'instant. Votre clé API n'est jamais réaffichée et le nom technique de la base n'est pas requis.
       </T>
       <Field label="URL Odoo" value={odooUrl} onChangeText={setOdooUrl} placeholder="https://mon-entreprise.odoo.com" autoCapitalize="none" />
-      <Field label="Base de données Odoo" value={odooDb} onChangeText={setOdooDb} autoCapitalize="none" />
       <Field label="Clé API Odoo" value={odooApiKey} onChangeText={setOdooApiKey} secureTextEntry />
       <ErrorNote message={error} />
-      <Button busy={busy} disabled={!odooUrl || !odooDb || !odooApiKey} onPress={submit}>
+      <Button busy={busy} disabled={!odooUrl || !odooApiKey} onPress={submit}>
         Connecter
       </Button>
     </Card>
   );
 }
 
+function CompanySelector({
+  connection,
+  selectedCompanyId,
+  onSelected,
+}: {
+  connection: OdooConnection;
+  selectedCompanyId: number | null;
+  onSelected: (companyId: number) => void;
+}) {
+  const { listOdooCompanies } = useLendingApi();
+  const [companies, setCompanies] = useState<OdooCompany[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setBusy(true);
+    setError(null);
+    listOdooCompanies(connection.id)
+      .then((items) => {
+        if (!active) return;
+        setCompanies(items);
+        if (items.length === 1) onSelected(items[0]!.id);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : 'Impossible de charger les sociétés Odoo');
+      })
+      .finally(() => {
+        if (active) setBusy(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [connection.id, listOdooCompanies, onSelected]);
+
+  return (
+    <Card style={{ gap: 14 }}>
+      <View style={{ gap: 5 }}>
+        <T variant="title">Périmètre Odoo</T>
+        <T variant="muted">Choisissez la société dont les données serviront à l’évaluation. Seules vos sociétés accessibles sont proposées.</T>
+      </View>
+      {busy && <T variant="muted">Chargement des sociétés…</T>}
+      <ErrorNote message={error} />
+      {!busy && !error && companies.length === 0 && (
+        <T variant="muted">Aucune société accessible avec cette clé API.</T>
+      )}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {companies.map((company) => (
+          <Button
+            key={company.id}
+            variant={selectedCompanyId === company.id ? 'primary' : 'secondary'}
+            onPress={() => onSelected(company.id)}
+          >
+            {company.name}
+          </Button>
+        ))}
+      </View>
+    </Card>
+  );
+}
+
 function CreditAssessmentPanel({
   connection,
+  companyId,
   assessment,
   onAssessed,
 }: {
   connection: OdooConnection;
+  companyId: number | null;
   assessment: CreditAssessment | null;
   onAssessed: (assessment: CreditAssessment) => void;
 }) {
@@ -195,7 +257,7 @@ function CreditAssessmentPanel({
     setBusy(true);
     setError(null);
     try {
-      onAssessed(await api.requestCreditAssessment(connection.id));
+      onAssessed(await api.requestCreditAssessment(connection.id, companyId ?? undefined));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');
     } finally {
@@ -208,9 +270,10 @@ function CreditAssessmentPanel({
       <T variant="title">Évaluation de crédit</T>
       <T variant="muted">Odoo connecté : {connection.odoo_url}</T>
       <ErrorNote message={error} />
-      <Button busy={busy} onPress={requestAssessment}>
+      <Button busy={busy} disabled={companyId === null} onPress={requestAssessment}>
         {assessment ? 'Réévaluer' : "Demander l'évaluation"}
       </Button>
+      {companyId === null && <T variant="muted">Sélectionnez d’abord la société Odoo à analyser.</T>}
       {assessment && (
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -315,6 +378,7 @@ export function AccountScreen() {
   const api = useLendingApi();
   const [kyc, setKyc] = useState<KycStatus | null>(null);
   const [odooConnection, setOdooConnection] = useState<OdooConnection | null>(null);
+  const [companyId, setCompanyId] = useState<number | null>(null);
   const [assessment, setAssessment] = useState<CreditAssessment | null>(null);
   const [walletReady, setWalletReady] = useState(false);
   const [walletBusy, setWalletBusy] = useState(false);
@@ -381,7 +445,15 @@ export function AccountScreen() {
           {!odooConnection ? (
             <OdooConnectForm onConnected={setOdooConnection} />
           ) : (
-            <CreditAssessmentPanel connection={odooConnection} assessment={assessment} onAssessed={setAssessment} />
+            <>
+              <CompanySelector connection={odooConnection} selectedCompanyId={companyId} onSelected={setCompanyId} />
+              <CreditAssessmentPanel
+                connection={odooConnection}
+                companyId={companyId}
+                assessment={assessment}
+                onAssessed={setAssessment}
+              />
+            </>
           )}
           <LendingPanel assessment={assessment} walletReady={walletReady} />
         </>

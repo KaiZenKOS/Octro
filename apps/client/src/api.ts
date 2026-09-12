@@ -11,11 +11,23 @@ import type {
     Workspace,
 } from '@octro/contracts';
 
-// Expo only substitutes EXPO_PUBLIC variables when accessed with this exact
-// static dot notation. This value is a public endpoint, never a credential.
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? '/api';
+// One public endpoint setting is shared with auth, KYC, credit and lending.
+// The URL is configuration, never a credential.
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
 
-const DEMO_OWNER_ID = 'a3000000-0000-4000-8000-000000000001';
+export class ApiResponseError extends Error {
+    constructor(message: string, public readonly status: number) {
+        super(message);
+        this.name = 'ApiResponseError';
+    }
+}
+
+export class ApiAuthenticationRequiredError extends ApiResponseError {
+    constructor(status = 401) {
+        super('Your session is missing or expired. Sign in again to save and calculate this workspace.', status);
+        this.name = 'ApiAuthenticationRequiredError';
+    }
+}
 
 export interface EconomicEventPayload {
     direction: 'inflow' | 'outflow';
@@ -32,16 +44,29 @@ export type EventRecordOptions = {
 export interface ProjectionInputs extends Omit<ProjectionRequest, 'workspace_id'> {}
 
 export class OctroApiClient {
-    constructor(private readonly fetcher: typeof fetch = fetch) {}
+    constructor(
+        private readonly fetcher: typeof fetch = fetch,
+        private readonly getSessionToken: () => string | null = () => null,
+    ) {}
 
     private async request<T>(path: string, init?: RequestInit): Promise<T> {
-        const response = await this.fetcher(`${API_BASE_URL}${path}`, init);
+        const token = this.getSessionToken();
+        if (!token) throw new ApiAuthenticationRequiredError();
+        const headers = new Headers(init?.headers);
+        headers.set('Authorization', `Bearer ${token}`);
+        const response = await this.fetcher(`${API_BASE_URL}${path}`, {
+            ...init,
+            headers,
+        });
         const body: unknown = await response.json().catch(() => undefined);
         if (!response.ok) {
             const message = typeof body === 'object' && body !== null && 'message' in body && typeof body.message === 'string'
                 ? body.message
                 : `API request failed (${response.status})`;
-            throw new Error(message);
+            if (response.status === 401 || response.status === 403) {
+                throw new ApiAuthenticationRequiredError(response.status);
+            }
+            throw new ApiResponseError(message, response.status);
         }
         return body as T;
     }
@@ -50,7 +75,7 @@ export class OctroApiClient {
         const result = await this.request<unknown>('/v1/workspaces', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ owner_user_id: DEMO_OWNER_ID, kind: 'personal', display_name: displayName }),
+            body: JSON.stringify({ kind: 'personal', display_name: displayName }),
         });
         return WorkspaceSchema.parse(result);
     }
@@ -58,7 +83,6 @@ export class OctroApiClient {
     async recordEvent(workspaceId: string, event: EconomicEventPayload, options?: EventRecordOptions): Promise<EconomicEvent> {
         const headers: Record<string, string> = {
             "Content-Type": "application/json",
-            "x-dev-tenant-id": workspaceId,
         };
         if (options?.idempotencyKey) {
             headers["idempotency-key"] = options.idempotencyKey;
@@ -77,12 +101,9 @@ export class OctroApiClient {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-dev-tenant-id': workspaceId,
             },
             body: JSON.stringify(body),
         });
         return ProjectionResultSchema.parse(result);
     }
 }
-
-export const apiClient = new OctroApiClient();

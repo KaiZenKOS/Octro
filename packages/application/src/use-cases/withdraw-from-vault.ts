@@ -1,6 +1,6 @@
 import type { WithdrawalFundedFrom, WithdrawalRequest } from "@octro/contracts";
 import type { BufferDisbursementPort, LendingV1Port } from "@octro/xrpl";
-import { AccessDeniedError, assertAdvanceWithinBalance, assertKycValid } from "@octro/domain";
+import { AccessDeniedError, assertAdvanceWithinBalance, assertFinancingCapability, assertKycValid } from "@octro/domain";
 import { NotFoundError } from "../errors.js";
 import type { BufferLedgerRepository } from "../ports/buffer-ledger-repository.js";
 import type { Clock } from "../ports/clock.js";
@@ -9,6 +9,7 @@ import type { IdGenerator } from "../ports/id-generator.js";
 import type { KycStatusRepository } from "../ports/kyc-status-repository.js";
 import type { LenderDepositRepository } from "../ports/lender-deposit-repository.js";
 import type { LendingPoolRepository } from "../ports/lending-pool-repository.js";
+import type { NetworkCapabilitiesPort } from "../ports/network-capabilities-port.js";
 import type { WalletRepository } from "../ports/wallet-repository.js";
 import type { WithdrawalRequestRepository } from "../ports/withdrawal-request-repository.js";
 import { assertReady } from "../xrpl-support.js";
@@ -38,6 +39,7 @@ export class WithdrawFromVaultUseCase {
     private readonly deposits: LenderDepositRepository,
     private readonly withdrawalRequests: WithdrawalRequestRepository,
     private readonly bufferLedger: BufferLedgerRepository,
+    private readonly capabilities: NetworkCapabilitiesPort,
     private readonly lending: LendingV1Port,
     private readonly bufferDisbursement: BufferDisbursementPort,
     private readonly walletCrypto: CryptoPort,
@@ -51,6 +53,7 @@ export class WithdrawFromVaultUseCase {
   ) {}
 
   async execute(command: WithdrawFromVaultCommand): Promise<WithdrawalRequest> {
+    assertFinancingCapability(await this.capabilities.get(), "single_asset_vault");
     const kyc = await this.kycStatuses.findByUserId(command.userId);
     assertKycValid(kyc?.status ?? "not_started");
 

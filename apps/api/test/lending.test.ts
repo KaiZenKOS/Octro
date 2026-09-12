@@ -1,10 +1,10 @@
-import { RecordingMailAdapter } from "@octro/application";
+import { RecordingMailAdapter, StaticNetworkCapabilitiesAdapter, UNVERIFIED_HACKATHON_CAPABILITIES } from "@octro/application";
 import { describe, expect, it } from "vitest";
 import { buildDependencies } from "../src/composition.js";
 import { buildServer } from "../src/server.js";
 
-function client() {
-  const deps = buildDependencies();
+function client(overrides: Parameters<typeof buildDependencies>[0] = {}) {
+  const deps = buildDependencies(overrides);
   return { app: buildServer(deps), deps };
 }
 
@@ -41,6 +41,29 @@ async function signUpVerifyLoginAndSimulateKyc(c: ReturnType<typeof client>, ema
 }
 
 describe("Octro API — lending V1 sur vault/broker partage (Phase E, FakeLendingV1Adapter)", () => {
+  it("fails closed before touching lending when the network capability is not verified (NET-02)", async () => {
+    const c = client({
+      networkCapabilities: new StaticNetworkCapabilitiesAdapter(UNVERIFIED_HACKATHON_CAPABILITIES),
+    });
+    await c.deps.bootstrapLendingPool.execute({
+      ownerAddress: "rPoolOwnerFake",
+      ownerSeed: "sPoolOwnerFakeSeed",
+      debtMaximumDrops: "1000000000",
+      managementFeeRate: 0,
+    });
+    const { token } = await signUpVerifyLoginAndSimulateKyc(c, "network-gated-lender@example.com");
+
+    const res = await c.app.inject({
+      method: "POST",
+      url: "/v1/lending/deposit",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { amount_drops: "50000000" },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ code: "NETWORK_UNSUPPORTED", retryable: false });
+  });
+
   it("rejects a deposit before the shared pool is bootstrapped (404)", async () => {
     const c = client();
     const { token } = await signUpVerifyLoginAndSimulateKyc(c, "lender-no-pool@example.com");

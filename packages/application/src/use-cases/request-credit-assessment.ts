@@ -16,6 +16,7 @@ const MS_PER_MONTH = 30.44 * 24 * 60 * 60 * 1000;
 export interface RequestCreditAssessmentCommand {
   userId: string;
   odooConnectionId: string;
+  companyId?: number;
 }
 
 // PER-11 : KYC valide requis. Charge la connexion Odoo BYO de l'utilisateur
@@ -51,6 +52,7 @@ export class RequestCreditAssessmentUseCase {
       odooDb: connection.odooDb,
       apiKey,
       sinceDate,
+      ...(command.companyId !== undefined ? { companyId: command.companyId } : {}),
     });
     const result = assessCredit(raw);
 

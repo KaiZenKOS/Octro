@@ -12,3 +12,15 @@ export function assertNumeric38Scale18(value: unknown): asserts value is string 
     throw new RangeError("DATA-03: amount exceeds NUMERIC(38,18)");
   }
 }
+
+/** Normalize PostgreSQL's fixed-scale numeric text for semantic replay checks. */
+export function canonicalDecimal(value: string): string {
+  assertNumeric38Scale18(value);
+  const negative = value.startsWith("-");
+  const unsigned = negative ? value.slice(1) : value;
+  const [integerPart = "0", fractionalPart = ""] = unsigned.split(".");
+  const integer = integerPart.replace(/^0+(?=\d)/, "");
+  const fraction = fractionalPart.replace(/0+$/, "");
+  if (integer === "0" && fraction.length === 0) return "0";
+  return `${negative ? "-" : ""}${integer}${fraction ? `.${fraction}` : ""}`;
+}

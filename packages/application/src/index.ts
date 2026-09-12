@@ -63,6 +63,7 @@ export * from "./ports/odoo-port.js";
 export * from "./ports/odoo-connection-repository.js";
 export * from "./ports/credit-assessment-repository.js";
 export * from "./use-cases/save-odoo-connection.js";
+export * from "./use-cases/list-odoo-companies.js";
 export * from "./use-cases/request-credit-assessment.js";
 export * from "./use-cases/get-latest-credit-assessment.js";
 export * from "./adapters/in-memory/in-memory-odoo-connection-repository.js";

@@ -50,7 +50,7 @@ function mockOdooFetch() {
     const url = String(input);
     if (url.endsWith("/json/2/res.users/context_get")) return jsonResponse({ uid: 42 });
     if (url.endsWith("/json/2/res.users/read")) return jsonResponse([{ company_id: [1, "Acme"], company_ids: [1] }]);
-    if (url.endsWith("/json/2/res.company/read")) return jsonResponse([{ name: "Acme Test", currency_id: [1, "EUR"] }]);
+    if (url.endsWith("/json/2/res.company/read")) return jsonResponse([{ id: 1, name: "Acme Test", currency_id: [1, "EUR"] }]);
     if (url.endsWith("/json/2/sale.order/search_read")) return jsonResponse([]);
     if (url.endsWith("/json/2/account.move/search_read")) return jsonResponse([]);
     if (url.endsWith("/json/2/account.account/search_read")) return jsonResponse([]);
@@ -87,17 +87,26 @@ describe("Octro API — credit Odoo BYO (Phase D)", () => {
       method: "POST",
       url: "/v1/credit/odoo-connection",
       headers: { authorization: `Bearer ${token}` },
-      payload: { odoo_url: "https://odoo.example.com", odoo_db: "acme", odoo_api_key: "secret-key" },
+      payload: { odoo_url: "https://odoo.example.com", odoo_api_key: "secret-key" },
     });
     expect(connection.statusCode).toBe(201);
     const connectionBody = connection.json();
     expect(connectionBody.odoo_api_key).toBeUndefined();
+    expect(connectionBody.odoo_db).toBeNull();
+
+    const companies = await c.app.inject({
+      method: "GET",
+      url: `/v1/credit/odoo-companies?odoo_connection_id=${connectionBody.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(companies.statusCode).toBe(200);
+    expect(companies.json()).toEqual([{ id: 1, name: "Acme Test" }]);
 
     const assessment = await c.app.inject({
       method: "POST",
       url: "/v1/credit/assessment",
       headers: { authorization: `Bearer ${token}` },
-      payload: { odoo_connection_id: connectionBody.id },
+      payload: { odoo_connection_id: connectionBody.id, company_id: 1 },
     });
     expect(assessment.statusCode).toBe(201);
     const assessmentBody = assessment.json();

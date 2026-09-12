@@ -1,6 +1,6 @@
 import type { LenderDeposit } from "@octro/contracts";
 import type { LendingV1Port } from "@octro/xrpl";
-import { assertKycValid } from "@octro/domain";
+import { assertFinancingCapability, assertKycValid } from "@octro/domain";
 import { NotFoundError } from "../errors.js";
 import type { Clock } from "../ports/clock.js";
 import type { CryptoPort } from "../ports/crypto-port.js";
@@ -8,6 +8,7 @@ import type { IdGenerator } from "../ports/id-generator.js";
 import type { KycStatusRepository } from "../ports/kyc-status-repository.js";
 import type { LenderDepositRepository } from "../ports/lender-deposit-repository.js";
 import type { LendingPoolRepository } from "../ports/lending-pool-repository.js";
+import type { NetworkCapabilitiesPort } from "../ports/network-capabilities-port.js";
 import type { WalletRepository } from "../ports/wallet-repository.js";
 import { assertReady } from "../xrpl-support.js";
 
@@ -25,6 +26,7 @@ export class LenderDepositUseCase {
     private readonly wallets: WalletRepository,
     private readonly pools: LendingPoolRepository,
     private readonly deposits: LenderDepositRepository,
+    private readonly capabilities: NetworkCapabilitiesPort,
     private readonly lending: LendingV1Port,
     private readonly crypto: CryptoPort,
     private readonly clock: Clock,
@@ -32,6 +34,7 @@ export class LenderDepositUseCase {
   ) {}
 
   async execute(command: LenderDepositCommand): Promise<LenderDeposit> {
+    assertFinancingCapability(await this.capabilities.get(), "single_asset_vault");
     const kyc = await this.kycStatuses.findByUserId(command.userId);
     assertKycValid(kyc?.status ?? "not_started");
 

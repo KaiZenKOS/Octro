@@ -9,7 +9,7 @@ import { toOdooConnectionDTO, type OdooConnectionRepository } from "../ports/odo
 export interface SaveOdooConnectionCommand {
   userId: string;
   odooUrl: string;
-  odooDb: string;
+  odooDb?: string | null;
   odooApiKey: string;
 }
 
@@ -34,7 +34,7 @@ export class SaveOdooConnectionUseCase {
       userId: command.userId,
       provider: "odoo" as const,
       odooUrl: command.odooUrl,
-      odooDb: command.odooDb,
+      odooDb: command.odooDb ?? null,
       apiKeyCiphertext: await this.crypto.encrypt(command.odooApiKey),
       createdAt: this.clock.now(),
       lastUsedAt: null,

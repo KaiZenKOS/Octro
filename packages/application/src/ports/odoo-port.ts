@@ -2,8 +2,13 @@ import type { CreditAssessmentRawFinancials } from "@octro/credit";
 
 export interface OdooCredentials {
   odooUrl: string;
-  odooDb: string;
+  odooDb?: string | null;
   apiKey: string;
+}
+
+export interface OdooCompany {
+  id: number;
+  name: string;
 }
 
 // Une seule methode grossiere qui enchaine en interne tous les appels
@@ -12,5 +17,8 @@ export interface OdooCredentials {
 // l'adaptateur HTTP fin et toute la logique de score hors de lui (voir
 // @octro/credit).
 export interface OdooPort {
-  fetchCreditInputs(params: OdooCredentials & { sinceDate: string }): Promise<CreditAssessmentRawFinancials>;
+  listCompanies(params: OdooCredentials): Promise<OdooCompany[]>;
+  fetchCreditInputs(
+    params: OdooCredentials & { sinceDate: string; companyId?: number },
+  ): Promise<CreditAssessmentRawFinancials>;
 }

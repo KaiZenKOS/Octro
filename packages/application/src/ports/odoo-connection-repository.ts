@@ -8,7 +8,7 @@ export interface OdooConnectionRecord {
   userId: string;
   provider: OdooConnectionProvider;
   odooUrl: string;
-  odooDb: string;
+  odooDb: string | null;
   apiKeyCiphertext: string;
   createdAt: Date;
   lastUsedAt: Date | null;

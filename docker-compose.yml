@@ -1,4 +1,4 @@
-# Lance l'API Octro (composition métier en mémoire) et le client en local.
+# Lance l'API Octro (composition PostgreSQL quand elle est configurée) et le client en local.
 # PostgreSQL/MongoDB sont des instances distantes deja provisionnees (voir
 # .env, a completer depuis .env.example) ; aucun conteneur de base de donnees
 # n'est demarre ici. Pour un PostgreSQL local isole (tests avant l'adaptateur

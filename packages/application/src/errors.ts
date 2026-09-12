@@ -27,9 +27,8 @@ export class IdempotencyConflictError extends Error {
 }
 
 // Extension Lending/KYC/Credit (Phase A — comptes). Ces refus d'authentification
-// restent hors de l'enum ErrorCodeSchema (packages/contracts/src/errors.ts),
-// comme le placeholder x-dev-tenant-id existant (SEC-01) : ce sont des
-// echecs de transport/authentification, pas des codes metier du chapitre 19.
+// restent hors de l'enum ErrorCodeSchema (packages/contracts/src/errors.ts) :
+// ce sont des echecs de transport/session, pas des codes metier du chapitre 19.
 export class EmailAlreadyRegisteredError extends Error {
   constructor(email: string) {
     super(`an account already exists for ${email}`);
@@ -77,5 +76,21 @@ export class LendingOperationFailedError extends Error {
   ) {
     super(`lending operation did not succeed: ${outcome}`);
     this.name = "LendingOperationFailedError";
+  }
+}
+
+/**
+ * The remote Odoo instance rejected an otherwise valid Octro request.
+ * Keep the upstream status for server-side classification, but expose only a
+ * bounded detail so an HTML error page or stack trace is never reflected to
+ * the client.
+ */
+export class OdooRequestFailedError extends Error {
+  constructor(
+    public readonly odooStatus: number,
+    detail: string,
+  ) {
+    super(`Odoo request failed (${odooStatus}): ${detail.slice(0, 300)}`);
+    this.name = "OdooRequestFailedError";
   }
 }

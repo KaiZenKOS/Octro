@@ -36,10 +36,10 @@ export function buildServer(deps: AppDependencies): FastifyInstance {
       callback(null, origin === undefined || allowedOrigins.has(origin));
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Idempotency-Key", "X-Dev-Tenant-Id"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Idempotency-Key"],
     credentials: false,
   });
-  app.register(healthRoutes);
+  app.register((instance) => healthRoutes(instance, deps));
   app.register((instance) => networkCapabilitiesRoutes(instance, deps));
   app.register((instance) => workspaceRoutes(instance, deps));
   app.register((instance) => projectionRoutes(instance, deps));

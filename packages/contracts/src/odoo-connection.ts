@@ -14,7 +14,7 @@ export const OdooConnectionSchema = z.object({
   user_id: IdSchema,
   provider: OdooConnectionProviderSchema,
   odoo_url: z.string().url(),
-  odoo_db: z.string().min(1),
+  odoo_db: z.string().min(1).nullable(),
   created_at: IsoDateTimeSchema,
   last_used_at: IsoDateTimeSchema.nullable(),
 });
