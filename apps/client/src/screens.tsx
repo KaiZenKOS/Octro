@@ -851,7 +851,7 @@ export function Screen({ screen }: {
 
     // Robust route normalization: strips leading/trailing slashes and handles undefined/empty/home/index
     const raw = (screen ? String(screen).trim().toLowerCase().replace(/^\/+/, '').replace(/\/+$/, '') : '');
-    const activeScreen = (!raw || raw === 'index' || raw === 'home' || raw === 'accueil' || raw === '[screen]') ? 'home' : raw;
+    const activeScreen = (!raw || raw === 'index' || raw === 'home' || raw === 'accueil' || raw === '[screen]' || raw === 'undefined') ? 'home' : raw;
 
     if (state === 'loading' || query.isPending)
         return <><Title>{t('Chargement', 'Loading')}</Title><Card><ActivityIndicator color={c.accent}/><T accessibilityLiveRegion="polite">{t('Chargement des données…', 'Loading data…')}</T>{state === 'loading' && <Button variant="secondary" onPress={() => setState('ready')}>{t('Terminer l’aperçu de chargement', 'Finish loading preview')}</Button>}</Card></>;

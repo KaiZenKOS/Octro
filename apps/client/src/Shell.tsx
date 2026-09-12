@@ -29,12 +29,15 @@ export function Shell({ children }: {
     const [walletOpen, setWalletOpen] = useState(false);
     const [agentOpen, setAgentOpen] = useState(false);
     const scroll = useRef<ScrollView>(null);
-    const normalizedPath = (!path || path === '/' || path === '/home' || path === '/index') ? '/' : path;
+    const normalizedPath = (!path || path === '/' || path === '/home' || path === '/index' || path === '/undefined') ? '/' : path;
     const activePath = ['/proposal', '/options'].includes(normalizedPath) ? '/calendar' : ['/add', '/import'].includes(normalizedPath) ? '/sources' : normalizedPath;
 
     useEffect(() => {
         scroll.current?.scrollTo({ y: 0, animated: false });
         if (Platform.OS === 'web') {
+            if (path === '/undefined') {
+                router.replace('/');
+            }
             document.documentElement.lang = language;
             document.title = `Octro — ${t('vos prévisions', 'your forecast')}`;
             setTimeout(() => document.getElementById('screen-title')?.focus(), 0);
@@ -49,7 +52,13 @@ export function Shell({ children }: {
         return (
             <Pressable
                 key={href}
-                onPress={() => router.push(href as any)}
+                onPress={() => {
+                    if (href === '/') {
+                        router.replace('/');
+                    } else {
+                        router.push(href as any);
+                    }
+                }}
                 accessibilityLabel={t(fr, en)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
