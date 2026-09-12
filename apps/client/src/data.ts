@@ -27,6 +27,8 @@ export interface ClientDataSource {
     addEvent?(event: EconomicEventPayload): Promise<void>;
     removeEvent?(eventId: string): Promise<void>;
     resetEvents?(): Promise<void>;
+    updateBalances?(current: number, savings: number, reserve?: number): Promise<void>;
+    setHorizon?(days: number): Promise<void>;
 }
 
 const tenant = 'a1000000-0000-4000-8000-000000000001';
@@ -47,6 +49,11 @@ export function createFixtureSource(): ClientDataSource {
         owner_user_id: 'a3000000-0000-4000-8000-000000000001', created_at: asOf,
     });
     
+    let openingCurrent = parseFloat(fixture.opening_balances.current);
+    let openingSavings = parseFloat(fixture.opening_balances.savings);
+    let protectedReserve = parseFloat(fixture.current_reserve);
+    let activeHorizon = 30;
+
     let dynamicEvents = fixture.events.map((event, i) => ({
         id: `a4000000-0000-4000-8000-00000000000${i + 1}`,
         tenant_id: tenant, source_event_id: `${fixture.id}:${i}`,
@@ -93,10 +100,11 @@ export function createFixtureSource(): ClientDataSource {
             });
 
             const computed = computeProjection(
-                parseFloat(fixture.opening_balances.current),
-                parseFloat(fixture.opening_balances.savings),
-                parseFloat(fixture.current_reserve),
-                projectionEvents
+                openingCurrent,
+                openingSavings,
+                protectedReserve,
+                projectionEvents,
+                activeHorizon
             );
 
             if (computed.deficit > 0) {
@@ -151,6 +159,10 @@ export function createFixtureSource(): ClientDataSource {
             dynamicEvents = dynamicEvents.filter(e => e.id !== eventId);
         },
         async resetEvents() {
+            openingCurrent = parseFloat(fixture.opening_balances.current);
+            openingSavings = parseFloat(fixture.opening_balances.savings);
+            protectedReserve = parseFloat(fixture.current_reserve);
+            activeHorizon = 30;
             dynamicEvents = fixture.events.map((event, i) => ({
                 id: `a4000000-0000-4000-8000-00000000000${i + 1}`,
                 tenant_id: tenant, source_event_id: `${fixture.id}:${i}`,
@@ -159,6 +171,14 @@ export function createFixtureSource(): ClientDataSource {
                 status: 'expected' as const, verification: 'declared' as const, label: event.label,
                 observed_at: asOf, expected_settlement_at: new Date(Date.parse(asOf) + event.day * 86400000).toISOString(),
             }));
+        },
+        async updateBalances(current: number, savings: number, reserve?: number) {
+            openingCurrent = current;
+            openingSavings = savings;
+            if (reserve !== undefined) protectedReserve = reserve;
+        },
+        async setHorizon(days: number) {
+            activeHorizon = days;
         }
     };
 }

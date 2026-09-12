@@ -84,7 +84,18 @@ export function computeProjection(
         dailyBalancesWithAction[day] = runningWithPlan;
     }
 
-    const timelineDays = [0, 2, 4, 6, 10].filter(d => d <= horizonDays);
+    // Collect days with events, horizon boundary and intermediate ticks
+    const daySet = new Set<number>([0, horizonDays]);
+    sortedEvents.forEach(e => {
+        if (e.day <= horizonDays) daySet.add(e.day);
+    });
+    const step = horizonDays <= 7 ? 1 : horizonDays <= 14 ? 2 : horizonDays <= 30 ? 5 : 15;
+    for (let d = 0; d <= horizonDays; d += step) {
+        daySet.add(d);
+    }
+    const sampledDays = Array.from(daySet).sort((a, b) => a - b);
+
+    const timelineDays = sampledDays.filter(d => d <= horizonDays);
     const pointsWithoutAction = timelineDays.map(d => dailyBalancesWithoutAction[d] ?? openingCurrent);
     const pointsWithProposal = timelineDays.map(d => dailyBalancesWithAction[d] ?? (openingCurrent + recommendedTransfer));
     const currentBeforeSalaryWithPlan = dailyBalancesWithAction[lowestDayWithoutAction] ?? reserve;
@@ -93,15 +104,19 @@ export function computeProjection(
     const height = 196;
     const paddingY = 24;
 
-    const allVals = [...dailyBalancesWithoutAction.slice(0, 15), ...dailyBalancesWithAction.slice(0, 15), reserve, 0];
+    const allVals = [
+        ...sampledDays.map(d => dailyBalancesWithoutAction[d] ?? openingCurrent),
+        ...sampledDays.map(d => dailyBalancesWithAction[d] ?? (openingCurrent + recommendedTransfer)),
+        reserve,
+        0
+    ];
     const minVal = Math.min(...allVals) - 50;
     const maxVal = Math.max(...allVals) + 150;
     const valRange = maxVal - minVal || 1;
 
-    const scaleX = (d: number) => (Math.min(d, 10) / 10) * width;
+    const scaleX = (d: number) => (Math.min(d, horizonDays) / (horizonDays || 1)) * width;
     const scaleY = (v: number) => height - paddingY - ((v - minVal) / valRange) * (height - 2 * paddingY);
 
-    const sampledDays = [0, 2, 4, 6, 10];
     let withoutActionPath = '';
     sampledDays.forEach((d, i) => {
         const x = scaleX(d);
@@ -117,6 +132,14 @@ export function computeProjection(
     });
 
     const reserveY = scaleY(reserve);
+
+    const timelineLabels = horizonDays <= 7
+        ? ['Auj.', 'J+1', 'J+2', 'J+4', 'J+6', 'J+7']
+        : horizonDays <= 14
+        ? ['Auj.', 'J+2', 'J+5', 'J+8', 'J+11', 'J+14']
+        : horizonDays <= 30
+        ? ['Auj.', 'J+2', 'J+6', 'J+10', 'J+20', 'J+30']
+        : ['Auj.', 'J+15', 'J+30', 'J+60', 'J+90'];
 
     return {
         openingCurrent,
@@ -142,6 +165,7 @@ export function computeProjection(
             viewBoxWidth: width,
             viewBoxHeight: height,
             gridY: [40, 80, 120, 160],
+            timelineLabels,
         },
     };
 }

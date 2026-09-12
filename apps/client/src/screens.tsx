@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Button, Card, Field, Typography as T, tokens } from '@octro/ui';
 import { DecimalStringSchema } from '@octro/contracts';
 import { demoFixture as fixture, designReference as reference, euro } from './data';
-import { useAcknowledge, useClientData, useCreateEvent, useRemoveEvent, useResetEvents, useSession } from './session';
+import { useAcknowledge, useClientData, useCreateEvent, useRemoveEvent, useResetEvents, useSetHorizon, useUpdateBalances, useSession } from './session';
 import { useDesktop } from './Shell';
 import { Icon } from './Icon';
 const c = tokens.color;
@@ -88,8 +88,10 @@ function Chart() {
     const withActionPath = proj?.svg.withActionPath ?? reference.chartPaths[1]!.geometry;
     const reserveY = proj?.svg.reserveY ?? 162.4;
     const gridLines = proj?.svg.gridY ?? [40, 80, 120, 160];
-    const pointsWithout = proj ? proj.pointsWithoutAction.map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithoutAction.map(v => euro(v, language)).join(' · ');
-    const pointsWith = proj ? proj.pointsWithProposal.map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithProposal.map(v => euro(v, language)).join(' · ');
+    const reserveVal = proj ? proj.reserve.toFixed(2) : fixture.current_reserve;
+    const pointsWithout = proj ? proj.pointsWithoutAction.slice(0, 6).map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithoutAction.map(v => euro(v, language)).join(' · ');
+    const pointsWith = proj ? proj.pointsWithProposal.slice(0, 6).map(v => euro(v.toFixed(2), language)).join(' · ') : reference.pointsWithProposal.map(v => euro(v, language)).join(' · ');
+    const timelineLabels = proj?.svg.timelineLabels ?? ['Auj.', 'J+2', 'J+6', 'J+10', 'J+20', 'J+30'];
 
     return <View style={{ gap: 18 }}>
   <View style={[s.inline, { flexWrap: 'wrap' }]}><View style={s.inline}><View style={{ width: 24, height: 2, backgroundColor: c.text }}/><Note>{t('━━ Sans action', '━━ Without action')}</Note></View><View style={s.inline}><View style={{ width: 24, borderTopColor: c.success, borderTopWidth: 2, borderStyle: 'dashed' }}/><Note>{t('┄┄ Avec le plan proposé', '┄┄ With the proposed plan')}</Note></View></View>
@@ -99,8 +101,8 @@ function Chart() {
     <Path d={withoutActionPath} fill="none" stroke={c.text} strokeWidth={2}/>
     <Path d={withActionPath} fill="none" stroke={c.success} strokeWidth={2} strokeDasharray="6 6"/>
   </Svg>
-  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>{['Auj.', 'J+2', 'J+4', 'J+6', 'J+10'].map(day => <Note key={day}>{day}</Note>)}</View>
-  <Note>{t('Repère ambre : réserve à préserver de ', 'Amber line: protected reserve of ')}{euro(fixture.current_reserve, language)}</Note>
+  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>{timelineLabels.map(day => <Note key={day}>{day}</Note>)}</View>
+  <Note>{t('Repère ambre : réserve à préserver de ', 'Amber line: protected reserve of ')}{euro(reserveVal, language)}</Note>
   <Note>{t('Sans action : ', 'Without action: ')}{pointsWithout}{t('. Avec le plan : ', '. With the plan: ')}{pointsWith}.</Note>
   </View>;
 }
@@ -154,17 +156,18 @@ function Calendar() {
     const { data } = useClientData();
     const createEvent = useCreateEvent();
     const resetEvents = useResetEvents();
+    const setHorizon = useSetHorizon();
     const proj = data?.computedProjection;
     const lowestVal = proj ? proj.lowestBalanceWithoutAction.toFixed(2) : reference.pointsWithoutAction[3]!;
     const lowestDay = proj ? proj.lowestDayWithoutAction : 6;
     const currentWithPlan = proj ? proj.currentBeforeSalaryWithPlan.toFixed(2) : fixture.expected.current_before_salary;
     const [selectedPeriod, setSelectedPeriod] = useState(2);
     const periods = [
-        { key: '7J', label: t('7 J', '7 D') },
-        { key: '14J', label: t('14 J', '14 D') },
-        { key: '30J', label: t('30 J', '30 D') },
-        { key: '3M', label: t('3 M', '3 M') },
-        { key: '1AN', label: t('1 AN', '1 Y') },
+        { key: '7J', label: t('7 J', '7 D'), days: 7 },
+        { key: '14J', label: t('14 J', '14 D'), days: 14 },
+        { key: '30J', label: t('30 J', '30 D'), days: 30 },
+        { key: '3M', label: t('3 M', '3 M'), days: 90 },
+        { key: '1AN', label: t('1 AN', '1 Y'), days: 365 },
     ];
 
     const handleAddSimulatedExpense = () => {
@@ -185,7 +188,10 @@ function Calendar() {
       return (
           <Pressable
               key={p.key}
-              onPress={() => setSelectedPeriod(idx)}
+              onPress={() => {
+                  setSelectedPeriod(idx);
+                  setHorizon.mutate(p.days);
+              }}
               style={[s.period, isSelected && { backgroundColor: c.raised, borderColor: '#5B454C' }]}
           >
               <T style={[s.note, { color: isSelected ? c.text : c.muted, fontFamily: isSelected ? tokens.font.medium : tokens.font.regular }]}>
@@ -194,7 +200,7 @@ function Calendar() {
           </Pressable>
       );
   })}</View>
-  {selectedPeriod !== 2 && <Note>{t('Horizon calculé dans cette démo : 30 jours (les autres horizons utilisent cette projection).', 'Calculated horizon in this demo: 30 days (other horizons reference this projection).')}</Note>}
+  <Note>{t(`Horizon actif : ${periods[selectedPeriod].label} · La courbe SVG et les soldes s’ajustent en direct.`, `Active horizon: ${periods[selectedPeriod].label} · SVG curve and balances adjust live.`)}</Note>
   <Chart />
 
   <Card style={{ gap: 12, backgroundColor: '#1E1920', borderColor: '#483942' }}>
@@ -259,7 +265,58 @@ function Proposal() {
 }
 function PlanActions() { const { t, state } = useSession(); const { data } = useClientData(); const ack = useAcknowledge(); const saved = data?.plan.status === 'ACKNOWLEDGED'; return <View style={{ gap: 16 }}><Button busy={ack.isPending} disabled={!data || state === 'stale'} onPress={() => { if (data)
     ack.mutate(data.plan, { onSuccess: () => router.push('/tracking') }); }}>{saved ? t('Voir le plan enregistré', 'View saved plan') : t('Enregistrer ce plan', 'Save this plan')}</Button>{ack.isError && <T accessibilityRole="alert" style={{ color: c.error }}>{t('Enregistrement impossible. Relisez la proposition.', 'Could not save. Read the proposal again.')}</T>}<Button variant="secondary" onPress={() => router.push('/options')}>{t('Comparer les autres options', 'Compare other options')}</Button><Note>{t('Enregistrer acquitte la proposition dans cette session de démo. Aucun argent n’est déplacé. Le transfert reste à réaliser séparément.', 'Saving acknowledges the proposal in this demo session. No money moves. The transfer must be carried out separately.')}</Note></View>; }
-function Sources() { const { t, language } = useSession(); const desktop = useDesktop(); const [info, setInfo] = useState(false); return <><Title>{t('Sources', 'Sources')}</Title><T>{t('Vos données, au même endroit.', 'Your data, in one place.')}</T><Split main={<><Card warm style={s.detail}><Heading>{t('Comptes', 'Accounts')}</Heading><Row title={t('Compte courant', 'Current account')} detail={t('Saisi manuellement · déclaré', 'Entered manually · declared')} value={euro(fixture.opening_balances.current, language)} icon="sources"/><Row title={t('Épargne', 'Savings')} detail={t('Mobilisable dans ce scénario', 'Available in this scenario')} value={euro(fixture.opening_balances.savings, language)} icon="shield"/></Card><Note>{t('Soldes déclarés par vous, non vérifiés par une banque.', 'Balances declared by you, not verified by a bank.')}</Note><View><Heading>{t('Événements & imports', 'Events & imports')}</Heading><Row title={t('4 échéances', '4 scheduled payments')} detail={t('Fixture Lina · saisie déclarative', 'Lina fixture · declared data')} icon="calendar"/><Row title="operations.csv" detail={t('Exemple d’aperçu uniquement · aucun fichier importé', 'Preview example only · no file imported')} icon="file"/></View><Button onPress={() => router.push('/import')}>{t('Importer un fichier', 'Import a file')}</Button><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button></>} aside={<Rail><Notice title={t('Connexion facultative', 'Optional connection')}>{t('Vous pouvez continuer avec vos saisies et imports. Aucune connexion bancaire active.', 'You can continue with manual entries and imports. No active bank connection.')}</Notice><Button variant="secondary" onPress={() => setInfo(!info)}>{t('Voir les connexions disponibles', 'View available connections')}</Button>{info && <Note>{t('Aucun connecteur n’est raccordé. La prévision synthétique reste accessible sans wallet ni KYC.', 'No connector is integrated. The synthetic forecast remains available without a wallet or KYC.')}</Note>}<Button variant="ghost" onPress={() => router.push('/calendar')}>{t('Revenir au calendrier', 'Back to calendar')}</Button></Rail>}/></>; }
+function Sources() {
+    const { t, language } = useSession();
+    const desktop = useDesktop();
+    const [info, setInfo] = useState(false);
+    const { data } = useClientData();
+    const updateBalances = useUpdateBalances();
+    const proj = data?.computedProjection;
+    const currentVal = proj ? proj.openingCurrent.toFixed(2) : fixture.opening_balances.current;
+    const savingsVal = proj ? proj.openingSavings.toFixed(2) : fixture.opening_balances.savings;
+    const reserveVal = proj ? proj.reserve.toFixed(2) : fixture.current_reserve;
+
+    const [editing, setEditing] = useState(false);
+    const [curInp, setCurInp] = useState(currentVal);
+    const [savInp, setSavInp] = useState(savingsVal);
+    const [resInp, setResInp] = useState(reserveVal);
+
+    const handleSaveBalances = () => {
+        const c = parseFloat(curInp.replace(',', '.'));
+        const s = parseFloat(savInp.replace(',', '.'));
+        const r = parseFloat(resInp.replace(',', '.'));
+        if (!isNaN(c) && !isNaN(s)) {
+            updateBalances.mutate({ current: c, savings: s, reserve: isNaN(r) ? undefined : r });
+            setEditing(false);
+        }
+    };
+
+    return <><Title>{t('Sources', 'Sources')}</Title><T>{t('Vos données, au même endroit.', 'Your data, in one place.')}</T><Split main={<><Card warm style={s.detail}>
+        <View style={[s.between, { flexWrap: 'wrap', gap: 8 }]}>
+            <Heading>{t('Comptes déclarés', 'Declared accounts')}</Heading>
+            <Button variant="secondary" onPress={() => setEditing(!editing)}>
+                {editing ? t('Annuler', 'Cancel') : t('Modifier mes soldes', 'Edit my balances')}
+            </Button>
+        </View>
+
+        {editing ? (
+            <View style={{ gap: 12, marginTop: 8 }}>
+                <Field label={t('Solde compte courant (€)', 'Current account balance (€)')} value={curInp} onChangeText={setCurInp} keyboardType="decimal-pad" />
+                <Field label={t('Épargne mobilisable (€)', 'Available savings (€)')} value={savInp} onChangeText={setSavInp} keyboardType="decimal-pad" />
+                <Field label={t('Réserve protégée (€)', 'Protected reserve (€)')} value={resInp} onChangeText={setResInp} keyboardType="decimal-pad" />
+                <Button busy={updateBalances.isPending} onPress={handleSaveBalances}>
+                    {t('Appliquer les nouveaux soldes', 'Apply new balances')}
+                </Button>
+            </View>
+        ) : (
+            <>
+                <Row title={t('Compte courant', 'Current account')} detail={t('Saisi manuellement · déclaré', 'Entered manually · declared')} value={euro(currentVal, language)} icon="sources"/>
+                <Row title={t('Épargne', 'Savings')} detail={t('Mobilisable dans ce scénario', 'Available in this scenario')} value={euro(savingsVal, language)} icon="shield"/>
+                <Row title={t('Réserve protégée', 'Protected reserve')} detail={t('Seuil d’alerte de trésorerie', 'Cash alert threshold')} value={euro(reserveVal, language)} icon="shield"/>
+            </>
+        )}
+    </Card><Note>{t('Soldes déclarés par vous, non vérifiés par une banque.', 'Balances declared by you, not verified by a bank.')}</Note><View><Heading>{t('Événements & imports', 'Events & imports')}</Heading><Row title={t(`${data?.events.length ?? 4} échéances actives`, `${data?.events.length ?? 4} active events`)} detail={t('Saisie déclarative réactive', 'Reactive declared data')} icon="calendar"/><Row title="operations.csv" detail={t('Exemple d’aperçu uniquement · aucun fichier importé', 'Preview example only · no file imported')} icon="file"/></View><Button onPress={() => router.push('/import')}>{t('Importer un fichier', 'Import a file')}</Button><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter une échéance', 'Add a due date')}</Button></>} aside={<Rail><Notice title={t('Connexion facultative', 'Optional connection')}>{t('Vous pouvez continuer avec vos saisies et imports. Aucune connexion bancaire active.', 'You can continue with manual entries and imports. No active bank connection.')}</Notice><Button variant="secondary" onPress={() => setInfo(!info)}>{t('Voir les connexions disponibles', 'View available connections')}</Button>{info && <Note>{t('Aucun connecteur n’est raccordé. La prévision synthétique reste accessible sans wallet ni KYC.', 'No connector is integrated. The synthetic forecast remains available without a wallet or KYC.')}</Note>}<Button variant="ghost" onPress={() => router.push('/calendar')}>{t('Revenir au calendrier', 'Back to calendar')}</Button></Rail>}/></>;
+}
 function Tracking() {
     const { t } = useSession();
     const { data } = useClientData();

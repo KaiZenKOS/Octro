@@ -87,3 +87,22 @@ export function useResetEvents() {
         onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
     });
 }
+
+export function useUpdateBalances() {
+    const { source } = useSession();
+    const cache = useQueryClient();
+    return useMutation({
+        mutationFn: (params: { current: number; savings: number; reserve?: number }) =>
+            source.updateBalances?.(params.current, params.savings, params.reserve) ?? Promise.resolve(),
+        onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
+    });
+}
+
+export function useSetHorizon() {
+    const { source } = useSession();
+    const cache = useQueryClient();
+    return useMutation({
+        mutationFn: (days: number) => source.setHorizon?.(days) ?? Promise.resolve(),
+        onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
+    });
+}
