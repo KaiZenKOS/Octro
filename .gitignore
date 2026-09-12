@@ -11,3 +11,7 @@ dist/
 .env.*
 !.env.example
 coverage/
+
+# Local infrastructure material (SEC-04); populate outside the tracked tree.
+.secrets/
+.certs/
