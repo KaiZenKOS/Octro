@@ -5,8 +5,8 @@ import Svg, { Line, Path } from 'react-native-svg';
 import { Badge, Button, Card, Field, PageTransition, Typography as T, tokens } from '@octro/ui';
 import { DecimalStringSchema } from '@octro/contracts';
 import type { EconomicEvent, Projection, ProjectionResult, ProposedAction } from '@octro/contracts';
-import { demoFixture, euro } from './data';
-import { useAcknowledge, useClientData, useCreateEvent, useRemoveEvent, useResetEvents, useSetHorizon, useUpdateBalances, useSession } from './session';
+import { demoFixture, euro, type EventImportRow } from './data';
+import { useAcknowledge, useClientData, useCreateEvent, useImportEvents, useRemoveEvent, useResetEvents, useSetHorizon, useUpdateBalances, useSession } from './session';
 import { useDesktop } from './Shell';
 import { Icon } from './Icon';
 import { WalletModal } from './Wallet';
@@ -15,9 +15,158 @@ const c = tokens.color;
 const DEMO_EXPENSE = '150.00';
 const PERIODS = [7, 14, 30] as const;
 
-function Title({ children }: { children: React.ReactNode }) {
-    return <T nativeID="screen-title" accessibilityRole="header" {...(Platform.OS === 'web' ? { tabIndex: -1 } : {})} style={s.title}>{children}</T>;
+type ParsedImportRow = {
+    id: string;
+    line: number;
+    label: string;
+    direction: 'inflow' | 'outflow';
+    amount_decimal: string;
+    expected_settlement_at?: string;
+    asset_id: string;
+    sourceEventId: string;
+    duplicateOfLine?: number;
+    included: boolean;
+};
+
+function splitCsvLine(line: string): string[] {
+    const cells: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+        if (char === '"') {
+            const next = line[index + 1];
+            if (inQuotes && next === '"') {
+                current += '"';
+                index += 1;
+            } else {
+                inQuotes = !inQuotes;
+            }
+            continue;
+        }
+        if (char === ',' && !inQuotes) {
+            cells.push(current.trim());
+            current = '';
+            continue;
+        }
+        current += char;
+    }
+    cells.push(current.trim());
+    return cells;
 }
+
+function resolveDate(value: string): string | null {
+    const normalized = value.trim();
+    if (!normalized) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return `${normalized}T10:00:00.000Z`;
+    const withTime = normalized.includes('T') ? normalized : `${normalized}T00:00:00.000Z`;
+    const timestamp = Date.parse(withTime);
+    if (Number.isNaN(timestamp)) return null;
+    return new Date(timestamp).toISOString();
+}
+
+function directionFromLabel(value: string): 'inflow' | 'outflow' | null {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (['inflow', 'in', 'entry', 'entrant', 'revenu', 'income', 'salary', 'credit'].includes(normalized)) return 'inflow';
+    if (['outflow', 'out', 'sortie', 'expense', 'dépense', 'depense', 'payment', 'paiement'].includes(normalized)) return 'outflow';
+    return null;
+}
+
+function buildSourceId(line: number, direction: string, label: string, amount: string, date: string | null, assetId: string): string {
+    const normalized = `${line}-${direction}-${label}-${amount}-${date ?? 'nodate'}-${assetId}`.trim().toLowerCase();
+    return `import:${encodeURIComponent(normalized)}`;
+}
+
+function parseCsvImport(content: string): { rows: ParsedImportRow[]; invalidRows: { line: number; reason: string }[] } {
+    const lines = content.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+    const rows: ParsedImportRow[] = [];
+    const invalidRows: { line: number; reason: string }[] = [];
+    if (lines.length === 0) {
+        return { rows, invalidRows };
+    }
+
+    const headerTokens = splitCsvLine(lines[0]!).map(entry => entry.replace(/"/g, '').trim().toLowerCase());
+    const headerDetected = headerTokens.some((entry) => ['label', 'libelle', 'date'].includes(entry));
+    const header = headerDetected ? headerTokens : null;
+    const startLine = headerDetected ? 1 : 0;
+    const indexOf = (names: string[]) => (header ? header.findIndex((entry) => names.includes(entry)) : -1);
+    const labelColumn = header ? indexOf(['label', 'libelle', 'description']) : 0;
+    const directionColumn = header ? indexOf(['direction', 'sens']) : 1;
+    const amountColumn = header ? indexOf(['amount', 'montant', 'value']) : 2;
+    const dateColumn = header ? indexOf(['date', 'date_expected', 'date_prevue', 'due_date', 'expected_settlement_at']) : 3;
+    const assetColumn = header ? indexOf(['asset', 'asset_id', 'devise']) : 4;
+
+    for (let index = startLine; index < lines.length; index += 1) {
+        const lineNumber = index + 1;
+        const values = splitCsvLine(lines[index] ?? '').map(value => value.replace(/^"|"$/g, ''));
+        const label = (header ? values[labelColumn] : values[0])?.trim() ?? '';
+        const directionInput = (header ? values[directionColumn] : values[1])?.trim() ?? '';
+        const amountInput = (header ? values[amountColumn] : values[2])?.trim() ?? '';
+        const dateInput = header ? (dateColumn >= 0 ? values[dateColumn] : '') : (values[3] ?? '');
+        const assetInput = (header ? (assetColumn >= 0 ? values[assetColumn] : '') : values[4])?.trim() ?? '';
+
+        if (!label || !directionInput || !amountInput) {
+            invalidRows.push({ line: lineNumber, reason: 'Colonne manquante (libellé, direction ou montant).' });
+            continue;
+        }
+        const direction = directionFromLabel(directionInput);
+        if (!direction) {
+            invalidRows.push({ line: lineNumber, reason: `Direction invalide: ${directionInput}` });
+            continue;
+        }
+        const amount = amountInput.replace(',', '.');
+        if (!DecimalStringSchema.safeParse(amount).success) {
+            invalidRows.push({ line: lineNumber, reason: `Montant invalide: ${amountInput}` });
+            continue;
+        }
+        const resolvedDate = dateInput ? resolveDate(dateInput) : null;
+        if (dateInput && !resolvedDate) {
+            invalidRows.push({ line: lineNumber, reason: `Date invalide: ${dateInput}` });
+            continue;
+        }
+        const assetId = assetInput || 'fiat:EUR';
+        const sourceEventId = buildSourceId(lineNumber, direction, label, amount, resolvedDate, assetId);
+        const duplicateOfLine = rows.find(row =>
+            row.label.toLowerCase() === label.toLowerCase()
+            && row.direction === direction
+            && row.amount_decimal === amount
+            && row.expected_settlement_at === resolvedDate
+            && row.asset_id === assetId
+        )?.line;
+
+        rows.push({
+            id: `${sourceEventId}:${rows.length + 1}`,
+            line: lineNumber,
+            label,
+            direction,
+            amount_decimal: amount,
+            expected_settlement_at: resolvedDate ?? undefined,
+            asset_id: assetId,
+            sourceEventId,
+            duplicateOfLine,
+            included: duplicateOfLine === undefined,
+        });
+    }
+    return { rows, invalidRows };
+}
+
+function Title({ children }: { children: React.ReactNode }) {
+    const desktop = useDesktop();
+    return <T nativeID="screen-title" accessibilityRole="header" {...(Platform.OS === 'web' ? { tabIndex: -1 } : {})} style={[s.title, desktop && s.titleDesktop]}>{children}</T>;
+}
+
+function WebFileInput({ onChange, inputRef }: { onChange: (event: unknown) => void; inputRef: React.RefObject<any> }) {
+    if (Platform.OS !== 'web') return null;
+    return React.createElement('input', {
+        ref: inputRef,
+        type: 'file',
+        accept: '.csv,text/csv',
+        style: { display: 'none' },
+        onChange,
+    }) as React.ReactElement;
+}
+
 function Heading({ children }: { children: React.ReactNode }) { return <T accessibilityRole="header" style={s.heading}>{children}</T>; }
 function Note({ children, tone = 'muted' }: { children: React.ReactNode; tone?: 'muted' | 'warning' | 'success' | 'error' }) {
     return <T style={[s.note, { color: c[tone] }]}>{children}</T>;
@@ -39,6 +188,27 @@ function Notice({ title, children, tone = 'warning' }: { title: string; children
 }
 function CardTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
     return <View style={{ gap: 6 }}>{eyebrow && <T style={s.eyebrow}>{eyebrow}</T>}<Heading>{title}</Heading></View>;
+}
+
+function DesktopMetricStrip() {
+    const { language, t } = useSession();
+    const data = useClientData().data;
+    const desktop = useDesktop();
+    if (!desktop || !data) return null;
+    return <View style={s.metricStrip}>
+        <View style={s.metricPill}>
+            <T style={s.metricLabel}>{t('Compte', 'Current')}</T>
+            <T style={[s.money, s.metricValue]}>{euro(data.request.opening_balances.current, language)}</T>
+        </View>
+        <View style={s.metricPill}>
+            <T style={s.metricLabel}>{t('Épargne', 'Savings')}</T>
+            <T style={[s.money, s.metricValue]}>{euro(data.request.opening_balances.savings, language)}</T>
+        </View>
+        <View style={s.metricPill}>
+            <T style={s.metricLabel}>{t('Réserve', 'Reserve')}</T>
+            <T style={[s.money, s.metricValue]}>{euro(data.request.current_reserve, language)}</T>
+        </View>
+    </View>;
 }
 
 function units(value: string): bigint {
@@ -228,7 +398,7 @@ function TransferCard({ compact = false }: { compact?: boolean }) {
         </Notice>;
         return <RecalculationNotice />;
     }
-    return <Card warm style={compact ? s.transferCompact : s.transferCard}>
+    return <Card warm style={[compact ? s.transferCompact : s.transferCard, compact ? null : s.desktopTransfer]}>
         <T style={s.eyebrow}>{t('PROPOSITION · SANS NOUVELLE DETTE', 'PROPOSAL · NO NEW DEBT')}</T>
         <Money value={plan.action.amount_decimal} size={compact ? 42 : 52} />
         <T style={s.transferTitle}>{t('Depuis l’épargne vers le courant', 'From savings to current account')}</T>
@@ -257,10 +427,11 @@ function Home() {
             : t('Décider avec une vue commune.', 'Decide from a shared view.');
     return <PageTransition key="home">
         <Title>{title}</Title>
+        <DesktopMetricStrip />
         <Note>{t('Une lecture claire de vos entrées, échéances et réserves.', 'A clear view of your income, due dates and reserves.')}</Note>
         <RecalculationNotice />
         <Split main={<>
-            <Card warm style={s.hero}>
+            <Card warm style={[s.hero, desktop ? s.heroDesktop : undefined]}>
                 <View style={s.heroTop}>
                     <View style={{ gap: 7 }}>
                         <T style={s.eyebrow}>{t('SOLDE DÉCLARÉ · COMPTE COURANT', 'DECLARED BALANCE · CURRENT ACCOUNT')}</T>
@@ -274,9 +445,9 @@ function Home() {
                 </View>
                 <Note>{t('Espace personnel · données déclarées', 'Personal workspace · declared data')}</Note>
             </Card>
-            <View style={s.section}>
+            <View style={[s.section, desktop ? s.sectionDesktop : undefined]}>
                 <View style={s.sectionHeader}><CardTitle eyebrow={t('PROJECTION PERSONNELLE', 'PERSONAL FORECAST')} title={t('Le mois en un regard', 'The month at a glance')} />{data?.result && <Badge tone={planView.state === 'infeasible' || planView.state === 'inconsistent' ? 'error' : 'success'}>{planView.state === 'infeasible' || planView.state === 'inconsistent' ? 'INFEASIBLE' : t('Calculé', 'Calculated')}</Badge>}</View>
-                <Card style={s.chartCard}><ProjectionChart /></Card>
+                <Card style={[s.chartCard, desktop ? s.chartCardDesktop : undefined]}><ProjectionChart /></Card>
                 {lowest && <View style={s.lowSummary}>
                     <View style={{ flex: 1, minWidth: 0 }}><T style={s.eyebrow}>{t('POINT BAS PRÉVU', 'PROJECTED LOW')}</T><Money value={lowest.expected_balance} size={28} /><Note>{t('À ', 'On ')}{daysLabel(lowest.t, language)}</Note></View>
                     <View style={s.reserveSummary}><Icon name="shield" size={19} color={c.accent} /><T style={s.reserveSummaryText}>{t('Réserve à préserver : ', 'Protected reserve: ')}{data ? euro(data.request.current_reserve, language) : '—'}</T></View>
@@ -296,6 +467,7 @@ function Home() {
 
 function Calendar() {
     const { t, language } = useSession();
+    const desktop = useDesktop();
     const data = useClientData().data;
     const points = data?.result?.projection.points ?? [];
     const lowest = minimumPoint(points);
@@ -303,7 +475,7 @@ function Calendar() {
         <Title>{t('Calendrier', 'Calendar')}</Title>
         <Note>{t('Les revenus attendus sont des prévisions, pas du cash confirmé.', 'Expected income is a forecast, not confirmed cash.')}</Note>
         <RecalculationNotice />
-        <Card style={s.chartCard}>
+        <Card style={[s.chartCard, desktop ? s.chartCardDesktop : undefined]}>
             <View style={s.sectionHeader}><CardTitle eyebrow={t('SOLDE ATTENDU', 'EXPECTED BALANCE')} title={t('Évolution du courant', 'Current account over time')} /><PeriodSelector /></View>
             <ProjectionChart />
             {lowest && <View style={s.lowSummary}><View style={{ flex: 1 }}><T style={s.eyebrow}>{t('POINT BAS', 'LOWEST POINT')}</T><Money value={lowest.expected_balance} size={34}/></View><Note>{daysLabel(lowest.t, language)}</Note></View>}
@@ -311,7 +483,7 @@ function Calendar() {
         <TransferCard />
         <View style={s.section}>
             <View style={s.sectionHeader}><CardTitle eyebrow={t('DÉCLARÉES', 'DECLARED')} title={t('Échéances', 'Scheduled events')} /><Button variant="secondary" onPress={() => router.push('/add')}>{t('Ajouter', 'Add')}</Button></View>
-            <Card style={s.eventCard}><EventList allowDelete /></Card>
+            <Card style={[s.eventCard, desktop ? s.chartCardDesktop : undefined]}><EventList allowDelete /></Card>
         </View>
     </PageTransition>;
 }
@@ -361,18 +533,18 @@ function Proposal() {
         <Title>{t('Une action claire, à votre rythme.', 'One clear action, on your terms.')}</Title>
         <Note>{t('Proposition déterministe · les montants viennent du plan structuré.', 'Deterministic proposal · amounts come from the structured plan.')}</Note>
         <Split main={<>
-            <Card warm style={s.proposalHero}>
+            <Card warm style={[s.proposalHero, desktop ? s.heroDesktop : undefined]}>
                 <T style={s.eyebrow}>{t('TRANSFERT DE FONDS PROPRES', 'OWN FUNDS TRANSFER')}</T>
                 <Money value={plan.action.amount_decimal} size={62} />
                 <T style={s.transferTitle}>{t('Depuis l’épargne vers le courant', 'From savings to current account')}</T>
                 <Note>{t('Aperçu seulement. Aucun virement n’a été effectué.', 'Preview only. No transfer has been made.')}</Note>
             </Card>
-            <Card style={s.detail}><Comparison /></Card>
+            <Card style={[s.detail, desktop ? s.sectionDesktop : undefined]}><Comparison /></Card>
         </>} aside={<Rail>
             <CardTitle eyebrow={t('DÉCISION', 'DECISION')} title={t('Relire avant d’acquitter', 'Review before acknowledging')} />
             <PlanActions />
             <Button variant="secondary" onPress={() => router.push('/options')}>{t('Comparer les options', 'Compare options')}</Button>
-            <Notice title={t('Pas une exécution', 'Not an execution')} tone="success">{t('La proposition ne déplace pas d’argent et n’envoie aucune transaction.', 'The proposal does not move money or submit a transaction.')}</Notice>
+            <Notice title={t('Pas une exécution', 'Not an execution')} tone="success">{t('La proposition ne déplace pas d’argent et n’envoie aucune transaction.', 'The proposition does not move money or submit a transaction.')}</Notice>
         </Rail>} />
         {!desktop && <View style={s.mobileActions}><PlanActions /><Button variant="secondary" onPress={() => router.push('/options')}>{t('Comparer les options', 'Compare options')}</Button></View>}
     </PageTransition>;
@@ -510,18 +682,119 @@ function AddEvent() {
 
 function ImportPreview() {
     const { t } = useSession();
-    const [excluded, setExcluded] = useState(false);
+    const importEvents = useImportEvents();
+    const fileInput = useRef<any>(null);
+    const [fileName, setFileName] = useState<string | null>(null);
+    const [rows, setRows] = useState<ParsedImportRow[]>([]);
+    const [invalidRows, setInvalidRows] = useState<{ line: number; reason: string }[]>([]);
+    const [message, setMessage] = useState<React.ReactNode>(null);
+    const selectedCount = rows.filter(row => row.included).length;
+
+    const onFileSelected = (rawContent: string, name: string) => {
+        const parsed = parseCsvImport(rawContent);
+        setFileName(name);
+        setRows(parsed.rows);
+        setInvalidRows(parsed.invalidRows);
+        setMessage(null);
+    };
+
+    const handleFilePick = () => {
+        if (Platform.OS !== 'web') return;
+        fileInput.current?.click();
+    };
+
+    const toggleRow = (id: string) => {
+        setRows(previous => previous.map(row => row.id === id ? { ...row, included: !row.included } : row));
+    };
+
+    const csvOnChange = (event: any) => {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const reader = new (globalThis as any).FileReader();
+        reader.onload = () => {
+            const text = typeof reader.result === 'string' ? reader.result : '';
+            onFileSelected(text, file.name || 'operations.csv');
+        };
+        reader.onerror = () => setMessage(<Notice title={t('Erreur de lecture', 'Read error')} tone="error">{t('Impossible de lire le fichier CSV.', 'Unable to read the CSV file.')}</Notice>);
+        reader.readAsText(file);
+    };
+
+    const onImport = () => {
+        const selected = rows.filter(row => row.included);
+        const payload: EventImportRow[] = selected.map(row => ({
+            label: row.label,
+            direction: row.direction,
+            amount_decimal: row.amount_decimal,
+            asset_id: row.asset_id,
+            ...(row.expected_settlement_at ? { expected_settlement_at: row.expected_settlement_at } : {}),
+            source_event_id: row.sourceEventId,
+        }));
+        if (payload.length === 0) return;
+        importEvents.mutate(payload, {
+            onSuccess: () => {
+                setMessage(<Notice title={t('Import terminé', 'Import completed')} tone="success">{t('Les lignes valides ont été importées.', 'Valid rows have been imported.')}</Notice>);
+                router.push('/sources');
+            },
+            onError: (error) => {
+                const messageText = error instanceof Error ? error.message : t('Erreur inconnue lors de l’import.', 'Unknown error while importing.');
+                setMessage(<Notice title={t('Import interrompu', 'Import interrupted')} tone="error">{messageText}</Notice>);
+            },
+        });
+    };
+
+    const selectAll = (value: boolean) => setRows(previous => previous.map(row => ({
+        ...row,
+        included: value ? row.duplicateOfLine === undefined || value : false,
+    })));
+
     return <PageTransition key="import">
         <Title>{t('Aperçu de l’import', 'Import preview')}</Title>
-        <Notice title={t('Aucun fichier sélectionné', 'No file selected')}>{t('L’import CSV n’est pas raccordé dans cette version. Rien n’a été chargé ni écrit.', 'CSV import is not connected in this version. Nothing has been uploaded or written.')}</Notice>
-        <Card style={s.formCard}>
-            <CardTitle eyebrow={t('EXEMPLE PÉDAGOGIQUE', 'TEACHING EXAMPLE')} title="operations.csv" />
-            <Note>{t('Le fichier est une illustration de dédoublonnage, pas une source importée.', 'This file is a deduplication illustration, not an imported source.')}</Note>
-            <SourceRow title={t('Ligne à vérifier', 'Row to review')} subtitle={t('Doublon illustratif', 'Illustrative duplicate')} value={excluded ? t('Exclue', 'Excluded') : t('À revoir', 'Review')} icon="file" />
-            <Button variant="secondary" onPress={() => setExcluded(!excluded)}>{excluded ? t('Réinclure la ligne', 'Include row again') : t('Exclure cette ligne', 'Exclude this row')}</Button>
-            <Button disabled={!excluded} onPress={() => router.push('/sources')}>{t('Terminer l’aperçu', 'Finish preview')}</Button>
-            <Button variant="ghost" onPress={() => router.push('/sources')}>{t('Retour aux sources', 'Back to sources')}</Button>
-        </Card>
+        <Notice title={t(fileName ? `Fichier : ${fileName}` : 'Aucun fichier sélectionné', fileName ? `File: ${fileName}` : 'No file selected')} tone={rows.length > 0 || invalidRows.length > 0 ? 'success' : 'warning'}>
+            {rows.length > 0 ? t(`${rows.length} lignes valides chargées.`, `${rows.length} valid rows loaded.`) : t('Chargez un CSV pour démarrer l’import.', 'Upload a CSV to start import.')}
+        </Notice>
+        {Platform.OS === 'web' && <>
+            <Card style={s.formCard}>
+                <View style={s.sectionHeader}>
+                    <CardTitle eyebrow={t('IMPORT CSV', 'CSV IMPORT')} title={t('Téléverser un fichier', 'Upload a file')} />
+                    <View style={s.importActions}>
+                        <Button variant="secondary" onPress={handleFilePick}>{t('Choisir un fichier', 'Select file')}</Button>
+                        <Button variant="ghost" onPress={() => { setRows([]); setInvalidRows([]); setMessage(null); setFileName(null); }}>{t('Réinitialiser', 'Reset')}</Button>
+                    </View>
+                </View>
+                <WebFileInput inputRef={fileInput} onChange={csvOnChange} />
+                <Note>{t('Colonnes attendues : label, direction, amount, date (optionnelle), asset (optionnelle).', 'Expected columns: label, direction, amount, date (optional), asset (optional).')}</Note>
+                <Note>{t('Direction : inflow|outflow (ou entrée/sortie/expense/revenu).', 'Direction: inflow|outflow (or entrée/sortie/expense/revenu).')}</Note>
+            </Card>
+        </>}
+
+        {invalidRows.length > 0 && <Card style={s.formCard}>
+            <CardTitle eyebrow={t('ERREURS', 'ERRORS')} title={t('Lignes refusées', 'Rejected rows')} />
+            {invalidRows.map(item => <Note key={`${item.line}-${item.reason}`}>L{item.line} · {item.reason}</Note>)}
+        </Card>}
+
+        {rows.length > 0 && <Card style={s.formCard}>
+            <View style={s.sectionHeader}>
+                <CardTitle eyebrow={t('APERÇU', 'PREVIEW')} title={t('Lignes importées', 'Rows to import')} />
+                <View style={s.importActions}>
+                    <Button variant="secondary" onPress={() => selectAll(true)}>{t('Tout inclure', 'Select all')}</Button>
+                    <Button variant="ghost" onPress={() => setRows(previous => previous.map(row => ({ ...row, included: false })))}>{t('Tout retirer', 'Deselect all')}</Button>
+                </View>
+            </View>
+            {rows.map(row => <View key={row.id} style={[s.importRow, !row.included && s.importRowDisabled]}>
+                <Pressable onPress={() => toggleRow(row.id)} accessibilityRole="button" accessibilityLabel={t('Alterner', 'Toggle')} style={s.importCheckbox}>
+                    <T style={{ color: row.included ? c.accent : c.muted }}>{row.included ? '✓' : ' '}</T>
+                </Pressable>
+                <View style={{ flex: 1, gap: 4 }}>
+                    <T style={s.rowTitle}>{row.label}</T>
+                    <Note>{`${row.amount_decimal} € · ${row.direction === 'inflow' ? t('Entrée', 'Inflow') : t('Dépense', 'Expense')} · ${row.asset_id} · ${row.expected_settlement_at ?? t('Sans date', 'No date')}`}</Note>
+                    {row.duplicateOfLine && <Note>{t(`Doublon de la ligne ${row.duplicateOfLine}`, `Duplicate of row ${row.duplicateOfLine}`)}</Note>}
+                </View>
+                <T style={{ color: row.included ? c.text : c.muted }}>{row.included ? t('Inclus', 'Included') : t('Exclu', 'Excluded')}</T>
+            </View>)}
+            <Button busy={importEvents.isPending} disabled={selectedCount === 0} onPress={onImport}>{t(`Importer (${selectedCount})`, `Import (${selectedCount})`)}</Button>
+        </Card>}
+        {message}
+        <Button variant="ghost" onPress={() => router.push('/sources')}>{t('Retour aux sources', 'Back to sources')}</Button>
     </PageTransition>;
 }
 
@@ -591,26 +864,42 @@ export function Screen({ screen }: { screen?: string }) {
 }
 
 const s = StyleSheet.create({
-    title: { fontFamily: tokens.font.medium, fontSize: 28, lineHeight: 36, letterSpacing: -0.8, color: c.text, maxWidth: 840 },
+    title: { fontFamily: tokens.font.medium, fontSize: 30, lineHeight: 38, letterSpacing: -0.8, color: c.text, maxWidth: 840 },
+    titleDesktop: { fontSize: 42, lineHeight: 52, letterSpacing: -1.2, maxWidth: 1020 },
     heading: { fontFamily: tokens.font.medium, fontSize: 20, lineHeight: 28, letterSpacing: -0.3, color: c.text },
-    note: { fontSize: 14, lineHeight: 21, fontFamily: tokens.font.regular },
-    eyebrow: { fontSize: 11, lineHeight: 16, letterSpacing: 1.05, fontFamily: tokens.font.semibold, color: c.muted },
+    note: { fontSize: 14, lineHeight: 22, fontFamily: tokens.font.regular, color: c.muted },
+    eyebrow: { fontSize: 11, lineHeight: 16, letterSpacing: 1.05, fontFamily: tokens.font.semibold, color: c.muted, textTransform: 'uppercase' },
     money: { fontFamily: tokens.font.regular, fontVariant: ['tabular-nums'], color: c.text, letterSpacing: -1.4 },
     split: { gap: 24, alignItems: 'stretch' },
-    splitDesktop: { flexDirection: 'row' },
+    splitDesktop: { flexDirection: 'row', gap: 34 },
     main: { gap: 24, minWidth: 0 },
     mainDesktop: { flex: 1 },
     aside: { gap: 20, minWidth: 0 },
-    asideDesktop: { width: 340 },
-    rail: { backgroundColor: '#1D191F', borderRadius: tokens.radius.card, padding: 22, gap: 18, borderWidth: 1, borderColor: tokens.color.border },
-    hero: { padding: 24, gap: 16 },
+    asideDesktop: { width: 370 },
+    rail: {
+        backgroundColor: 'rgba(17, 24, 38, 0.84)',
+        borderRadius: 24,
+        padding: 22,
+        gap: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(242, 201, 141, 0.16)',
+    },
+    hero: { padding: 24, gap: 16, borderWidth: 1, borderColor: 'rgba(242, 201, 141, 0.14)' },
+    heroDesktop: {
+        backgroundColor: 'rgba(22, 28, 40, 0.92)',
+        borderRadius: 28,
+        borderColor: '#2F3D57',
+        borderWidth: 1,
+    },
     heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
     heroMark: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: c.raised },
     heroFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: c.border, paddingTop: 14 },
     heroValue: { color: c.text, fontSize: 17, fontFamily: tokens.font.medium, fontVariant: ['tabular-nums'] },
     section: { gap: 14 },
+    sectionDesktop: { gap: 18 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' },
-    chartCard: { gap: 16, padding: 20 },
+    chartCard: { gap: 16, padding: 20, borderWidth: 1, borderColor: 'rgba(242, 201, 141, 0.12)' },
+    chartCardDesktop: { borderRadius: 24, padding: 24 },
     chartEmpty: { gap: 9, alignItems: 'flex-start', backgroundColor: c.surface },
     emptyIcon: { width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', backgroundColor: c.raised },
     legend: { flexDirection: 'row', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
@@ -618,7 +907,7 @@ const s = StyleSheet.create({
     legendLine: { width: 22, height: 2, borderRadius: 1 },
     legendDashed: { backgroundColor: 'transparent', borderTopWidth: 2, borderTopColor: c.muted, borderStyle: 'dashed' },
     chartTicks: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
-    lowSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: 16, borderRadius: 16, backgroundColor: c.raised },
+    lowSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: 16, borderRadius: 16, backgroundColor: 'rgba(22, 28, 44, 0.74)', borderWidth: 1, borderColor: 'rgba(242,201,141,0.16)' },
     reserveSummary: { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: '52%' },
     reserveSummaryText: { fontSize: 14, lineHeight: 21, flexShrink: 1 },
     simulationCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: 18 },
@@ -629,14 +918,28 @@ const s = StyleSheet.create({
     periodSelected: { backgroundColor: c.accent, borderColor: c.accent },
     periodText: { color: c.muted, fontSize: 13, fontFamily: tokens.font.medium },
     periodTextSelected: { color: c.buttonText },
-    transferCard: { gap: 14 },
+    transferCard: { gap: 14, borderRadius: 24 },
+    desktopTransfer: { minHeight: 236, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(242, 201, 141, 0.24)' },
     transferCompact: { gap: 12, padding: 18 },
     transferTitle: { fontFamily: tokens.font.medium, fontSize: 18, lineHeight: 25, color: c.text },
-    notice: { backgroundColor: '#382B2E', borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: '#5B454C' },
-    noticeError: { backgroundColor: '#3D252A', borderColor: '#744047' },
-    noticeSuccess: { backgroundColor: '#293026', borderColor: '#46513C' },
-    detail: { padding: 20, gap: 18, backgroundColor: '#1D191F' },
+    notice: { backgroundColor: '#202A3E', borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: '#3A4459' },
+    noticeError: { backgroundColor: '#3A2F35', borderColor: '#5A3B44' },
+    noticeSuccess: { backgroundColor: '#2B3A2E', borderColor: '#4A5846' },
+    detail: { padding: 20, gap: 18, backgroundColor: '#151d2d', borderWidth: 1, borderColor: 'rgba(242, 201, 141, 0.2)' },
     comparison: { gap: 14 },
+    metricStrip: { flexDirection: 'row', gap: 12, flexWrap: 'wrap', marginBottom: 8 },
+    metricPill: {
+        flex: 1,
+        minWidth: 180,
+        borderRadius: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(242, 201, 141, 0.16)',
+        backgroundColor: 'rgba(22, 28, 44, 0.86)',
+    },
+    metricLabel: { fontSize: 12, lineHeight: 16, color: c.muted, letterSpacing: 0.4 },
+    metricValue: { fontSize: 20, lineHeight: 26 },
     comparisonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
     eventCard: { paddingVertical: 4 },
     row: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
@@ -650,4 +953,27 @@ const s = StyleSheet.create({
     importCard: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: 16 },
     audienceCard: { gap: 16, maxWidth: 860 },
     stateCard: { maxWidth: 680, gap: 16, alignItems: 'flex-start' },
+    sectionDesktopLead: { gap: 20 },
+    heroTag: { marginTop: 2, fontSize: 12, letterSpacing: 1.1, color: c.accent, textTransform: 'uppercase' },
+    importActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    importRow: {
+        minHeight: 62,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: c.border,
+    },
+    importRowDisabled: { opacity: 0.55 },
+    importCheckbox: {
+        width: 30,
+        height: 30,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: c.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: c.raised,
+    },
 });

@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect, useId, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { PressableProps, StyleProp, TextInputProps, TextProps, ViewStyle } from 'react-native';
 import { tokens } from './tokens';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,14 +15,15 @@ export function Card({ children, warm = false, style }: {
     style?: StyleProp<ViewStyle>;
 }) {
     return warm
-        ? <LinearGradient colors={['#51352D', '#30252B', '#17141B']} locations={[0, 0.42, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.42, y: 1 }} style={[styles.card, styles.warmCard, style]}>{children}</LinearGradient>
+        ? <LinearGradient colors={['#1C2334', '#141C2E', '#0F1624']} locations={[0, 0.45, 1]} start={{ x: 0.05, y: 0 }} end={{ x: 0.82, y: 1 }} style={[styles.card, styles.warmCard, style]}>{children}</LinearGradient>
         : <View style={[styles.card, style]}>{children}</View>;
 }
 
 /** A restrained, interruptible entrance for route content. */
 export function PageTransition({ children }: { children: React.ReactNode }) {
     const opacity = useRef(new Animated.Value(0)).current;
-    const offset = useRef(new Animated.Value(7)).current;
+    const offset = useRef(new Animated.Value(16)).current;
+    const scale = useRef(new Animated.Value(0.985)).current;
     const useNativeDriver = Platform.OS !== 'web';
 
     useEffect(() => {
@@ -32,24 +33,28 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
             if (reduceMotion) {
                 opacity.setValue(1);
                 offset.setValue(0);
+                scale.setValue(1);
                 return;
             }
             Animated.parallel([
-                Animated.timing(opacity, { toValue: 1, duration: tokens.motion.standard, useNativeDriver }),
-                Animated.timing(offset, { toValue: 0, duration: tokens.motion.standard, useNativeDriver }),
+                Animated.timing(opacity, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver }),
+                Animated.timing(offset, { toValue: 0, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver }),
+                Animated.timing(scale, { toValue: 1, duration: 620, easing: Easing.out(Easing.quad), useNativeDriver }),
             ]).start();
         }).catch(() => {
             opacity.setValue(1);
             offset.setValue(0);
+            scale.setValue(1);
         });
         return () => {
             active = false;
             opacity.stopAnimation();
             offset.stopAnimation();
+            scale.stopAnimation();
         };
-    }, [opacity, offset]);
+    }, [opacity, offset, scale]);
 
-    return <Animated.View style={{ opacity, transform: [{ translateY: offset }] }}>{children}</Animated.View>;
+    return <Animated.View style={{ opacity, transform: [{ translateY: offset }, { scale }] }}>{children}</Animated.View>;
 }
 export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
     children: React.ReactNode;
@@ -63,7 +68,7 @@ export function Button({ children, variant = 'primary', busy = false, disabled, 
     const unavailable = Boolean(disabled || busy);
     const foreground = variant === 'primary' ? tokens.color.buttonText : tokens.color.text;
     return <Pressable {...props} accessibilityRole="button" accessibilityState={{ ...accessibilityState, disabled: unavailable, busy }} disabled={unavailable} onFocus={(event) => { setFocused(true); onFocus?.(event); }} onBlur={(event) => { setFocused(false); onBlur?.(event); }} style={({ pressed }) => [styles.button, buttonVariants[variant], style, focused && styles.focused, unavailable && styles.dimmed, pressed && styles.pressed]}>
-    {busy && <ActivityIndicator color={foreground} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"/>}
+    {busy && <ActivityIndicator color={foreground} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
     {typeof children === 'string' || typeof children === 'number'
         ? <Typography variant="label" style={{ color: foreground, textAlign: 'center', flexShrink: 1, fontSize: 15, fontWeight: '500' }}>{children}</Typography>
         : children}
@@ -91,35 +96,60 @@ export const Field = forwardRef<TextInput, FieldProps>(function Field({ label, e
 });
 const styles = StyleSheet.create({
     text: { fontFamily: tokens.font.regular, fontSize: 16, lineHeight: 24, color: tokens.color.text, flexShrink: 1 },
-    card: { backgroundColor: tokens.color.surface, borderColor: tokens.color.border, borderWidth: 1, borderRadius: tokens.radius.card, padding: 24, gap: 16, minWidth: 0, overflow: 'hidden' },
-    warmCard: { borderColor: '#5B454C' },
-    button: { minHeight: 52, borderRadius: tokens.radius.control, paddingHorizontal: 18, paddingVertical: 14, borderWidth: 1, borderColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    card: {
+        backgroundColor: 'rgba(17, 23, 34, 0.82)',
+        borderWidth: 1,
+        borderColor: 'rgba(84, 99, 126, 0.44)',
+        borderRadius: 22,
+        padding: 24,
+        gap: 16,
+        minWidth: 0,
+        overflow: 'hidden',
+        shadowColor: '#04070D',
+        shadowOffset: { width: 0, height: 14 },
+        shadowOpacity: 0.34,
+        shadowRadius: 20,
+        elevation: 9,
+    },
+    warmCard: { borderColor: '#33415D', backgroundColor: '#161F2E' },
+    button: {
+        minHeight: 52,
+        borderRadius: 14,
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+        borderWidth: 1,
+        borderColor: 'transparent',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
     focused: { borderColor: tokens.color.focus },
     dimmed: { opacity: 0.52 },
     pressed: { opacity: 0.82, transform: [{ scale: 0.985 }] },
     badge: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: tokens.radius.pill, paddingVertical: 6, paddingHorizontal: 10 },
     fieldGroup: { gap: 8, minWidth: 0 },
-    input: { minHeight: 56, padding: 16, borderRadius: tokens.radius.control, borderWidth: 1.5, borderColor: tokens.color.border, backgroundColor: tokens.color.surface, color: tokens.color.text, fontFamily: tokens.font.regular, fontSize: 16, lineHeight: 24 },
+    input: { minHeight: 56, padding: 16, borderRadius: tokens.radius.control, borderWidth: 1.5, borderColor: '#303F5A', backgroundColor: '#111826', color: tokens.color.text, fontFamily: tokens.font.regular, fontSize: 16, lineHeight: 24, letterSpacing: 0.15 },
     invalid: { borderColor: tokens.color.error },
 });
 const typography = StyleSheet.create({
-    title: { fontFamily: tokens.font.display, fontSize: 32, lineHeight: 40, letterSpacing: -0.8, color: tokens.color.text },
+    title: { fontFamily: tokens.font.display, fontSize: 36, lineHeight: 44, letterSpacing: -0.9, color: tokens.color.text },
     body: {},
-    muted: { color: tokens.color.muted },
+    muted: { color: tokens.color.muted, lineHeight: 22 },
     label: { fontFamily: tokens.font.medium },
-    amount: { fontSize: 48, lineHeight: 58, letterSpacing: -2, fontVariant: ['tabular-nums'] },
+    amount: { fontSize: 52, lineHeight: 62, letterSpacing: -2, fontVariant: ['tabular-nums'], fontFamily: tokens.font.semibold },
 });
 const buttonVariants = StyleSheet.create({
-    primary: { backgroundColor: tokens.color.button, borderColor: 'transparent', shadowColor: '#EDBA79', shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 5 } },
-    secondary: { backgroundColor: tokens.color.surface, borderColor: tokens.color.border },
-    ghost: { backgroundColor: 'transparent', borderColor: 'transparent' },
+    primary: { backgroundColor: '#252D3E', borderColor: '#4C5E7D', shadowColor: '#F6D6A4', shadowOpacity: 0.2, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } },
+    secondary: { backgroundColor: '#141B2A', borderColor: '#2A364D' },
+    ghost: { backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.12)' },
 });
 
 const badgeTones = StyleSheet.create({
-    neutral: { backgroundColor: tokens.color.raised },
-    success: { backgroundColor: '#2B3025' },
-    warning: { backgroundColor: '#382B2E' },
-    error: { backgroundColor: '#3D252A' },
+    neutral: { backgroundColor: '#1C2433' },
+    success: { backgroundColor: '#36442B' },
+    warning: { backgroundColor: '#443426' },
+    error: { backgroundColor: '#4A2E34' },
 });
 const badgeTextTones = {
     neutral: tokens.color.text,

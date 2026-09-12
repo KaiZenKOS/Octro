@@ -16,7 +16,7 @@ function requireTenantHeader(request: FastifyRequest, reply: FastifyReply): stri
 // wallet connection or KYC state. The shared schema rejects floats and extra
 // fields before the application calls the Python optimizer port.
 export async function projectionRoutes(app: FastifyInstance, deps: AppDependencies): Promise<void> {
-  app.post("/v1/projections", async (request, reply) => {
+  const handleProjection = async (request: FastifyRequest, reply: FastifyReply) => {
     const tenantId = requireTenantHeader(request, reply);
     if (!tenantId) return reply;
     try {
@@ -34,5 +34,8 @@ export async function projectionRoutes(app: FastifyInstance, deps: AppDependenci
     } catch (err) {
       return sendError(reply, err);
     }
-  });
+  };
+
+  app.post("/v1/projections", handleProjection);
+  app.post("/v1/forecasts", handleProjection);
 }

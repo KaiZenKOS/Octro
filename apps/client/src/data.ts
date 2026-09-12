@@ -33,10 +33,20 @@ export interface ClientSnapshot {
     };
 }
 
+export type EventImportRow = {
+    label: string;
+    direction: 'inflow' | 'outflow';
+    amount_decimal: string;
+    asset_id: string;
+    expected_settlement_at?: string;
+    source_event_id: string;
+};
+
 export interface ClientDataSource {
     read(signal?: AbortSignal): Promise<ClientSnapshot>;
     acknowledge(plan: ActionPlan): Promise<ActionPlan>;
     addEvent?(event: EconomicEventPayload): Promise<void>;
+    addEvents?(events: readonly EventImportRow[]): Promise<void>;
     removeEvent?(eventId: string): Promise<void>;
     resetEvents?(): Promise<void>;
     updateBalances?(current: string, savings: string, reserve?: string, protectedSavings?: string): Promise<void>;
@@ -91,6 +101,21 @@ function createFixtureEvents(tenantId: string): EconomicEvent[] {
             observed_at: asOf,
             expected_settlement_at: date,
         });
+    });
+}
+
+function localEventFromPayload(tenantId: string, payload: EventImportRow): EconomicEvent {
+    return EconomicEventSchema.parse({
+        id: newId(),
+        tenant_id: tenantId,
+        source_event_id: payload.source_event_id,
+        direction: payload.direction,
+        amount: { amount_decimal: payload.amount_decimal, asset_id: payload.asset_id },
+        status: 'expected',
+        verification: 'declared',
+        label: payload.label,
+        observed_at: new Date().toISOString(),
+        ...(payload.expected_settlement_at ? { expected_settlement_at: payload.expected_settlement_at } : {}),
     });
 }
 
@@ -206,6 +231,32 @@ export function createFixtureSource(api: Pick<OctroApiClient, 'createPersonalWor
                 if (addToExistingRemote) {
                     const recorded = await api.recordEvent(remoteWorkspace!.id, payload);
                     events = events.map(item => item.id === localEvent.id ? recorded : item);
+                }
+                sourceState = 'ready';
+                sourceMessage = undefined;
+            } catch (error) {
+                sourceState = 'stale';
+                sourceMessage = error instanceof Error ? error.message : 'Projection indisponible';
+            }
+        },
+
+        async addEvents(eventRows) {
+            const localEvents = eventRows.map(event => localEventFromPayload(workspace.tenant_id, event));
+            events = [...events, ...localEvents];
+            acknowledgedHash = null;
+            sourceState = 'stale';
+            sourceMessage = 'Les données ont changé. La projection attend un nouveau calcul serveur.';
+            try {
+                const addToExistingRemote = remoteWorkspace !== null && !remoteNeedsBootstrap;
+                await ensureRemoteWorkspace();
+                if (addToExistingRemote && localEvents.length > 0) {
+                    const recorded = await Promise.all(localEvents.map(localEvent => api.recordEvent(
+                        remoteWorkspace!.id,
+                        toEventPayload(localEvent),
+                        { idempotencyKey: localEvent.source_event_id },
+                    )));
+                    const replacements = new Map(recorded.map((event) => [event.source_event_id, event]));
+                    events = events.map(item => replacements.get(item.source_event_id) ?? item);
                 }
                 sourceState = 'ready';
                 sourceMessage = undefined;

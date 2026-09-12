@@ -17,6 +17,39 @@ interface DbEconomicEvent extends Record<string, unknown> {
   expected_settlement_at: Date | string | null; raw_object_ref: string | null;
 }
 
+interface DbPlan extends Record<string, unknown> {
+  id: string;
+  tenant_id: string;
+  version: number;
+  status: ActionPlan["status"];
+  plan_hash: string;
+  plan_json: string | Record<string, unknown>;
+}
+
+interface DbApproval extends Record<string, unknown> {
+  id: string;
+  tenant_id: string;
+  plan_id: string;
+  plan_version: number;
+  terms_hash: string;
+  approver_user_id: string;
+  decision: Approval["decision"];
+  decided_at: Date | string;
+  expires_at: Date | string;
+}
+
+interface DbExecution extends Record<string, unknown> {
+  id: string;
+  tenant_id: string;
+  plan_id: string;
+  approval_id: string | null;
+  idempotency_key: string;
+  kind: Execution["kind"];
+  outcome: Execution["outcome"];
+  occurred_at: Date | string;
+  evidence_refs: string[] | Record<string, unknown> | null;
+}
+
 function iso(value: Date | string | null): string | undefined {
   if (value === null) return undefined;
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -49,6 +82,44 @@ function mapEconomicEvent(row: DbEconomicEvent): EconomicEvent {
     ...(iso(row.occurred_at) ? { occurred_at: iso(row.occurred_at) } : {}),
     ...(iso(row.expected_settlement_at) ? { expected_settlement_at: iso(row.expected_settlement_at) } : {}),
     ...(row.raw_object_ref ? { raw_object_ref: row.raw_object_ref } : {}),
+  };
+}
+
+function parseJsonPayload(payload: unknown): unknown {
+  return typeof payload === "string" ? JSON.parse(payload) : payload;
+}
+
+function mapPlan(row: DbPlan): ActionPlan {
+  return parseJsonPayload(row.plan_json) as ActionPlan;
+}
+
+function mapApproval(row: DbApproval): Approval {
+  return {
+    id: row.id,
+    tenant_id: row.tenant_id,
+    plan_id: row.plan_id,
+    plan_version: row.plan_version,
+    terms_hash: row.terms_hash,
+    approver_user_id: row.approver_user_id,
+    decision: row.decision,
+    decided_at: iso(row.decided_at)!,
+    expires_at: iso(row.expires_at)!,
+  };
+}
+
+function mapExecution(row: DbExecution): Execution {
+  return {
+    id: row.id,
+    tenant_id: row.tenant_id,
+    plan_id: row.plan_id,
+    approval_id: row.approval_id ?? undefined,
+    idempotency_key: row.idempotency_key,
+    kind: row.kind,
+    outcome: row.outcome,
+    occurred_at: iso(row.occurred_at)!,
+    evidence_refs: Array.isArray(parseJsonPayload(row.evidence_refs))
+      ? parseJsonPayload(row.evidence_refs) as string[]
+      : [],
   };
 }
 
@@ -213,6 +284,15 @@ export class PostgresPlanRepository {
       );
     });
   }
+
+  async findById(planId: string): Promise<ActionPlan | null> {
+    assertScope(this.tenantId, this.tenantId);
+    return inWorkspaceTransaction(this.pool, this.tenantId, async (client) => {
+      const result = await client.query<DbPlan>(`SELECT id, tenant_id, version, status, plan_hash, plan_json
+                                                 FROM plans WHERE tenant_id = $1 AND id = $2`, [this.tenantId, planId]);
+      return result.rows[0] ? mapPlan(result.rows[0]) : null;
+    });
+  }
 }
 
 export class PostgresApprovalRepository {
@@ -229,6 +309,33 @@ export class PostgresApprovalRepository {
       );
     });
   }
+
+  async findById(planId: string, approvalId: string): Promise<Approval | null> {
+    assertScope(this.tenantId, this.tenantId);
+    return inWorkspaceTransaction(this.pool, this.tenantId, async (client) => {
+      const result = await client.query<DbApproval>(`
+        SELECT id, tenant_id, plan_id, plan_version, terms_hash, approver_user_id, decision, decided_at, expires_at
+        FROM approvals
+        WHERE tenant_id = $1 AND plan_id = $2 AND id = $3`,
+        [this.tenantId, planId, approvalId],
+      );
+      return result.rows[0] ? mapApproval(result.rows[0]) : null;
+    });
+  }
+
+  async findLatestForPlan(planId: string): Promise<Approval | null> {
+    return inWorkspaceTransaction(this.pool, this.tenantId, async (client) => {
+      const result = await client.query<DbApproval>(`
+        SELECT id, tenant_id, plan_id, plan_version, terms_hash, approver_user_id, decision, decided_at, expires_at
+        FROM approvals
+        WHERE tenant_id = $1 AND plan_id = $2
+        ORDER BY decided_at DESC, id
+        LIMIT 1`,
+        [this.tenantId, planId],
+      );
+      return result.rows[0] ? mapApproval(result.rows[0]) : null;
+    });
+  }
 }
 
 export class PostgresExecutionRepository {
@@ -243,6 +350,30 @@ export class PostgresExecutionRepository {
         [execution.id, execution.tenant_id, execution.plan_id, execution.approval_id ?? null, execution.idempotency_key,
           execution.kind, execution.outcome, execution.occurred_at, JSON.stringify(execution.evidence_refs), execution.ledger_tx_hash ?? null],
       );
+    });
+  }
+
+  async findById(planExecutionId: string): Promise<Execution | null> {
+    return inWorkspaceTransaction(this.pool, this.tenantId, async (client) => {
+      const result = await client.query<DbExecution>(`
+        SELECT id, tenant_id, plan_id, approval_id, idempotency_key, kind, outcome, occurred_at, evidence_refs
+        FROM executions
+        WHERE tenant_id = $1 AND id = $2`,
+        [this.tenantId, planExecutionId],
+      );
+      return result.rows[0] ? mapExecution(result.rows[0]) : null;
+    });
+  }
+
+  async findByPlan(planId: string): Promise<Execution[]> {
+    return inWorkspaceTransaction(this.pool, this.tenantId, async (client) => {
+      const result = await client.query<DbExecution>(`
+        SELECT id, tenant_id, plan_id, approval_id, idempotency_key, kind, outcome, occurred_at, evidence_refs
+        FROM executions WHERE tenant_id = $1 AND plan_id = $2
+        ORDER BY occurred_at DESC`,
+        [this.tenantId, planId],
+      );
+      return result.rows.map(mapExecution);
     });
   }
 }

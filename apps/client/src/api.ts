@@ -25,6 +25,10 @@ export interface EconomicEventPayload {
     expected_settlement_at?: string;
 }
 
+export type EventRecordOptions = {
+    idempotencyKey?: string;
+};
+
 export interface ProjectionInputs extends Omit<ProjectionRequest, 'workspace_id'> {}
 
 export class OctroApiClient {
@@ -51,13 +55,17 @@ export class OctroApiClient {
         return WorkspaceSchema.parse(result);
     }
 
-    async recordEvent(workspaceId: string, event: EconomicEventPayload): Promise<EconomicEvent> {
+    async recordEvent(workspaceId: string, event: EconomicEventPayload, options?: EventRecordOptions): Promise<EconomicEvent> {
+        const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+            "x-dev-tenant-id": workspaceId,
+        };
+        if (options?.idempotencyKey) {
+            headers["idempotency-key"] = options.idempotencyKey;
+        }
         const result = await this.request<unknown>(`/v1/workspaces/${workspaceId}/events`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-dev-tenant-id': workspaceId,
-            },
+            headers,
             body: JSON.stringify(event),
         });
         return EconomicEventSchema.parse(result);

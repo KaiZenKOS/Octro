@@ -79,8 +79,14 @@ import {
   type WalletRepository,
   WithdrawFromVaultUseCase,
   type WithdrawalRequestRepository,
+  type EconomicEventRepository,
+  type WorkspaceRepository,
   createPgPool,
 } from "@octro/application";
+import {
+  PostgresEconomicEventRepository,
+  PostgresWorkspaceRepository,
+} from "@octro/postgres";
 import { loadNetworkCapabilitiesConfig } from "./adapters/network-capabilities-config.js";
 import { PythonOptimizerAdapter } from "./adapters/python-optimizer-adapter.js";
 import {
@@ -149,6 +155,8 @@ function buildMailPort(): MailPort {
 }
 
 interface Persistence {
+  workspaces: WorkspaceRepository;
+  events: EconomicEventRepository;
   users: UserRepository;
   sessions: SessionRepository;
   emailVerifications: EmailVerificationRepository;
@@ -161,6 +169,43 @@ interface Persistence {
   loanPositions: LoanPositionRepository;
   withdrawalRequests: WithdrawalRequestRepository;
   bufferLedger: BufferLedgerRepository;
+}
+
+interface PostgresConfig {
+  kind: "memory" | "postgres";
+  pool?: ReturnType<typeof createPgPool>;
+}
+
+function buildWorkspaceRepository(config: PostgresConfig): WorkspaceRepository {
+  if (config.kind === "postgres") {
+    if (config.pool === undefined) throw new Error("POSTGRES_ENABLED=true requires an active pool");
+    const { pool } = config;
+    return {
+      async save(workspace: Parameters<WorkspaceRepository["save"]>[0]) {
+        return new PostgresWorkspaceRepository(pool, workspace.tenant_id).save(workspace);
+      },
+      async findById(id: Parameters<WorkspaceRepository["findById"]>[0]) {
+        return new PostgresWorkspaceRepository(pool, id).findById(id);
+      },
+    };
+  }
+  return new InMemoryWorkspaceRepository();
+}
+
+function buildEconomicEventRepository(config: PostgresConfig): EconomicEventRepository {
+  if (config.kind === "postgres") {
+    if (config.pool === undefined) throw new Error("POSTGRES_ENABLED=true requires an active pool");
+    const { pool } = config;
+    return {
+      async save(event: Parameters<EconomicEventRepository["save"]>[0]) {
+        return new PostgresEconomicEventRepository(pool, event.tenant_id).save(event);
+      },
+      async listByTenant(tenantId: Parameters<EconomicEventRepository["listByTenant"]>[0]) {
+        return new PostgresEconomicEventRepository(pool, tenantId).listByTenant(tenantId);
+      },
+    };
+  }
+  return new InMemoryEconomicEventRepository();
 }
 
 // Phase C : POSTGRES_ENABLED=true (deja requis par infra/config/environment.mjs)
@@ -178,7 +223,10 @@ function buildPersistence(): Persistence {
       sslMode: process.env["PGSSLMODE"] ?? "",
       ...(process.env["PGSSLROOTCERT"] ? { sslRootCertPath: process.env["PGSSLROOTCERT"] } : {}),
     });
+    const postgresConfig: PostgresConfig = { kind: "postgres", pool };
     return {
+      workspaces: buildWorkspaceRepository(postgresConfig),
+      events: buildEconomicEventRepository(postgresConfig),
       users: new PgUserRepository(pool),
       sessions: new PgSessionRepository(pool),
       emailVerifications: new PgEmailVerificationRepository(pool),
@@ -193,7 +241,10 @@ function buildPersistence(): Persistence {
       bufferLedger: new PgBufferLedgerRepository(pool),
     };
   }
+  const memoryConfig: PostgresConfig = { kind: "memory" };
   return {
+    workspaces: buildWorkspaceRepository(memoryConfig),
+    events: buildEconomicEventRepository(memoryConfig),
     users: new InMemoryUserRepository(),
     sessions: new InMemorySessionRepository(),
     emailVerifications: new InMemoryEmailVerificationRepository(),
@@ -238,8 +289,6 @@ function resolveEncryptionKey(envKeyName: string): string {
 }
 
 export function buildDependencies(overrides: DependencyOverrides = {}): AppDependencies {
-  const workspaces = new InMemoryWorkspaceRepository();
-  const events = new InMemoryEconomicEventRepository();
   const clock = overrides.clock ?? new SystemClock();
   const ids = new UuidIdGenerator();
   const optimizer = overrides.optimizer ?? new PythonOptimizerAdapter();
@@ -250,6 +299,8 @@ export function buildDependencies(overrides: DependencyOverrides = {}): AppDepen
 
   const mail = buildMailPort();
   const {
+    workspaces,
+    events,
     users,
     sessions,
     emailVerifications,

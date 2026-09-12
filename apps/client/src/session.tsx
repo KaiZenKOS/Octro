@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFixtureSource } from './data';
-import type { ClientDataSource } from './data';
+import type { ClientDataSource, EventImportRow } from './data';
 import type { EconomicEventPayload } from './api';
 
 export type DemoState = 'ready' | 'loading' | 'empty' | 'error' | 'stale' | 'unavailable' | 'no-solution';
@@ -94,6 +94,16 @@ export function useCreateEvent() {
     const cache = useQueryClient();
     return useMutation({
         mutationFn: (event: EconomicEventPayload) => source.addEvent?.(event) ?? Promise.resolve(),
+        onMutate: () => markProjectionStale(cache),
+        onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
+    });
+}
+
+export function useImportEvents() {
+    const { source } = useSession();
+    const cache = useQueryClient();
+    return useMutation({
+        mutationFn: (events: readonly EventImportRow[]) => source.addEvents?.(events) ?? Promise.resolve(),
         onMutate: () => markProjectionStale(cache),
         onSuccess: () => cache.invalidateQueries({ queryKey: ['workspace', 'lina-fixture-v1'] }),
     });
