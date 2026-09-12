@@ -7,7 +7,7 @@
  * MCP-02): every method is a plain async call behind the application's
  * own authorization and idempotency checks.
  */
-import { NetworkCapabilitySnapshot, PortResult } from "./types";
+import { NetworkCapabilitySnapshot, PortResult } from "./types.js";
 
 export interface NetworkCapabilitiesPort {
   getSnapshot(): Promise<NetworkCapabilitySnapshot>;

@@ -5,8 +5,8 @@
  * unavailable until a real SP0 test succeeds (chapter 30: "Les
  * capacités restent désactivées tant qu'un test réel n'a pas réussi.").
  */
-import { SponsorshipPort } from "./ports";
-import { PortResult } from "./types";
+import { SponsorshipPort } from "./ports.js";
+import { PortResult } from "./types.js";
 
 export class XrplSponsorshipAdapter implements SponsorshipPort {
   async quoteSponsoredOperation(): Promise<PortResult<{ maxAmountDrops: string; expiresAt: string }>> {

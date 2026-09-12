@@ -15,8 +15,8 @@
  * it needs a dedicated issuer test account plus coordination with
  * Samet's applicative eligibility (S5) per TEAM_TASKS.md section 5.
  */
-import { CredentialsAndDomainsPort } from "./ports";
-import { PortResult } from "./types";
+import { CredentialsAndDomainsPort } from "./ports.js";
+import { PortResult } from "./types.js";
 
 const NOT_RUN_REASON =
   "Credentials/Domains cycle not executed against the Custom Hackathon Devnet yet " +

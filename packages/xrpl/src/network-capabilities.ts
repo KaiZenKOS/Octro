@@ -12,8 +12,8 @@
  * call in code; it does not replay a cached result.
  */
 import { Client } from "xrpl";
-import { NetworkCapabilitiesPort } from "./ports";
-import { NetworkCapabilitySnapshot } from "./types";
+import { NetworkCapabilitiesPort } from "./ports.js";
+import { NetworkCapabilitySnapshot } from "./types.js";
 
 export const HACKATHON_DEVNET = {
   wss: "wss://lending-hackathon.dev.ripplex.io:51233",

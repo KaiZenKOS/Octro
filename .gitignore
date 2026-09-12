@@ -2,5 +2,12 @@
 .claude/settings.local.json
 __pycache__/
 *.pyc
+
+# S1 — socle monorepo (OPS-02, SEC-04)
 node_modules/
 dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/

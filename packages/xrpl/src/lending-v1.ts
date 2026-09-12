@@ -30,8 +30,8 @@
  * adapter therefore never sets tfLoanFullPayment.
  */
 import { Client, Wallet, xrpToDrops, signLoanSetByCounterparty } from "xrpl";
-import { LendingV1Port } from "./ports";
-import { PortResult, TransactionEvidence } from "./types";
+import { LendingV1Port } from "./ports.js";
+import { PortResult, TransactionEvidence } from "./types.js";
 
 const EXPLORER_PREFIX =
   "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";

@@ -4,8 +4,8 @@
  * docs/progress/augustin/evidence/g0-basic-payment.json.
  */
 import { Client, Wallet } from "xrpl";
-import { PaymentPort } from "./ports";
-import { PortResult, TransactionEvidence } from "./types";
+import { PaymentPort } from "./ports.js";
+import { PortResult, TransactionEvidence } from "./types.js";
 
 const EXPLORER_PREFIX =
   "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";
