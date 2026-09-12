@@ -76,4 +76,18 @@ describe("Octro API (S1)", () => {
     expect(projectionRes.statusCode).toBe(200);
     expect(projectionRes.json().points).toHaveLength(5);
   });
+
+  it("handles CORS preflight OPTIONS requests with Access-Control headers", async () => {
+    const app = client();
+    const res = await app.inject({
+      method: "OPTIONS",
+      url: "/v1/projections",
+      headers: {
+        origin: "http://localhost:8081",
+        "access-control-request-method": "POST",
+      },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:8081");
+  });
 });

@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fastify/cors": "^11.3.0",
     "@octro/application": "0.1.0",
     "@octro/contracts": "0.1.0",
     "@octro/domain": "0.1.0",
