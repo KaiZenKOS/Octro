@@ -1,0 +1,155 @@
+{
+  "spec_version": "2.2",
+  "status": "partial_run_2026-09-12",
+  "commit": null,
+  "network_snapshot": {
+    "network": "custom-hackathon-devnet",
+    "network_id": 4001,
+    "build_version": "3.4.0-rc1",
+    "sdk_package": "xrpl",
+    "sdk_version": "5.2.0",
+    "validated_ledger_seq_at_g0": 64527,
+    "enabled_amendments_relevant": [
+      "SingleAssetVault",
+      "LendingProtocol",
+      "LendingProtocolV1_1",
+      "Credentials",
+      "PermissionedDomains",
+      "Sponsor",
+      "DID"
+    ],
+    "observed_at_utc": "2026-09-12T11:47:50Z",
+    "mentor_v1_confirmation": "not_obtained_yet"
+  },
+  "steps": [
+    {
+      "id": "basic_payment",
+      "status": "validated",
+      "tx_hash": "9B10C26297515512FC7535E9B31C175C2AA5B0CDEDCEB66F06AC3B6AB61A1A9C",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/9B10C26297515512FC7535E9B31C175C2AA5B0CDEDCEB66F06AC3B6AB61A1A9C",
+      "evidence_refs": ["g0-network-and-payment.json"]
+    },
+    {
+      "id": "vault_create",
+      "status": "validated",
+      "tx_hash": "04FA0A2F26AD803078467223B501C7B279DFFDBD851EA5F6EF71CE0085760255",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/04FA0A2F26AD803078467223B501C7B279DFFDBD851EA5F6EF71CE0085760255",
+      "evidence_refs": ["a3-vault-broker-loanset-attempt.json"]
+    },
+    {
+      "id": "deposit",
+      "status": "validated",
+      "tx_hash": "B21D001BF96DA24748A5EAE2D1A4146AAD14ECC490787B92C26D4DCA9316896D",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/B21D001BF96DA24748A5EAE2D1A4146AAD14ECC490787B92C26D4DCA9316896D",
+      "evidence_refs": ["a3-vault-broker-loanset-attempt.json"]
+    },
+    {
+      "id": "broker_setup",
+      "status": "validated",
+      "tx_hash": "A1337FEE8C8FDBC406493A68F134C906449DDBE14635B0628DBF34E2ECB6786E",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/A1337FEE8C8FDBC406493A68F134C906449DDBE14635B0628DBF34E2ECB6786E",
+      "evidence_refs": ["a3-vault-broker-loanset-attempt.json"]
+    },
+    {
+      "id": "loan_acceptance",
+      "status": "not_run_coordination_missing",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": [],
+      "note": "An uncoordinated single-signer LoanSet attempt was submitted and rejected pre-inclusion (see 'protocol_rejection' below); the coordinated multi-party flow itself has not been built or run."
+    },
+    {
+      "id": "drawdown",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "repayment",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "withdraw_with_yield",
+      "status": "partial_withdraw_without_loan_yield",
+      "tx_hash": "72752DB4D47B15AA31EB048D1E8C36F87D5F89EAD8B6582D4E3DE9279F0E3F69",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/72752DB4D47B15AA31EB048D1E8C36F87D5F89EAD8B6582D4E3DE9279F0E3F69",
+      "evidence_refs": ["a3-vault-withdraw.json"],
+      "note": "VaultWithdraw of principal only, before any loan/yield exists. Not a demonstration of withdraw-with-yield; recorded honestly as partial."
+    },
+    {
+      "id": "protocol_rejection",
+      "status": "validated",
+      "tx_hash": "B9A12BE23AAF37771569A6B46AD22A964E4A9D35D6157D06A05AEA1C39A75447",
+      "validated": false,
+      "result_code": "temBAD_SIGNER",
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/B9A12BE23AAF37771569A6B46AD22A964E4A9D35D6157D06A05AEA1C39A75447",
+      "evidence_refs": ["a3-vault-broker-loanset-attempt.json"],
+      "note": "Pre-inclusion rejection by rippled (tem-class, never entered consensus) for a LoanSet missing the required broker-owner CounterpartySignature. Post-check confirmed no loan object was created and the borrower's balance was untouched (1000000000 drops before and after)."
+    },
+    {
+      "id": "credential_denied",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "credential_accepted",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "credential_expired_redemption",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "sponsorship_success",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    },
+    {
+      "id": "sponsorship_budget_rejection",
+      "status": "not_run",
+      "tx_hash": null,
+      "validated": null,
+      "result_code": null,
+      "explorer_url": null,
+      "evidence_refs": []
+    }
+  ]
+}

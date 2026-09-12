@@ -1,0 +1,147 @@
+{
+  "started_at_utc": "2026-09-12T11:47:50.410Z",
+  "server_info": {
+    "build_version": "3.4.0-rc1",
+    "complete_ledgers": "3-64527",
+    "hostid": "HUB",
+    "initial_sync_duration_us": "4151600",
+    "io_latency_ms": 1,
+    "jq_trans_overflow": "0",
+    "last_close": {
+      "converge_time_s": 2,
+      "proposers": 4
+    },
+    "load_factor": 1,
+    "network_id": 4001,
+    "peer_disconnects": "4",
+    "peer_disconnects_resources": "0",
+    "peers": 4,
+    "ports": [
+      {
+        "port": "2459",
+        "protocol": [
+          "peer"
+        ]
+      },
+      {
+        "port": "51233",
+        "protocol": [
+          "ws2",
+          "wss2"
+        ]
+      },
+      {
+        "port": "50051",
+        "protocol": [
+          "grpc"
+        ]
+      }
+    ],
+    "pubkey_node": "n9KmUBDktsbreuKYVxpPKQ8MNqWpGsfCFvoSPwQu9X8gDujRDM2A",
+    "server_state": "full",
+    "server_state_duration_us": "106569535649",
+    "state_accounting": {
+      "connected": {
+        "duration_us": "2001324",
+        "transitions": "1"
+      },
+      "disconnected": {
+        "duration_us": "2150276",
+        "transitions": "1"
+      },
+      "full": {
+        "duration_us": "106569535649",
+        "transitions": "1"
+      },
+      "syncing": {
+        "duration_us": "0",
+        "transitions": "0"
+      },
+      "tracking": {
+        "duration_us": "0",
+        "transitions": "0"
+      }
+    },
+    "time": "2026-Sep-12 11:47:51.218262 UTC",
+    "uptime": 106573,
+    "validated_ledger": {
+      "age": 3,
+      "base_fee_xrp": 0.00001,
+      "hash": "E8D27712B4C0DC626B5F2270CAB787C2C6415B3B53F0A5AED73AD60D375F9336",
+      "reserve_base_xrp": 10,
+      "reserve_inc_xrp": 2,
+      "seq": 64527
+    },
+    "validation_quorum": 4
+  },
+  "enabled_amendments": [
+    "AMM",
+    "AMMClawback",
+    "BatchV1_1",
+    "ConfidentialTransfer",
+    "Credentials",
+    "DID",
+    "DeepFreeze",
+    "DynamicMPT",
+    "DynamicNFT",
+    "LendingProtocol",
+    "LendingProtocolV1_1",
+    "MPTokensV1",
+    "NFTokenMintOffer",
+    "PermissionDelegationV1_1",
+    "PermissionedDEX",
+    "PermissionedDomains",
+    "PriceOracle",
+    "SingleAssetVault",
+    "Sponsor",
+    "TokenEscrow",
+    "XChainBridge",
+    "XRPFees",
+    "fixAMMClawbackRounding",
+    "fixAMMv1_1",
+    "fixAMMv1_2",
+    "fixAMMv1_3",
+    "fixCleanup3_1_3",
+    "fixCleanup3_2_0",
+    "fixCleanup3_3_0",
+    "fixCleanup3_4_0",
+    "fixDirectoryLimit",
+    "fixEmptyDID",
+    "fixEnforceNFTokenTrustline",
+    "fixEnforceNFTokenTrustlineV2",
+    "fixFillOrKill",
+    "fixFrozenLPTokenTransfer",
+    "fixIncludeKeyletFields",
+    "fixInnerObjTemplate2",
+    "fixInvalidTxFlags",
+    "fixMPTDeliveredAmount",
+    "fixNFTokenPageLinks",
+    "fixPayChanCancelAfter",
+    "fixPreviousTxnID",
+    "fixPriceOracleOrder",
+    "fixReducedOffersV2",
+    "fixRemoveNFTokenAutoTrustLine",
+    "fixTokenEscrowV1",
+    "fixXChainRewardRounding"
+  ],
+  "sdk_package": "xrpl",
+  "sdk_version": "5.2.0",
+  "node_version": "v22.23.1",
+  "accounts": {
+    "owner": {
+      "classic_address": "r3nYksFboCmVM6UGnM7y5Q1hhEiVay25g5",
+      "faucet_balance_xrp": 1000
+    },
+    "counterparty": {
+      "classic_address": "rEeb2JrM4wZA8cYMNZQLe6Mim7AkXgZ4Wf",
+      "faucet_balance_xrp": 1000
+    }
+  },
+  "basic_payment": {
+    "tx_hash": "9B10C26297515512FC7535E9B31C175C2AA5B0CDEDCEB66F06AC3B6AB61A1A9C",
+    "validated": true,
+    "engine_result": "tesSUCCESS",
+    "ledger_index": 64529,
+    "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/9B10C26297515512FC7535E9B31C175C2AA5B0CDEDCEB66F06AC3B6AB61A1A9C"
+  }
+}

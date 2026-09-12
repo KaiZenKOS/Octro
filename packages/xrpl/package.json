@@ -1,0 +1,10 @@
+{
+  "name": "@octro/xrpl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "XRPL Track 1 Loaded adapters (Augustin) behind the ports packages/application/ depends on.",
+  "main": "src/index.ts",
+  "dependencies": {
+    "xrpl": "5.2.0"
+  }
+}
