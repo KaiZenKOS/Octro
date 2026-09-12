@@ -1,0 +1,39 @@
+{
+  "subject": "rna5YJbXYtnCdyJuahMwRU9Avs1Fr1ntT6",
+  "impostor": "rE27gP1cposC9TLVLKPAu83bMnrwEZMyuW",
+  "did_document_ascii": "{\"id\":\"did:xrpl:4001:rna5YJbXYtnCdyJuahMwRU9Avs1Fr1ntT6\"}",
+  "steps": [
+    {
+      "id": "did_set",
+      "tx_type": "DIDSet",
+      "tx_hash": "FB77B949D8A402329747FE1833E556642FA87CD812D04C393EE12CDD2F23B66F",
+      "submit_preliminary_result": "tesSUCCESS",
+      "validated": true,
+      "result_code": "tesSUCCESS",
+      "ledger_index": 68087,
+      "explorer_url": "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/FB77B949D8A402329747FE1833E556642FA87CD812D04C393EE12CDD2F23B66F"
+    },
+    {
+      "id": "did_resolution",
+      "matches_published_document": true,
+      "resolved_ledger_index": "A828BED19F16DB5060910389A2EBFF0395E559888FDD3E6B16EB21302102E3AC"
+    },
+    {
+      "id": "replay_wrong_network",
+      "tx_hash": "7D965FDB4920717FB7764AF76B38C2B9F1097083F4FA845C1F756F555ABBF3AA",
+      "submit_preliminary_result": "telWRONG_NETWORK",
+      "submit_preliminary_message": "Transaction specifies a Network ID that differs from that of the local node.",
+      "validated": false,
+      "result_code": null
+    },
+    {
+      "id": "replay_wrong_signer",
+      "tx_hash": "AFC4C7FBB7360B9144007AB5E50153A6D0B55947A9024E73586D472AC45EC4EC",
+      "submit_preliminary_result": "tefBAD_AUTH",
+      "submit_preliminary_message": "Transaction's public key is not authorized.",
+      "validated": false,
+      "result_code": null
+    }
+  ],
+  "did_still_present_after_rejections": true
+}
