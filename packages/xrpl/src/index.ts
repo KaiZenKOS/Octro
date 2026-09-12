@@ -6,3 +6,4 @@ export * from "./lending-v1.js";
 export * from "./credentials-domains.js";
 export * from "./sponsorship.js";
 export * from "./did.js";
+export * from "./contract-network-capabilities.js";
