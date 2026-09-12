@@ -7,3 +7,9 @@ export * from "./credentials-domains.js";
 export * from "./sponsorship.js";
 export * from "./did.js";
 export * from "./contract-network-capabilities.js";
+
+// Extension Lending/KYC/Credit — Phase E.
+export * from "./wallet-provisioning.js";
+
+// Extension Lending/KYC/Credit — Phase F.
+export * from "./buffer-disbursement.js";

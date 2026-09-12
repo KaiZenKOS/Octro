@@ -31,6 +31,10 @@ export function Shell({ children }: {
     const scroll = useRef<ScrollView>(null);
     const normalizedPath = (!path || path === '/' || path === '/home' || path === '/index' || path === '/undefined') ? '/' : path;
     const activePath = ['/proposal', '/options'].includes(normalizedPath) ? '/calendar' : ['/add', '/import'].includes(normalizedPath) ? '/sources' : normalizedPath;
+    // Le compte reel (Phase G) n'a ni persona ni scenario de demonstration :
+    // le selecteur "Personnel · Lina" et le badge "Donnees synthetiques"
+    // n'ont pas de sens sur ces routes et resteraient une trace de maquette.
+    const isRealFlow = normalizedPath === '/' || normalizedPath === '/account';
 
     useEffect(() => {
         scroll.current?.scrollTo({ y: 0, animated: false });
@@ -43,7 +47,6 @@ export function Shell({ children }: {
             setTimeout(() => document.getElementById('screen-title')?.focus(), 0);
         }
     }, [path, language]);
-
     const profile = persona === 'personal' ? t('Personnel · Lina', 'Personal · Lina') : persona === 'independent' ? t('Activité indépendante', 'Independent activity') : t('Organisation', 'Organization');
 
     const nav = (mobile: boolean) => destinations.map(([href, icon, fr, en]) => {
@@ -82,7 +85,7 @@ export function Shell({ children }: {
         <Image source={logoSource} style={s.desktopLogo} resizeMode="contain" />
         <T style={s.wordmark}>octro</T>
       </View>
-      <Pressable onPress={() => setSettings(true)} accessibilityRole="button" accessibilityLabel={t('Choisir le scénario de démonstration', 'Choose demo scenario')} style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable>
+      {!isRealFlow && <Pressable onPress={() => setSettings(true)} accessibilityRole="button" accessibilityLabel={t('Choisir le scénario de démonstration', 'Choose demo scenario')} style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable>}
       <View style={{ gap: 16 }}>{nav(false)}</View>
       <Button variant="secondary" onPress={() => setAgentOpen(true)} style={{ paddingVertical: 10, minHeight: 44 }}>
         <Icon name="sparkles" size={18} color={tokens.color.accent} />
@@ -92,7 +95,7 @@ export function Shell({ children }: {
         <Icon name="shield" size={18} color={tokens.color.accent} />
         <T style={{ fontSize: 13 }}>{t('Wallet XRPL', 'XRPL Wallet')}</T>
       </Button>
-      <T style={[s.small, { marginTop: 8 }]}>{t('Vos prévisions restent accessibles sans connexion bancaire.', 'Your forecasts remain accessible without a bank connection.')}</T>
+      {!isRealFlow && <T style={[s.small, { marginTop: 8 }]}>{t('Vos prévisions restent accessibles sans connexion bancaire.', 'Your forecasts remain accessible without a bank connection.')}</T>}
       <View style={{ flex: 1 }}/>
       <T style={s.small}>Octro · v2.2</T>
     </View>}
@@ -113,15 +116,17 @@ export function Shell({ children }: {
                 <Icon name="shield" size={16} color={tokens.color.accent} />
                 <T style={s.tiny}>XRPL</T>
               </Pressable>
-              <Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable>
+              {!isRealFlow && <Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.selector}><T style={s.small}>{profile}</T><Icon name="down" size={16}/></Pressable>}
             </View>
           </View>}
           <View style={s.demoBar}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.demoTag}>
-                <View style={s.dot}/>
-                <T style={s.tiny}>{t('Données synthétiques', 'Synthetic data')}</T>
-              </Pressable>
+              {!isRealFlow && (
+                <Pressable onPress={() => setSettings(true)} accessibilityRole="button" style={s.demoTag}>
+                  <View style={s.dot}/>
+                  <T style={s.tiny}>{t('Données synthétiques', 'Synthetic data')}</T>
+                </Pressable>
+              )}
               {!isOnline && (
                 <View style={[s.demoTag, { backgroundColor: '#382B2E', paddingHorizontal: 6, borderRadius: 6 }]}>
                   <View style={[s.dot, { backgroundColor: tokens.color.warning }]} />
@@ -134,7 +139,7 @@ export function Shell({ children }: {
             </Pressable>
           </View>
           {children}
-          <T style={[s.tiny, { marginTop: 32, color: tokens.color.muted }]}>{t('Démonstration · aucune connexion bancaire · aucun transfert exécuté', 'Demonstration · no bank connection · no executed transfer')}</T>
+          <T style={[s.tiny, { marginTop: 32, color: tokens.color.muted }]}>{isRealFlow ? t('Octro — plateforme de coordination financière et prêts XRPL.', 'Octro — financial coordination platform and XRPL lending.') : t('Démonstration · aucune connexion bancaire · aucun transfert exécuté', 'Demonstration · no bank connection · no executed transfer')}</T>
         </LinearGradient>
       </ScrollView>
       {!desktop && <View style={s.mobileNavContainer}><View style={s.mobileNav}>{nav(true)}</View></View>}

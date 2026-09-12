@@ -5,5 +5,5 @@
     "outDir": "dist"
   },
   "include": ["src"],
-  "references": [{ "path": "../contracts" }, { "path": "../domain" }]
+  "references": [{ "path": "../contracts" }, { "path": "../domain" }, { "path": "../credit" }, { "path": "../xrpl" }]
 }

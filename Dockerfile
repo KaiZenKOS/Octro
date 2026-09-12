@@ -1,9 +1,11 @@
-# Image de dev/demo pour apps/api (S1). Construit le monorepo npm workspaces
-# comme `npm run build` a la racine (packages/contracts, domain, application,
-# puis apps/api via les references TypeScript) et lance l'API Fastify.
+# Image de dev/demo pour apps/api. Construit le monorepo npm workspaces
+# comme `npm run build` a la racine (packages/contracts, domain, credit,
+# xrpl, application, puis apps/api via les references TypeScript) et lance
+# l'API Fastify.
 #
-# L'API S1 reste une composition en memoire (voir apps/api/src/composition.ts) :
-# ce conteneur ne prouve ni n'implique une persistance PostgreSQL/MongoDB reelle.
+# composition.ts bascule sur PostgreSQL/XRPL reels des que POSTGRES_ENABLED /
+# LENDING_V1_ENABLED valent "true" (voir .env, fourni via env_file au
+# runtime) ; sinon des doublures en memoire/factices restent utilisees.
 FROM node:22-alpine
 
 WORKDIR /app
@@ -14,6 +16,10 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.json tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
+# Certificat public (pas une cle privee) epingle pour la verification TLS du
+# Postgres distant (PGSSLROOTCERT dans .env) — sans lui l'API ne peut pas
+# ouvrir de connexion chiffree verifiee au demarrage en conteneur.
+COPY .certs/octro-postgres-ca.pem ./.certs/octro-postgres-ca.pem
 
 RUN npm ci
 

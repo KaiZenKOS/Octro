@@ -842,7 +842,11 @@ function ImportPreview() {
 }
 
 function Diagnostic() { const { t, persona, setState } = useSession(); return <><Title>{t('Aucune solution compatible', 'No compatible solution')}</Title><Card><Icon name="shield" color={c.warning} size={32}/><Heading>{persona === 'organization' ? t('Le besoin dépasse la capacité', 'The need exceeds capacity') : t('Votre réserve reste protégée', 'Your reserve remains protected')}</Heading><T>{persona === 'organization' ? t('Besoin : 90 000 €. Plafond : 80 000 €. Résultat de référence : INFEASIBLE.', 'Need: €90,000. Limit: €80,000. Reference result: INFEASIBLE.') : t('Avec 300 € d’épargne protégée, le scénario Lina fourni ne permet pas de solution sans dette.', 'With €300 of protected savings, the supplied Lina scenario has no debt-free solution.')}</T><Note>{t('Diagnostic de démonstration fourni, sans nouvelle action financière. Aucune réserve n’est réduite.', 'Provided demonstration diagnostic, without a new financial action. No reserve is reduced.')}</Note><Button onPress={() => { setState('ready'); router.push('/sources'); }}>{t('Vérifier les données', 'Check data')}</Button></Card></>; }
+<<<<<<< HEAD
 function Audience() { const { t, persona, setPersona } = useSession(); if (persona === 'independent') return <IndependentScreen />; if (persona === 'organization') return <OrganizationScreen />; return <Button variant="secondary" onPress={() => { setPersona('personal'); router.push('/'); }}>{t('Revenir à Lina', 'Return to Lina')}</Button>; }
+=======
+function Audience() { const { t, persona, setPersona } = useSession(); return <>{persona !== 'organization' && <Title>{persona === 'independent' ? t('Une rentrée prend du retard.', 'An income payment is late.') : t('Votre espace d’organisation', 'Your organization workspace')}</Title>}{persona === 'organization' ? <Diagnostic /> : <Card warm><Note>{t('SCÉNARIO D’ACTIVITÉ SYNTHÉTIQUE', 'SYNTHETIC BUSINESS SCENARIO')}</Note><Heading>{t('Facture attendue, pas encore encaissée', 'Invoice expected, not yet received')}</Heading><T>{t('Les espaces personnel et activité restent séparés. La provision fiscale et les dépenses essentielles sont protégées.', 'Personal and business workspaces remain separate. Tax reserves and essential expenses are protected.')}</T><Notice title={t('Recalcul non raccordé', 'Recalculation not connected')}>{t('Le port applicatif vers le moteur et la fixture contractuelle d’activité sont attendus. Aucun montant de remplacement n’est inventé.', 'The application port to the engine and the business contract fixture are pending. No replacement amounts are invented.')}</Notice></Card>}<Button variant="secondary" onPress={() => { setPersona('personal'); router.push('/demo'); }}>{t('Revenir à Lina', 'Return to Lina')}</Button></>; }
+>>>>>>> origin/feat/samet-accounts-kyc-credit-lending
 export function Screen({ screen }: {
     screen?: string;
 }) {
@@ -863,7 +867,6 @@ export function Screen({ screen }: {
         return <Audience />;
     if (state === 'no-solution' && ['proposal', 'calendar', 'home'].includes(activeScreen))
         return <Diagnostic />;
-
     const pages: Record<string, React.ReactNode> = {
         home: <Home />,
         calendar: <Calendar />,
