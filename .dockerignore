@@ -1,0 +1,30 @@
+# Garde le contexte de build minimal et evite d'embarquer des secrets locaux
+# (SEC-04). Le Dockerfile construit le monorepo npm workspaces a la racine.
+node_modules
+**/node_modules
+dist
+**/dist
+**/*.tsbuildinfo
+coverage
+**/coverage
+
+.git
+.github
+.claude
+.codex
+.cursor
+.grok
+
+.env
+.env.*
+!.env.example
+Octro_Backend.env
+.secrets
+.certs/*
+# Certificat public (pas une cle privee) epingle pour la verification TLS
+# Postgres (voir .env PGSSLROOTCERT) : doit etre present dans l'image pour
+# que l'API puisse se connecter au Postgres distant en conteneur.
+!.certs/octro-postgres-ca.pem
+
+*.log
+npm-debug.log*

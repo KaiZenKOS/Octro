@@ -1,2 +1,38 @@
 .xrpl-devex/
 .claude/settings.local.json
+__pycache__/
+*.pyc
+
+# S1 — socle monorepo (OPS-02, SEC-04)
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/
+
+# Local infrastructure material (SEC-04); populate outside the tracked tree.
+.secrets/
+# .certs/ (pas de trailing-slash-only exclusion : un git-ignore ne peut pas
+# re-inclure un fichier dont le dossier parent est lui-meme exclu) —
+# n'exclut que le contenu, pas le dossier, pour permettre l'exception
+# ci-dessous.
+.certs/*
+# Exception : certificat public (pas une cle privee) epingle pour la
+# verification TLS Postgres (voir .env PGSSLROOTCERT et docs/adr) — a
+# rafraichir (openssl s_client -starttls postgres -showcerts) si le
+# certificat cote serveur est renouvele.
+!.certs/octro-postgres-ca.pem
+
+# Extension Lending/KYC/Credit — evidence produced by one-off admin scripts
+# (real devnet secrets/tx evidence; SEC-04, never committed).
+infra/scripts/*.evidence.json
+
+# Integration xrpl-lending-sim : depot de reference fourni pour porter sa
+# methodologie dans packages/xrpl et packages/application (deja fait, voir
+# packages/xrpl/src/iou-setup.ts et lending-v1.ts). Ce dossier lui-meme
+# contient node_modules/ ainsi que des seeds reels de wallets devnet
+# (wallets.json, transactions.json genere par ses propres runs) — jamais
+# commit (SEC-04).
+xrpl-lending-sim/

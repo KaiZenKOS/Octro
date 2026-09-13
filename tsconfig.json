@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/domain" },
+    { "path": "packages/credit" },
+    { "path": "packages/xrpl" },
+    { "path": "packages/application" },
+    { "path": "apps/api" }
+  ]
+}

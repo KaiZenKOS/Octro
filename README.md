@@ -1,61 +1,101 @@
-# Octro v2.2 — Track 1 Loaded
+# Octro — Track 1 Loaded
 
-Octro est un produit de prévision et de coordination financière pour les **particuliers, indépendants et entreprises**, tous publics P0. Une application React Native et un moteur commun permettent de comprendre les échéances, préserver l'essentiel et comparer les actions possibles, y compris sans dette.
+A real XRPL Lending Protocol V1 integration for businesses: connect your own Odoo,
+get underwritten against your actual numbers, borrow against it or lend into the
+shared vault. Built for the XRPL Lending Protocol Hackathon (DeVinci Blockchain ×
+Ripple).
 
-**La v2.2 est la seule référence active de développement.** Ce dépôt contient actuellement la documentation et l'arborescence ; cet alignement ne livre aucun code applicatif ni résultat de test réseau.
+**Developer feedback from the hackathon:** [FEEDBACK.md](FEEDBACK.md)
+**Full proof of execution (every real transaction, with explorer links):** [docs/progress/samet/evidence/PROOF_OF_EXECUTION.md](docs/progress/samet/evidence/PROOF_OF_EXECUTION.md)
 
-## Références actives
+## What it does
 
-Lire ensemble le [CDC v2.2](docs/v2.2/Octro_CDC_v2.2.md), les [62 exigences](requirements.json) et la [configuration Track 1 Loaded](docs/v2.2/hackathon.config.json). L'[index documentaire](docs/README.md) décrit toutes les annexes et leur statut. Le [PDF v2.2](docs/v2.2/Octro_CDC_v2.2.pdf) et sa [source LaTeX](docs/v2.2/Octro_CDC_v2.2.tex) sont conservés à l'identique du pack fourni.
+The one real, end-to-end product in this build today is business lending, and the
+whole point of it is cutting default risk before a loan goes out. A business signs up,
+clears KYC, and connects its own Odoo instance; Octro pulls that company's actual
+sales, invoicing and accounting data and runs a real underwriting check against it —
+only once that check passes does the business get to draw a loan, sized to what it can
+plausibly repay. Anyone can be a lender and deposit capital into the shared XRPL vault;
+being a borrower means being a business with real books behind it. Deposit, loan
+origination, drawdown, repayment, withdrawal are all real signed XRPL transactions.
 
-L'[architecture validée](docs/architecture.md) précise les frontières du monorepo, notamment `packages/application/`. Les instructions de développement sont dans [AGENTS.md](AGENTS.md) ; [CLAUDE.md](CLAUDE.md) renvoie aux mêmes références.
+Track 1 means the vault is open-ended: it stays open for deposits and withdrawals for
+its whole life, only the loans inside it have a term.
 
-Les [archives v2.0](docs/archive/v2.0/) servent uniquement à l'historique. **Les archives ne sont pas des instructions de développement** et ne doivent pas être chargées comme sources actives. Les mentions historiques v2.0/v2.1 conservées dans le pack ne réactivent pas ces versions.
+### KYC and credit scoring
 
-## Périmètre décidé
+These are two different checks, both aimed at the same goal — knowing who a borrower
+is and whether they can actually repay, before capital goes out the door:
 
-| Décision | Exigences du pack |
-| --- | --- |
-| Workspace personnel sans `Organization` obligatoire | PER-03, ACC-01 |
-| Saisie, import et prévisions accessibles sans wallet, DID, KYC ni crédit | ACC-01, ACC-02, PER-11, NET-02 |
-| Options sans dette, dépenses essentielles et réserves protégées | PER-01, PER-02, PER-05 |
-| Trois parcours : personnel, indépendant, organisation | UI-01, PER-10 |
-| Track 1 Loaded, Lending Protocol V1, vault ouvert | HACK-01, HACK-02, HACK-03 |
-| Credentials et Permissioned Domains : extension Loaded principale P0 | LOAD-01, LOAD-02, LOAD-03 |
-| Sponsoring P1, désactivé jusqu'à vérification des capacités réseau et réussite de SP0 | SPON-01, SPON-02, SPON-03 |
-| DID facultatif P1, distinct de l'éligibilité | DID-01, DID-02 |
+- **KYC is a sandboxed decision today.** There's no real identity-verification
+  provider wired up yet (the plan is Didit, currently dormant) — a user picks
+  approve/reject and the app follows the same downstream path a real provider's
+  answer would. An approval still isn't just a flag in a database, though: it mints a
+  real on-chain `Credential` between the platform and the user's wallet
+  (`CredentialCreate` + `CredentialAccept`), checkable against the ledger.
+- **Credit scoring is fully real, and it's what actually decides whether a business
+  can borrow.** A company connects its own Odoo instance (BYO, Odoo's External JSON-2
+  API), and Octro pulls its real sales orders, invoices, vendor bills and
+  general-ledger lines through that API — no mock data, no canned score. `packages/credit`
+  runs a proper underwriting model on it: revenue scale, profitability, growth and
+  volatility, collections, balance-sheet health, customer concentration and operating
+  history, each scored and weighted into a composite score, mapped to a letter grade,
+  which drives a recommended credit line sized three independent ways (cash-flow
+  capacity, a revenue-based cap, a DSCR-based cap — whichever is tightest wins), plus
+  an approve / approve-with-conditions / decline call. That call is what stands between
+  a business and a loan it can't service. Odoo is currently the only ERP connector;
+  the underwriting engine itself is written against a plain data shape, not against
+  Odoo's API directly, so adding another ERP later is a new adapter, not a rewrite.
 
-Une capacité financière indisponible ne bloque pas les prévisions. L'IA explique des résultats structurés ; elle ne calcule pas les montants de référence, ne signe pas et ne soumet pas de transactions (UI-02, AGT-02, AGT-03, MCP-02).
+### Loaded extensions, already working end to end
 
-## Architecture et arborescence
+- **Credentials + Permissioned Domains** — the on-chain `Credential` from KYC (above)
+  is one half of this; the other half, a `PermissionedDomain` gating a vault by
+  accepted credential type, is built and proven out on its own throwaway vault rather
+  than attached to the shared production one (see the proof of execution for why).
+- **Sponsorship (XLS-68/69)** — the platform can cover an XRP-poor wallet's reserve and
+  fee for a trustline, verified against a holder funded with zero margin.
+- **RLUSD as a second lending asset**, alongside native XRP, on the same vault/broker
+  design.
+- **Vault shares as MPTokens (XLS-33)** — a lender's real, yield-bearing share of the
+  vault, not a separate ledger kept by the app.
+- **A liquidity buffer** — if the vault can't cover a withdrawal yet because the
+  borrower hasn't repaid, a platform wallet advances it, capped at its own balance.
 
-| Emplacement | Responsabilité |
-| --- | --- |
-| `apps/client/` | Application React Native/Expo, priorité web responsive |
-| `packages/domain/` | Objets et règles métier indépendants des infrastructures |
-| `packages/application/` | Cas d'usage et ports ; orchestration et autorisations communes |
-| `apps/api/`, `apps/worker/`, `packages/mcp/` | Entrées vers les mêmes cas d'usage applicatifs |
-| `packages/contracts/` | Contrats de données et interfaces partagés |
-| `packages/xrpl/` | Adaptateurs ledger : Lending V1, Credentials, Domains, sponsoring et interface wallet |
-| `services/optimizer/` | Calcul Python déterministe, indépendant de FastAPI, du SDK XRPL et du LLM |
-| `packages/agents/` | Orchestration bornée et explications via outils autorisés |
-| `packages/ui/` | Composants et tokens d'interface |
-| `infra/`, `fixtures/`, `tests/`, `docs/` | Déploiement, données synthétiques, vérifications et documentation |
 
-PostgreSQL, S3, Stripe Identity et XRPL sont des adaptateurs derrière les ports applicatifs. API, workers et MCP n'implémentent pas de chemins métier ou d'autorisation parallèles. FastAPI est une enveloppe de transport éventuelle du calcul Python, pas le moteur de calcul. Voir les [dépendances autorisées](docs/architecture.md).
+## Network
 
-## État réseau et preuves
+Custom Hackathon Devnet (`wss://lending-hackathon.dev.ripplex.io:51233`, network id
+4001, rippled 3.4.0-rc1). One vault and one loan broker per asset, bootstrapped once by
+an admin script and reused across the app rather than recreated per user.
 
-Le pack fixe le Custom Hackathon Devnet pour le Track 1 V1. Les adresses publiques et les capacités attendues sont dans [hackathon.config.json](docs/v2.2/hackathon.config.json). `network_id` et la version exacte du SDK restent `null`, `ledger_verified` reste `false` et les capacités restent `unverified` : cet alignement documentaire ne réalise ni G0, ni SP0, ni transaction.
+## Proof of execution
 
-Le chapitre 16 du CDC énumère les transactions candidates du parcours : `VaultCreate`, `VaultDeposit`, `LoanBrokerSet`, `LoanBrokerCoverDeposit` si applicable, `LoanSet`, `LoanPay`, `VaultWithdraw`. Le mapping exact doit être observé sur la V1 et la version SDK stable verrouillée après smoke test. La liste n'est pas une déclaration d'intégration réussie. Ne pas inventer une transaction `Drawdown` ; constater le décaissement dans les effets ledger.
+Everything below is a real, validated transaction on the devnet above — see
+[PROOF_OF_EXECUTION.md](docs/progress/samet/evidence/PROOF_OF_EXECUTION.md) for every
+hash and explorer link.
 
-Le [registre de preuves](docs/v2.2/demo-evidence.template.json) reste un modèle non exécuté. Les [données personnelles d'exemple](docs/v2.2/personal.fixture.json) sont synthétiques et ne constituent pas des preuves réseau. Les rapports DevEx doivent provenir des observations réelles des développeurs (DEVEX-01, DEVEX-02, EVID-01).
+- Open-ended vault created for both assets (XRP and RLUSD), each with its loan broker.
+- Lender deposits into both vaults.
+- Five loans originated and accepted (borrower + broker owner, coordinated signature),
+  across both assets.
+- Drawdown, confirmed through the vault's balance deltas on the `LoanSet` itself — this
+  build doesn't emit a separate `Drawdown` transaction.
+- Two loans repaid in full, amount read back from the ledger, never computed
+  client-side.
+- Withdrawals both funded directly by the vault and advanced by the liquidity buffer
+  when the vault came up short.
+- Three separate protocol-level rejections, each with its own explorer link: the vault
+  refusing a withdrawal it can't yet cover (`tecINSUFFICIENT_FUNDS`), a broker refusing
+  to be deleted while it still holds loans (`tecHAS_OBLIGATIONS`), and — the guardrail
+  the team specifically asked to see demonstrated — a wallet that never went through
+  Octro's sign-up, KYC or credit review trying to repay someone else's loan and getting
+  turned down by the ledger itself (`tecNO_PERMISSION`).
+- Credentials issued and accepted for real users, a Permissioned Domain created, a
+  sponsored trustline for a zero-margin wallet, and a new account being activated
+  on-chain automatically at sign-up.
 
-## Contrats et préparation du développement
-
-Le [schéma de proposition](docs/v2.2/plan.schema.json) et son [exemple](docs/v2.2/plan.example.json) conservent `schema_version: "2.1"` conformément au pack v2.2. Il s'agit d'un contrat hérité, limité à `proposal_only`, et non d'une seconde version active du CDC, d'une API complète ou d'une autorisation financière.
-
-Chaque tâche doit citer les identifiants existants de [requirements.json](requirements.json), leur priorité, propriétaire et critère d'acceptation. Les invariants, paramètres et exigences proviennent du pack ; seuls les chemins `normative_files` du manifeste racine sont adaptés au dépôt. Sa [copie originale](docs/v2.2/requirements.json) reste inchangée.
-
-Il n'existe pas encore de commande de lancement applicatif ni de lockfile validé à annoncer. Les versions exactes, contrats OpenAPI et procédures de lancement seront ajoutés lors de leur implémentation et vérification. Aucun secret, seed, identité de capture, code d'invitation ou réglage personnel ne doit entrer dans le dépôt.
+Also documented there, in the interest of not hiding anything: three real bugs this
+work surfaced and fixed along the way, including one where a retry before a fix landed
+sent more XRP out of the liquidity buffer than intended, and hasn't been reconciled in
+the database yet.
