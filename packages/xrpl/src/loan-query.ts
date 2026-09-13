@@ -25,12 +25,21 @@ export class XrplLoanQueryAdapter implements LoanQueryPort {
     try {
       const { result } = await client.request({ command: "ledger_entry", index: loanId } as any);
       const node = (result as any).node;
+      if (!node) {
+        return { outcome: "unavailable", reason: "loan ledger entry not found" };
+      }
+      // Verifie en reel : une fois le pret integralement rembourse,
+      // TotalValueOutstanding/PrincipalOutstanding/PaymentRemaining/
+      // NextPaymentDueDate disparaissent du Loan ledger entry (l'objet
+      // reste, mais plus rien n'est du) — jamais les passer bruts a
+      // String()/BigInt() cote appelant (String(undefined) === "undefined",
+      // fait planter un BigInt() en aval), toujours retomber sur "rien du".
       return {
         outcome: "ready",
         data: {
-          totalValueOutstanding: String(node.TotalValueOutstanding),
-          principalOutstanding: String(node.PrincipalOutstanding),
-          paymentRemaining: node.PaymentRemaining,
+          totalValueOutstanding: node.TotalValueOutstanding !== undefined ? String(node.TotalValueOutstanding) : "0",
+          principalOutstanding: node.PrincipalOutstanding !== undefined ? String(node.PrincipalOutstanding) : "0",
+          paymentRemaining: node.PaymentRemaining ?? 0,
           nextPaymentDueDate: rippleTimeToIso(node.NextPaymentDueDate),
           defaulted: (node.Flags & LOAN_DEFAULT_FLAG) !== 0,
         },

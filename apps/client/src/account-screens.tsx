@@ -583,6 +583,13 @@ function LoanRepayRow({ loan, onRepaid }: { loan: LoanPosition; onRepaid: () => 
         <Button variant="secondary" busy={loading} onPress={fetchOutstanding} style={{ minHeight: 40 }}>
           {t('Voir le montant dû', 'View amount due')}
         </Button>
+      ) : Number(outstanding.total_value_outstanding) <= 0 ? (
+        <>
+          <T variant="muted">{t('Ce prêt est déjà remboursé.', 'This loan is already repaid.')}</T>
+          <Button variant="secondary" onPress={onRepaid} style={{ minHeight: 40 }}>
+            {t('Actualiser', 'Refresh')}
+          </Button>
+        </>
       ) : (
         <>
           <T variant="muted">

@@ -26,6 +26,14 @@ export class GetLoanOutstandingUseCase {
     }
     if (!loan.loan_id) throw new NotFoundError("LoanPosition", query.loanId);
 
+    // Deja rembourse selon notre propre suivi (source de verite applicative) :
+    // ne rien devoir, jamais relire le ledger pour le confirmer — evite aussi
+    // de dependre de la disparition des champs TotalValueOutstanding/
+    // PrincipalOutstanding une fois le Loan solde (verifie en reel).
+    if (loan.status === "repaid") {
+      return { totalValueOutstanding: "0", principalOutstanding: "0", paymentRemaining: 0, nextPaymentDueDate: null, defaulted: false };
+    }
+
     return assertQueryReady(await this.loanQuery.getOutstanding(loan.loan_id));
   }
 }
