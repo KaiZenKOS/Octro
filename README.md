@@ -127,23 +127,3 @@ Also documented there, in the interest of not hiding anything: three real bugs t
 work surfaced and fixed along the way, including one where a retry before a fix landed
 sent more XRP out of the liquidity buffer than intended, and hasn't been reconciled in
 the database yet.
-
-## Known limitations
-
-- A lender's withdrawable balance is tracked in Postgres (deposits minus withdrawals),
-  not read from the vault directly — the Lending V1 port doesn't expose a lender's
-  actual on-chain share.
-- The liquidity buffer only holds native XRP; an advance for the RLUSD vault is capped
-  at zero.
-- KYC has no real identity-verification provider behind it yet — see "KYC and credit
-  scoring" above for exactly what that does and doesn't mean.
-- Credit scoring only supports Odoo today; the engine itself is provider-agnostic, but
-  no other ERP adapter has been written yet.
-
-## Reference documents
-
-- [CDC v2.2](docs/v2.2/Octro_CDC_v2.2.md) — the full 34-chapter spec this build follows.
-- [requirements.json](requirements.json) — every requirement ID, priority and acceptance criterion.
-- [Track 1 Loaded config](docs/v2.2/hackathon.config.json)
-- [docs/architecture.md](docs/architecture.md) — package boundaries and allowed dependencies in detail.
-- [docs/README.md](docs/README.md) — index of the rest of the documentation set.
