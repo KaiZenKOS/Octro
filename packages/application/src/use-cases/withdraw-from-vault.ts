@@ -176,18 +176,12 @@ export class WithdrawFromVaultUseCase {
       recordedAt: now,
     });
 
+    // La ligne withdrawal_requests doit exister AVANT l'ecriture buffer_ledger
+    // qui la reference (contrainte de cle etrangere sur withdrawal_request_id,
+    // verifiee en reel : l'ordre inverse echoue en violation de contrainte —
+    // jamais exerce avant cette session, les tests unitaires utilisant des
+    // doublures in-memory sans contrainte).
     const withdrawalId = this.ids.newId();
-    await this.bufferLedger.save({
-      id: this.ids.newId(),
-      assetId: bufferAssetId,
-      withdrawalRequestId: withdrawalId,
-      entryType: "advance",
-      amount: `-${advance}`,
-      balanceAfter: subtractDecimal(currentBalance, advance),
-      txEvidence: disbursement.evidence as unknown as Record<string, unknown>,
-      createdAt: now,
-    });
-
     const fundedFrom: WithdrawalFundedFrom = compareDecimal(advance, command.amountDrops) === 0 ? "buffer" : "partial";
     const record: WithdrawalRequest = {
       id: withdrawalId,
@@ -202,6 +196,18 @@ export class WithdrawFromVaultUseCase {
       created_at: now.toISOString(),
     };
     await this.withdrawalRequests.save(record);
+
+    await this.bufferLedger.save({
+      id: this.ids.newId(),
+      assetId: bufferAssetId,
+      withdrawalRequestId: withdrawalId,
+      entryType: "advance",
+      amount: `-${advance}`,
+      balanceAfter: subtractDecimal(currentBalance, advance),
+      txEvidence: disbursement.evidence as unknown as Record<string, unknown>,
+      createdAt: now,
+    });
+
     return record;
   }
 
