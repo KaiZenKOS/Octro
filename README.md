@@ -17,19 +17,44 @@ splits cleanly into two layers:
   compare what-if scenarios (including debt-free options) without ever touching a
   wallet, a KYC provider or a credit check. This layer works standalone; nothing
   financial is gated behind it.
-- **Real lending, once you're onboarded.** Sign up, run through a sandboxed KYC check,
-  connect your own Odoo instance for a credit assessment, and you can deposit into a
-  shared XRPL vault as a lender or take out a loan against your assessed credit line as
-  a borrower. Every step from there — deposit, loan origination, drawdown, repayment,
-  withdrawal — is a real signed XRPL transaction, not a mock.
+- **Real lending, once you're onboarded.** Sign up, clear a KYC step, connect your own
+  Odoo instance so Octro can assess your credit from your actual accounting data, and
+  you can deposit into a shared XRPL vault as a lender or draw against your credit line
+  as a borrower. Deposit, loan origination, drawdown, repayment, withdrawal — every one
+  of those is a real signed XRPL transaction.
 
 Track 1 means the vault is open-ended: it stays open for deposits and withdrawals for
 its whole life, only the loans inside it have a term.
 
+### KYC and credit scoring
+
+These are two different things, worth telling apart:
+
+- **KYC is a sandboxed decision.** There's no real identity-verification provider
+  wired up yet (the plan is Didit, currently dormant) — a user just picks
+  approve/reject and the app follows the same downstream path a real provider's
+  answer would. That said, an approval isn't just a flag in a database: it mints a
+  real on-chain `Credential` between the platform and the user's wallet
+  (`CredentialCreate` + `CredentialAccept`), which you can check against the ledger.
+- **Credit scoring is fully real.** A user connects their own Odoo instance (BYO,
+  Odoo's External JSON-2 API), and Octro pulls their actual sales orders, invoices,
+  vendor bills and general-ledger lines through that API — no mock data, no canned
+  score. `packages/credit` then runs a proper underwriting model on it: revenue scale,
+  profitability, growth and volatility, collections, balance-sheet health, customer
+  concentration and operating history, each scored and weighted into a composite score,
+  mapped to a letter grade, which drives a recommended credit line sized three
+  independent ways (cash-flow capacity, a revenue-based cap, and a DSCR-based cap) —
+  whichever is tightest wins — plus an approve / approve-with-conditions / decline
+  call. Odoo is currently the only ERP connector; the underwriting engine itself
+  doesn't assume that, it's written against a plain data shape, not against Odoo's API
+  directly.
+
 ### Loaded extensions, already working end to end
 
-- **Credentials + Permissioned Domains** — KYC approval mints a real on-chain
-  `Credential` for the user, issued and accepted between the platform and their wallet.
+- **Credentials + Permissioned Domains** — the on-chain `Credential` from KYC (above)
+  is one half of this; the other half, a `PermissionedDomain` gating a vault by
+  accepted credential type, is built and proven out on its own throwaway vault rather
+  than attached to the shared production one (see the proof of execution for why).
 - **Sponsorship (XLS-68/69)** — the platform can cover an XRP-poor wallet's reserve and
   fee for a trustline, verified against a holder funded with zero margin.
 - **RLUSD as a second lending asset**, alongside native XRP, on the same vault/broker
@@ -38,8 +63,6 @@ its whole life, only the loans inside it have a term.
   vault, not a separate ledger kept by the app.
 - **A liquidity buffer** — if the vault can't cover a withdrawal yet because the
   borrower hasn't repaid, a platform wallet advances it, capped at its own balance.
-- **Credit scoring against a user's own Odoo** (sales, invoicing, accounting) rather
-  than a canned score — each user connects their own instance.
 
 ## How it's built
 
@@ -112,8 +135,10 @@ the database yet.
   actual on-chain share.
 - The liquidity buffer only holds native XRP; an advance for the RLUSD vault is capped
   at zero.
-- KYC is a sandbox flow, not a real identity provider — it exercises the same decision
-  path a real one would, without one connected.
+- KYC has no real identity-verification provider behind it yet — see "KYC and credit
+  scoring" above for exactly what that does and doesn't mean.
+- Credit scoring only supports Odoo today; the engine itself is provider-agnostic, but
+  no other ERP adapter has been written yet.
 
 ## Reference documents
 
