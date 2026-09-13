@@ -10,13 +10,8 @@ export interface KycStatus {
 export interface OdooConnection {
   id: string;
   odoo_url: string;
-  odoo_db: string | null;
+  odoo_db: string;
   created_at: string;
-}
-
-export interface OdooCompany {
-  id: number;
-  name: string;
 }
 
 export interface CreditAssessment {
@@ -81,27 +76,19 @@ export function useLendingApi() {
     ),
     getKycStatus: useCallback(async (): Promise<KycStatus> => parseJsonOrThrow(await authed('/v1/kyc/status')), [authed]),
     saveOdooConnection: useCallback(
-      async (odooUrl: string, odooApiKey: string): Promise<OdooConnection> =>
+      async (odooUrl: string, odooDb: string, odooApiKey: string): Promise<OdooConnection> =>
         parseJsonOrThrow(
           await authed('/v1/credit/odoo-connection', {
             method: 'POST',
-            body: JSON.stringify({ odoo_url: odooUrl, odoo_api_key: odooApiKey }),
+            body: JSON.stringify({ odoo_url: odooUrl, odoo_db: odooDb, odoo_api_key: odooApiKey }),
           }),
         ),
       [authed],
     ),
-    listOdooCompanies: useCallback(
-      async (odooConnectionId: string): Promise<OdooCompany[]> =>
-        parseJsonOrThrow(await authed(`/v1/credit/odoo-companies?odoo_connection_id=${odooConnectionId}`)),
-      [authed],
-    ),
     requestCreditAssessment: useCallback(
-      async (odooConnectionId: string, companyId?: number): Promise<CreditAssessment> =>
+      async (odooConnectionId: string): Promise<CreditAssessment> =>
         parseJsonOrThrow(
-          await authed('/v1/credit/assessment', {
-            method: 'POST',
-            body: JSON.stringify({ odoo_connection_id: odooConnectionId, ...(companyId !== undefined ? { company_id: companyId } : {}) }),
-          }),
+          await authed('/v1/credit/assessment', { method: 'POST', body: JSON.stringify({ odoo_connection_id: odooConnectionId }) }),
         ),
       [authed],
     ),
