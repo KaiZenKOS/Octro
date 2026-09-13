@@ -159,8 +159,9 @@ export class XrplLendingV1Adapter implements LendingV1Port {
   async setLoanBroker(params: {
     ownerSeed: string;
     vaultId: string;
+    loanBrokerId?: string;
     debtMaximumDrops: string;
-    managementFeeRate: number;
+    managementFeeRate?: number;
     coverRateMinimum?: number;
     coverRateLiquidation?: number;
   }): Promise<PortResult<{ loanBrokerId: string }>> {
@@ -169,8 +170,13 @@ export class XrplLendingV1Adapter implements LendingV1Port {
       const outcome = await submitAndConfirm(client, owner, {
         TransactionType: "LoanBrokerSet",
         VaultID: params.vaultId,
+        ...(params.loanBrokerId !== undefined ? { LoanBrokerID: params.loanBrokerId } : {}),
         DebtMaximum: params.debtMaximumDrops,
-        ManagementFeeRate: params.managementFeeRate,
+        // Verifie en reel : ce champ (et CoverRate*) fait echouer une mise
+        // a jour (temINVALID) meme avec sa valeur actuelle inchangee —
+        // jamais l'inclure quand absent, contrairement aux autres champs
+        // optionnels ci-dessous ou l'omission est un simple choix stylistique.
+        ...(params.managementFeeRate !== undefined ? { ManagementFeeRate: params.managementFeeRate } : {}),
         ...(params.coverRateMinimum !== undefined ? { CoverRateMinimum: params.coverRateMinimum } : {}),
         ...(params.coverRateLiquidation !== undefined ? { CoverRateLiquidation: params.coverRateLiquidation } : {}),
       });

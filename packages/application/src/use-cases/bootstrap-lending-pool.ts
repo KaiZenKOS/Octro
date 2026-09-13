@@ -32,6 +32,58 @@ export interface BootstrapLendingPoolResult {
   alreadyBootstrapped: boolean;
 }
 
+export interface UpdateLoanBrokerDebtMaximumCommand {
+  assetId: string;
+  // Reenvoye explicitement (jamais suppose "omis = inchange") : reprendre
+  // la valeur actuelle du LoanBroker (lue sur le ledger) si elle ne doit
+  // pas changer, pour ne jamais l'ecraser par erreur.
+  debtMaximumDrops: string;
+}
+
+// Operation d'administration (hors trafic public, pas de route HTTP) :
+// releve/abaisse le plafond de dette d'un pool DEJA amorce, via un second
+// LoanBrokerSet cible par LoanBrokerID (creation initiale :
+// BootstrapLendingPoolUseCase ci-dessous — confirme par le modele xrpl.js,
+// LoanBrokerSet "creates a new LoanBroker object or updates an existing
+// one").
+//
+// IMPORTANT (verifie en reel, 2026-09-13) : ManagementFeeRate (et
+// vraisemblablement CoverRateMinimum/CoverRateLiquidation) est fige a la
+// CREATION du broker — un LoanBrokerSet de mise a jour qui inclut ce champ
+// echoue systematiquement avec temINVALID, meme en renvoyant sa valeur
+// actuelle inchangee. Seul DebtMaximum s'est montre modifiable apres
+// creation. Pour changer le taux de frais d'un pool existant, il faut
+// LoanBrokerDelete (rejette avec tecHAS_OBLIGATIONS tant qu'un pret est en
+// cours) puis re-bootstrap — jamais une simple mise a jour.
+export class UpdateLoanBrokerDebtMaximumUseCase {
+  constructor(
+    private readonly pools: LendingPoolRepository,
+    private readonly lending: LendingV1Port,
+    private readonly crypto: CryptoPort,
+  ) {}
+
+  async execute(command: UpdateLoanBrokerDebtMaximumCommand): Promise<{ loanBrokerId: string }> {
+    const pool = await this.pools.getByAssetId(command.assetId);
+    if (!pool) {
+      throw new Error(`no lending pool bootstrapped for asset_id ${command.assetId}`);
+    }
+
+    const ownerSeed = await this.crypto.decrypt(pool.ownerSeedCiphertext);
+    const { data } = assertReady(
+      await this.lending.setLoanBroker({
+        ownerSeed,
+        vaultId: pool.vaultId,
+        loanBrokerId: pool.loanBrokerId,
+        debtMaximumDrops: command.debtMaximumDrops,
+        // managementFeeRate deliberement omis (voir note ci-dessus) : le
+        // fournir sur une mise a jour echoue toujours, meme avec la
+        // valeur actuelle inchangee.
+      }),
+    );
+    return data;
+  }
+}
+
 // Operation d'administration, hors trafic public (aucune route HTTP) : cree
 // UNE FOIS, PAR ACTIF, le vault ouvert + loan broker partages par tous les
 // lenders/borrowers (decision actee, "vault ouvert" deja verrouille dans le

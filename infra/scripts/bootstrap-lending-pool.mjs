@@ -9,7 +9,10 @@
 //
 // Usage : node --env-file=.env infra/scripts/bootstrap-lending-pool.mjs
 // Variables optionnelles : BOOTSTRAP_DEBT_MAXIMUM_DROPS (defaut 1000000000
-// = 1000 XRP), BOOTSTRAP_MANAGEMENT_FEE_RATE (defaut 0).
+// = 1000 XRP), BOOTSTRAP_MANAGEMENT_FEE_RATE (defaut 1500 = 1.5%, echelle
+// 1/10e de point de base — voir la note dans bootstrap-lending-pool.ts :
+// ce taux ne peut plus etre change une fois le broker cree, verifie en
+// reel).
 import { writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,7 +63,7 @@ async function buildRepository() {
 
 async function main() {
   const debtMaximumDrops = process.env["BOOTSTRAP_DEBT_MAXIMUM_DROPS"] ?? "1000000000"; // 1000 XRP
-  const managementFeeRate = Number(process.env["BOOTSTRAP_MANAGEMENT_FEE_RATE"] ?? "0");
+  const managementFeeRate = Number(process.env["BOOTSTRAP_MANAGEMENT_FEE_RATE"] ?? "1500"); // 1.5%
 
   console.log("Funding a new platform vault-owner wallet via the Hackathon Devnet faucet...");
   const owner = await fundOwnerWallet();

@@ -104,11 +104,30 @@ export interface LendingV1Port {
     amountDrops: LedgerAmount;
   }): Promise<PortResult<{}>>;
 
+  // LoanBrokerSet cree un nouveau LoanBroker (loanBrokerId omis) ou met a
+  // jour celui existant (loanBrokerId fourni) — meme transaction pour les
+  // deux, confirme par le modele xrpl.js (loanBrokerSet.ts : "creates a new
+  // LoanBroker object or updates an existing one"). Sur une mise a jour,
+  // reenvoyer explicitement debtMaximumDrops pour ne rien ecraser par
+  // erreur, plutot que de compter sur une semantique "omis = inchange" non
+  // verifiee ici.
+  //
+  // IMPORTANT (verifie en reel, 2026-09-13, Hackathon Devnet) :
+  // managementFeeRate/coverRateMinimum/coverRateLiquidation ne sont
+  // modifiables qu'A LA CREATION (loanBrokerId absent) — un LoanBrokerSet
+  // de mise a jour qui inclut managementFeeRate echoue systematiquement
+  // avec temINVALID, meme en renvoyant sa valeur actuelle inchangee (0).
+  // Optionnels ici pour permettre a l'appelant de les omettre entierement
+  // sur une mise a jour (seul DebtMaximum s'est montre modifiable apres
+  // creation) — l'adaptateur ne doit alors inclure aucun de ces trois
+  // champs dans la transaction, jamais les envoyer avec leur valeur
+  // actuelle.
   setLoanBroker(params: {
     ownerSeed: string;
     vaultId: string;
+    loanBrokerId?: string;
     debtMaximumDrops: string;
-    managementFeeRate: number;
+    managementFeeRate?: number;
     // XLS-66 : capital de premiere perte du broker, optionnel (garde
     // compatible avec les pools deja amorces sans Cover).
     coverRateMinimum?: number;
