@@ -1,29 +1,31 @@
 # Octro — Track 1 Loaded
 
-Octro is a financial planning and lending platform: a forecasting engine that anyone
-can use without a wallet, KYC or credit check, sitting on top of a real XRPL Lending
-Protocol V1 integration for the people who actually want to lend or borrow. Built for
-the XRPL Lending Protocol Hackathon (DeVinci Blockchain × Ripple).
+A real XRPL Lending Protocol V1 integration for businesses: connect your own Odoo,
+get underwritten against your actual numbers, borrow against it or lend into the
+shared vault. Built for the XRPL Lending Protocol Hackathon (DeVinci Blockchain ×
+Ripple).
 
 **Developer feedback from the hackathon:** [docs/FEEDBACK.md](docs/FEEDBACK.md)
 **Full proof of execution (every real transaction, with explorer links):** [docs/progress/samet/evidence/PROOF_OF_EXECUTION.md](docs/progress/samet/evidence/PROOF_OF_EXECUTION.md)
 
 ## What it does
 
-Octro is a financial planning and lending platform. Individuals, freelancers and
-businesses all get the same forecasting layer — log income and expenses, see upcoming
-deadlines, compare what-if scenarios including debt-free options, no wallet or KYC or
-credit check required for any of that.
-
-Real lending sits on top, and today it's built for **businesses borrowing against
-their own financials**. The whole reason it exists is to cut down default risk before
-a loan ever goes out: a company connects its own Odoo instance, Octro pulls its actual
-sales, invoicing and accounting data straight from it, and only once that data clears
-a real underwriting check does the company get to draw a loan, sized to what it can
+The one real, end-to-end product in this build today is business lending, and the
+whole point of it is cutting default risk before a loan goes out. A business signs up,
+clears KYC, and connects its own Odoo instance; Octro pulls that company's actual
+sales, invoicing and accounting data and runs a real underwriting check against it —
+only once that check passes does the business get to draw a loan, sized to what it can
 plausibly repay. Anyone can be a lender and deposit capital into the shared XRPL vault;
-being a borrower means being a business with real books behind it. From there, deposit,
-loan origination, drawdown, repayment, withdrawal are all real signed XRPL
-transactions.
+being a borrower means being a business with real books behind it. Deposit, loan
+origination, drawdown, repayment, withdrawal are all real signed XRPL transactions.
+
+The wider plan — a shared forecasting layer for individuals, freelancers and
+businesses, with no wallet or KYC required to just see your own numbers — is designed
+into the domain and application layers (`GetPersonalProjectionUseCase`, a real
+`POST /v1/projections` route) but isn't wired to a real user's own data yet. Today it
+only shows through a fixed demo scenario (a synthetic persona, "Lina") on a separate,
+unauthenticated part of the client. Don't read it as a working feature for individuals
+right now — the lending side is what's actually built and proven.
 
 Track 1 means the vault is open-ended: it stays open for deposits and withdrawals for
 its whole life, only the loans inside it have a term.
