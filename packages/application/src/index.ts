@@ -118,6 +118,7 @@ export * from "./use-cases/get-lending-positions.js";
 export * from "./use-cases/get-wallet.js";
 export * from "./use-cases/get-wallet-activity.js";
 export * from "./use-cases/get-loan-outstanding.js";
+export * from "./use-cases/get-buffer-status.js";
 export * from "./adapters/in-memory/fake-loan-query-adapter.js";
 export * from "./adapters/in-memory/fake-credentials-and-domains-adapter.js";
 export * from "./adapters/in-memory/fake-account-activity-adapter.js";

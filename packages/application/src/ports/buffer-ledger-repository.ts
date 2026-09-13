@@ -22,4 +22,7 @@ export interface BufferLedgerRepository {
   // null si le grand livre n'a jamais ete initialise pour cet actif (voir
   // WithdrawFromVaultUseCase, amorcage a la premiere avance).
   getCurrentBalance(assetId: string): Promise<string | null>;
+  // Historique complet (le plus recent d'abord) — page Info publique :
+  // transparence sur les avances deja faites par le buffer.
+  listByAssetId(assetId: string): Promise<BufferLedgerEntryRecord[]>;
 }

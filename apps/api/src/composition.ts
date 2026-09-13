@@ -27,6 +27,7 @@ import {
   FakeLoanQueryAdapter,
   GetLatestCreditAssessmentUseCase,
   GetLoanOutstandingUseCase,
+  GetBufferStatusUseCase,
   GetLendingPositionsUseCase,
   GetWalletActivityUseCase,
   GetWalletUseCase,
@@ -143,6 +144,7 @@ export interface AppDependencies {
   borrowerLoanRequest: BorrowerLoanRequestUseCase;
   repayLoan: RepayLoanUseCase;
   getLoanOutstanding: GetLoanOutstandingUseCase;
+  getBufferStatus: GetBufferStatusUseCase;
   withdrawFromVault: WithdrawFromVaultUseCase;
   // Pas de route HTTP publique (operation d'administration hors trafic
   // public, voir infra/scripts/bootstrap-lending-pool.mjs) — expose ici,
@@ -432,6 +434,7 @@ export function buildDependencies(): AppDependencies {
     ),
     repayLoan: new RepayLoanUseCase(kycStatuses, wallets, loanPositions, lending, loanQuery, walletSeedCrypto, txEvidence, clock),
     getLoanOutstanding: new GetLoanOutstandingUseCase(loanPositions, loanQuery),
+    getBufferStatus: new GetBufferStatusUseCase(bufferLedger, accountActivity, bufferWalletAddress),
     withdrawFromVault: new WithdrawFromVaultUseCase(
       kycStatuses,
       wallets,

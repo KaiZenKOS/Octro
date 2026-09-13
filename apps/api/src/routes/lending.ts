@@ -23,6 +23,18 @@ const LoanIdQuery = z.object({ loan_id: z.string().uuid() });
 const WithdrawBody = z.object({ amount_drops: PositiveDecimalStringSchema, asset_id: AssetIdSchema.optional() });
 
 export async function lendingRoutes(app: FastifyInstance, deps: AppDependencies): Promise<void> {
+  // Publique (pas de session requise) : solde reel et historique des
+  // avances du wallet buffer — transparence affichee sur la page Info,
+  // aucune donnee personnelle (jamais l'identite du lender avance).
+  app.get("/v1/lending/buffer", async (_request, reply) => {
+    try {
+      const status = await deps.getBufferStatus.execute();
+      return reply.send(status);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   // Alimente le selecteur d'actif du client (XRP toujours present ; RLUSD
   // simule des qu'un second pool a ete amorce, integration
   // xrpl-lending-sim). Ne renvoie jamais la seed chiffree du proprietaire.

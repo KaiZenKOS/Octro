@@ -72,6 +72,20 @@ export interface LoanOutstanding {
   defaulted: boolean;
 }
 
+// Transparence publique (GET /v1/lending/buffer, page Info) : solde reel
+// du wallet buffer et historique des avances qu'il a deja faites.
+export interface BufferAdvance {
+  amount: string;
+  balance_after: string;
+  created_at: string;
+}
+export interface BufferStatus {
+  asset_id: string;
+  address: string;
+  on_chain_balance: string | null;
+  advances: BufferAdvance[];
+}
+
 export interface WithdrawalRequest {
   id: string;
   asset_id: string;
@@ -271,6 +285,7 @@ export function useLendingApi() {
         ),
       [authed],
     ),
+    getBufferStatus: useCallback(async (): Promise<BufferStatus> => parseJsonOrThrow(await authed('/v1/lending/buffer')), [authed]),
     getLoanOutstanding: useCallback(
       async (loanId: string): Promise<LoanOutstanding> =>
         parseJsonOrThrow(await authed(`/v1/lending/loans/outstanding?loan_id=${loanId}`)),

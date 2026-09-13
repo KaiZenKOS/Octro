@@ -11,4 +11,8 @@ export class InMemoryBufferLedgerRepository implements BufferLedgerRepository {
     const forAsset = this.entries.filter((e) => e.assetId === assetId);
     return forAsset.length > 0 ? forAsset[forAsset.length - 1]!.balanceAfter : null;
   }
+
+  async listByAssetId(assetId: string): Promise<BufferLedgerEntryRecord[]> {
+    return this.entries.filter((e) => e.assetId === assetId).slice().reverse();
+  }
 }
