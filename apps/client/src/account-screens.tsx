@@ -161,20 +161,20 @@ function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void })
         <Card style={{ maxWidth: 480, width: '100%', gap: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Icon name="shield" size={22} color={c.text} />
-            <T variant="title">{t("Vérification d'identité (KYC)", 'Identity verification (KYC)')}</T>
+            <T variant="title">{t("Vérification d'identité — KYC (bac à sable)", 'Identity verification — KYC (sandbox)')}</T>
           </View>
           <T variant="muted">
             {t(
-              "Simulation pour le hackathon — aucun vrai fournisseur d'identité n'est appelé. Cette décision détermine l'accès aux instruments financiers (dépôt, prêt, retrait).",
-              "Simulated for the hackathon — no real identity provider is involved. This is what decides whether you can deposit, borrow, or withdraw.",
+              "Ce hackathon tourne sur un bac à sable KYC — le même circuit de décision qu'un vrai fournisseur, sans en connecter un pour l'instant. C'est ce qui détermine l'accès aux instruments financiers (dépôt, prêt, retrait).",
+              "This hackathon runs on a KYC sandbox — the same decision flow as a real provider, without one connected yet. It determines whether you can deposit, borrow, or withdraw.",
             )}
           </T>
           <ErrorNote message={error} />
           <Button busy={busy === 'valid'} onPress={() => simulate('valid')}>
-            {t('Simuler KYC valide', 'Simulate valid KYC')}
+            {t('Valider le KYC (bac à sable)', 'Approve KYC (sandbox)')}
           </Button>
           <Button variant="secondary" busy={busy === 'invalid'} onPress={() => simulate('invalid')}>
-            {t('Simuler KYC invalide', 'Simulate invalid KYC')}
+            {t('Rejeter le KYC (bac à sable)', 'Reject KYC (sandbox)')}
           </Button>
         </Card>
       </View>
@@ -1033,14 +1033,14 @@ function HomeScreenInner() {
       {kyc.status === 'invalid' && (
         <Card style={{ gap: 8 }}>
           <T style={{ color: c.error }}>
-            {t('KYC simulé invalide : aucun instrument financier accessible.', 'Simulated KYC invalid: no financial instrument accessible.')}
+            {t('KYC (bac à sable) rejeté : aucun instrument financier accessible.', 'KYC (sandbox) rejected: no financial instrument accessible.')}
           </T>
         </Card>
       )}
       {kyc.status === 'valid' && (
         <>
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-            <Badge tone="success">{t('KYC simulé : valide', 'Simulated KYC: valid')}</Badge>
+            <Badge tone="success">{t('KYC (bac à sable) : validé', 'KYC (sandbox): approved')}</Badge>
             <OnChainCredentialBadge />
           </View>
           <CreditSetupSection assessment={assessment} onAssessed={setAssessment} />
@@ -1094,8 +1094,8 @@ function LendingScreenInner() {
           <T variant="title">{t('Vérification requise', 'Verification required')}</T>
           <T variant="muted">
             {t(
-              "Le dépôt, l'emprunt et le retrait exigent d'abord une vérification d'identité (KYC simulé) sur la page d'accueil.",
-              'You need to complete identity verification (simulated KYC) on the home page before you can deposit, borrow, or withdraw.',
+              "Le dépôt, l'emprunt et le retrait exigent d'abord une vérification d'identité (KYC bac à sable) sur la page d'accueil.",
+              'You need to complete identity verification (KYC sandbox) on the home page before you can deposit, borrow, or withdraw.',
             )}
           </T>
           <Link href="/" asChild>
