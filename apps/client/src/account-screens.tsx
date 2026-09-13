@@ -4,6 +4,7 @@ import { Linking, Modal, Pressable, View } from 'react-native';
 import { Badge, Button, Card, Field, Typography as T, tokens } from '@octro/ui';
 import { Icon } from './Icon';
 import { useAuth } from './auth';
+import { useSession } from './session';
 import {
   assetSymbol,
   formatAmount,
@@ -41,6 +42,7 @@ function ErrorNote({ message }: { message: string | null }) {
 // renvoye par l'API : il n'apparait ici que parce qu'il a ete envoye par
 // l'Octro Mailing System a l'adresse saisie).
 function SignUpOrLogIn() {
+  const { t } = useSession();
   const { signUp, login } = useAuth();
   const [mode, setMode] = useState<'signup' | 'login'>('signup');
   const [email, setEmail] = useState('');
@@ -55,7 +57,7 @@ function SignUpOrLogIn() {
       if (mode === 'signup') await signUp(email.trim(), password);
       else await login(email.trim(), password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unexpected error');
+      setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error'));
     } finally {
       setBusy(false);
     }
@@ -63,24 +65,30 @@ function SignUpOrLogIn() {
 
   return (
     <Card style={{ maxWidth: 480, gap: 16 }}>
-      <T variant="title">{mode === 'signup' ? 'Créer un compte' : 'Se connecter'}</T>
+      <T variant="title">{mode === 'signup' ? t('Créer un compte', 'Create an account') : t('Se connecter', 'Log in')}</T>
       <T variant="muted">
-        Un wallet XRPL est provisionné automatiquement à l'inscription (keypair seul, non fondé pour l'instant).
+        {t(
+          "Un wallet XRPL est provisionné automatiquement à l'inscription (keypair seul, non fondé pour l'instant).",
+          'An XRPL wallet is provisioned automatically at sign-up (keypair only, not funded yet).',
+        )}
       </T>
       <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-      <Field label="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry />
+      <Field label={t('Mot de passe', 'Password')} value={password} onChangeText={setPassword} secureTextEntry />
       <ErrorNote message={error} />
       <Button busy={busy} disabled={!email || password.length < 8} onPress={submit}>
-        {mode === 'signup' ? "S'inscrire" : 'Se connecter'}
+        {mode === 'signup' ? t("S'inscrire", 'Sign up') : t('Se connecter', 'Log in')}
       </Button>
       <Button variant="ghost" onPress={() => setMode(mode === 'signup' ? 'login' : 'signup')}>
-        {mode === 'signup' ? 'Déjà un compte ? Se connecter' : 'Pas encore de compte ? S’inscrire'}
+        {mode === 'signup'
+          ? t('Déjà un compte ? Se connecter', 'Already have an account? Log in')
+          : t("Pas encore de compte ? S'inscrire", "Don't have an account yet? Sign up")}
       </Button>
     </Card>
   );
 }
 
 function VerifyEmail() {
+  const { t } = useSession();
   const { user, verifyEmail } = useAuth();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -93,7 +101,7 @@ function VerifyEmail() {
     try {
       await verifyEmail(user.id, code.trim());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unexpected error');
+      setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error'));
     } finally {
       setBusy(false);
     }
@@ -101,14 +109,25 @@ function VerifyEmail() {
 
   return (
     <Card style={{ maxWidth: 480, gap: 16 }}>
-      <T variant="title">Vérifiez votre email</T>
-      <T variant="muted">Un code à 6 chiffres a été envoyé à {user?.email}. Il expire dans 10 minutes.</T>
-      <Field label="Code de vérification" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} />
+      <T variant="title">{t('Vérifiez votre email', 'Verify your email')}</T>
+      <T variant="muted">
+        {t(
+          `Un code à 6 chiffres a été envoyé à ${user?.email}. Il expire dans 10 minutes.`,
+          `A 6-digit code was sent to ${user?.email}. It expires in 10 minutes.`,
+        )}
+      </T>
+      <Field
+        label={t('Code de vérification', 'Verification code')}
+        value={code}
+        onChangeText={setCode}
+        keyboardType="number-pad"
+        maxLength={6}
+      />
       <ErrorNote message={error} />
       <Button busy={busy} disabled={code.length !== 6} onPress={submit}>
-        Vérifier
+        {t('Vérifier', 'Verify')}
       </Button>
-      <T variant="muted">Une fois vérifié, reconnectez-vous avec votre mot de passe.</T>
+      <T variant="muted">{t('Une fois vérifié, reconnectez-vous avec votre mot de passe.', 'Once verified, log back in with your password.')}</T>
     </Card>
   );
 }
@@ -118,6 +137,7 @@ function VerifyEmail() {
 // decision, aucun vrai fournisseur d'identite n'est appele (Didit reste
 // dormant).
 function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void }) {
+  const { t } = useSession();
   const api = useLendingApi();
   const [busy, setBusy] = useState<'valid' | 'invalid' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +149,7 @@ function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void })
       const status = await api.simulateKyc(result);
       onDecided(status);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unexpected error');
+      setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error'));
     } finally {
       setBusy(null);
     }
@@ -141,18 +161,20 @@ function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void })
         <Card style={{ maxWidth: 480, width: '100%', gap: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Icon name="shield" size={22} color={c.text} />
-            <T variant="title">Vérification d'identité (KYC)</T>
+            <T variant="title">{t("Vérification d'identité (KYC)", 'Identity verification (KYC)')}</T>
           </View>
           <T variant="muted">
-            Simulation pour le hackathon — aucun vrai fournisseur d'identité n'est appelé. Cette décision détermine
-            l'accès aux instruments financiers (dépôt, prêt, retrait).
+            {t(
+              "Simulation pour le hackathon — aucun vrai fournisseur d'identité n'est appelé. Cette décision détermine l'accès aux instruments financiers (dépôt, prêt, retrait).",
+              'Simulation for the hackathon — no real identity provider is called. This decision determines access to financial instruments (deposit, loan, withdrawal).',
+            )}
           </T>
           <ErrorNote message={error} />
           <Button busy={busy === 'valid'} onPress={() => simulate('valid')}>
-            Simuler KYC valide
+            {t('Simuler KYC valide', 'Simulate valid KYC')}
           </Button>
           <Button variant="secondary" busy={busy === 'invalid'} onPress={() => simulate('invalid')}>
-            Simuler KYC invalide
+            {t('Simuler KYC invalide', 'Simulate invalid KYC')}
           </Button>
         </Card>
       </View>
@@ -161,6 +183,7 @@ function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void })
 }
 
 function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnection) => void }) {
+  const { t } = useSession();
   const api = useLendingApi();
   const [odooUrl, setOdooUrl] = useState('');
   const [odooApiKey, setOdooApiKey] = useState('');
@@ -174,7 +197,7 @@ function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnec
       const connection = await api.saveOdooConnection(odooUrl.trim(), odooApiKey.trim());
       onConnected(connection);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unexpected error');
+      setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error'));
     } finally {
       setBusy(false);
     }
@@ -182,17 +205,24 @@ function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnec
 
   return (
     <Card style={{ gap: 16 }}>
-      <T variant="title">Connecter votre Odoo</T>
+      <T variant="title">{t('Connecter votre Odoo', 'Connect your Odoo')}</T>
       <T variant="muted">
-        Le score de crédit est calculé depuis vos propres données Odoo (Ventes, Facturation, Comptabilité) — un seul
-        fournisseur pour l'instant. Votre clé API n'est jamais réaffichée. Odoo on-premise : pas besoin du nom de la
-        base de données.
+        {t(
+          "Le score de crédit est calculé depuis vos propres données Odoo (Ventes, Facturation, Comptabilité) — un seul fournisseur pour l'instant. Votre clé API n'est jamais réaffichée. Odoo on-premise : pas besoin du nom de la base de données.",
+          "Your credit score is computed from your own Odoo data (Sales, Invoicing, Accounting) — only one provider for now. Your API key is never shown again. On-premise Odoo: no database name needed.",
+        )}
       </T>
-      <Field label="URL Odoo" value={odooUrl} onChangeText={setOdooUrl} placeholder="https://mon-entreprise.example.com" autoCapitalize="none" />
-      <Field label="Clé API Odoo" value={odooApiKey} onChangeText={setOdooApiKey} secureTextEntry />
+      <Field
+        label={t('URL Odoo', 'Odoo URL')}
+        value={odooUrl}
+        onChangeText={setOdooUrl}
+        placeholder="https://my-company.example.com"
+        autoCapitalize="none"
+      />
+      <Field label={t('Clé API Odoo', 'Odoo API key')} value={odooApiKey} onChangeText={setOdooApiKey} secureTextEntry />
       <ErrorNote message={error} />
       <Button busy={busy} disabled={!odooUrl || !odooApiKey} onPress={submit}>
-        Connecter
+        {t('Connecter', 'Connect')}
       </Button>
     </Card>
   );
@@ -207,6 +237,7 @@ function CompanySelector({
   connection: OdooConnection;
   onSelected: (companyId: number) => void;
 }) {
+  const { t } = useSession();
   const api = useLendingApi();
   const [companies, setCompanies] = useState<OdooCompany[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -218,17 +249,17 @@ function CompanySelector({
         setCompanies(list);
         if (list.length <= 1) onSelected(list[0]?.id ?? 0);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Unexpected error'));
+      .catch((err) => setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error')));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection.id]);
 
   if (error) return <Card style={{ gap: 8 }}><ErrorNote message={error} /></Card>;
-  if (!companies || companies.length <= 1) return <T variant="muted">Chargement des entreprises…</T>;
+  if (!companies || companies.length <= 1) return <T variant="muted">{t('Chargement des entreprises…', 'Loading companies…')}</T>;
 
   return (
     <Card style={{ gap: 16 }}>
-      <T variant="title">Choisir l'entreprise</T>
-      <T variant="muted">Plusieurs entreprises sont accessibles à cette clé API Odoo.</T>
+      <T variant="title">{t("Choisir l'entreprise", 'Choose the company')}</T>
+      <T variant="muted">{t('Plusieurs entreprises sont accessibles à cette clé API Odoo.', 'Multiple companies are accessible with this Odoo API key.')}</T>
       {companies.map((company) => (
         <Button key={company.id} variant="secondary" onPress={() => onSelected(company.id)}>
           {company.name}
@@ -249,6 +280,7 @@ function CreditAssessmentPanel({
   assessment: CreditAssessment | null;
   onAssessed: (assessment: CreditAssessment) => void;
 }) {
+  const { t } = useSession();
   const api = useLendingApi();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,7 +288,11 @@ function CreditAssessmentPanel({
   const decisionTone = (decision: CreditAssessment['decision']) =>
     decision === 'approve' ? 'success' : decision === 'approve_with_conditions' ? 'warning' : 'error';
   const decisionLabel = (decision: CreditAssessment['decision']) =>
-    decision === 'approve' ? 'Approuvé' : decision === 'approve_with_conditions' ? 'Approuvé sous conditions' : 'Refusé';
+    decision === 'approve'
+      ? t('Approuvé', 'Approved')
+      : decision === 'approve_with_conditions'
+        ? t('Approuvé sous conditions', 'Approved with conditions')
+        : t('Refusé', 'Declined');
 
   const requestAssessment = async () => {
     setBusy(true);
@@ -264,7 +300,7 @@ function CreditAssessmentPanel({
     try {
       onAssessed(await api.requestCreditAssessment(connection.id, companyId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unexpected error');
+      setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error'));
     } finally {
       setBusy(false);
     }
@@ -272,26 +308,30 @@ function CreditAssessmentPanel({
 
   return (
     <Card style={{ gap: 16 }}>
-      <T variant="title">Évaluation de crédit</T>
-      <T variant="muted">Odoo connecté : {connection.odoo_url}</T>
+      <T variant="title">{t('Évaluation de crédit', 'Credit assessment')}</T>
+      <T variant="muted">{t(`Odoo connecté : ${connection.odoo_url}`, `Odoo connected: ${connection.odoo_url}`)}</T>
       <ErrorNote message={error} />
       <Button busy={busy} onPress={requestAssessment}>
-        {assessment ? 'Réévaluer' : "Demander l'évaluation"}
+        {assessment ? t('Réévaluer', 'Reassess') : t("Demander l'évaluation", 'Request assessment')}
       </Button>
       {assessment && (
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Badge tone={decisionTone(assessment.decision)}>Grade {assessment.grade}</Badge>
+            <Badge tone={decisionTone(assessment.decision)}>{t(`Grade ${assessment.grade}`, `Grade ${assessment.grade}`)}</Badge>
             <Badge tone={decisionTone(assessment.decision)}>{decisionLabel(assessment.decision)}</Badge>
           </View>
-          <T>Score composite : {assessment.composite_score}/100</T>
+          <T>{t(`Score composite : ${assessment.composite_score}/100`, `Composite score: ${assessment.composite_score}/100`)}</T>
           <T>
-            Ligne de crédit recommandée : {assessment.max_recommended_credit_line.amount_decimal}{' '}
-            {assessment.max_recommended_credit_line.asset_id}
+            {t(
+              `Ligne de crédit recommandée : ${assessment.max_recommended_credit_line.amount_decimal} ${assessment.max_recommended_credit_line.asset_id}`,
+              `Recommended credit line: ${assessment.max_recommended_credit_line.amount_decimal} ${assessment.max_recommended_credit_line.asset_id}`,
+            )}
           </T>
           <T>
-            Durée suggérée : {assessment.term_months} mois · taux indicatif :{' '}
-            {assessment.indicative_annual_rate_pct}%
+            {t(
+              `Durée suggérée : ${assessment.term_months} mois · taux indicatif : ${assessment.indicative_annual_rate_pct}%`,
+              `Suggested term: ${assessment.term_months} months · indicative rate: ${assessment.indicative_annual_rate_pct}%`,
+            )}
           </T>
           {assessment.risk_notes.map((note, i) => (
             <T key={i} variant="muted">
@@ -307,8 +347,12 @@ function CreditAssessmentPanel({
 function creditDecisionTone(decision: CreditAssessment['decision']): 'success' | 'warning' | 'error' {
   return decision === 'approve' ? 'success' : decision === 'approve_with_conditions' ? 'warning' : 'error';
 }
-function creditDecisionLabel(decision: CreditAssessment['decision']): string {
-  return decision === 'approve' ? 'Approuvé' : decision === 'approve_with_conditions' ? 'Approuvé sous conditions' : 'Refusé';
+function creditDecisionLabel(t: (fr: string, en: string) => string, decision: CreditAssessment['decision']): string {
+  return decision === 'approve'
+    ? t('Approuvé', 'Approved')
+    : decision === 'approve_with_conditions'
+      ? t('Approuvé sous conditions', 'Approved with conditions')
+      : t('Refusé', 'Declined');
 }
 
 // Une fois une evaluation obtenue, le bloc de connexion Odoo se reduit a un
@@ -322,6 +366,7 @@ function CreditSetupSection({
   assessment: CreditAssessment | null;
   onAssessed: (assessment: CreditAssessment) => void;
 }) {
+  const { t } = useSession();
   const [odooConnection, setOdooConnection] = useState<OdooConnection | null>(null);
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(!assessment);
@@ -331,15 +376,17 @@ function CreditSetupSection({
       <Card style={{ gap: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Badge tone={creditDecisionTone(assessment.decision)}>Grade {assessment.grade}</Badge>
-            <Badge tone={creditDecisionTone(assessment.decision)}>{creditDecisionLabel(assessment.decision)}</Badge>
+            <Badge tone={creditDecisionTone(assessment.decision)}>{t(`Grade ${assessment.grade}`, `Grade ${assessment.grade}`)}</Badge>
+            <Badge tone={creditDecisionTone(assessment.decision)}>{creditDecisionLabel(t, assessment.decision)}</Badge>
             <T variant="muted">
-              Plafond : {assessment.max_recommended_credit_line.amount_decimal} {assessment.max_recommended_credit_line.asset_id} sur{' '}
-              {assessment.term_months} mois max
+              {t(
+                `Plafond : ${assessment.max_recommended_credit_line.amount_decimal} ${assessment.max_recommended_credit_line.asset_id} sur ${assessment.term_months} mois max`,
+                `Cap: ${assessment.max_recommended_credit_line.amount_decimal} ${assessment.max_recommended_credit_line.asset_id} over ${assessment.term_months} months max`,
+              )}
             </T>
           </View>
           <Button variant="ghost" onPress={() => setExpanded(true)} style={{ minHeight: 36, paddingVertical: 6, paddingHorizontal: 12 }}>
-            Réévaluer
+            {t('Réévaluer', 'Reassess')}
           </Button>
         </View>
       </Card>
@@ -370,13 +417,13 @@ function CreditSetupSection({
               setCompanyId(null);
             }}
           >
-            Changer de connexion Odoo
+            {t('Changer de connexion Odoo', 'Change Odoo connection')}
           </Button>
         </>
       )}
       {assessment && (
         <Button variant="ghost" onPress={() => setExpanded(false)}>
-          Annuler
+          {t('Annuler', 'Cancel')}
         </Button>
       )}
     </View>
@@ -422,24 +469,33 @@ function withdrawalStatusTone(status: string, fundedFrom: string): 'neutral' | '
   if (status === 'failed') return 'error';
   return fundedFrom === 'vault' ? 'success' : 'warning';
 }
-function fundedFromLabel(fundedFrom: string): string {
-  return fundedFrom === 'vault' ? 'depuis le vault' : fundedFrom === 'buffer' ? 'avancé par le buffer' : 'partiellement avancé';
+function fundedFromLabel(t: (fr: string, en: string) => string, fundedFrom: string): string {
+  return fundedFrom === 'vault'
+    ? t('depuis le vault', 'from the vault')
+    : fundedFrom === 'buffer'
+      ? t('avancé par le buffer', 'advanced by the buffer')
+      : t('partiellement avancé', 'partially advanced');
 }
 
 // Vue agregee (depots, prets, retraits) — persiste au refresh via
 // GET /v1/lending/positions, plutot que de ne montrer que le dernier
 // resultat d'action dans la session courante.
 function PositionsSection({ positions }: { positions: LendingPositions | null }) {
+  const { t } = useSession();
   if (!positions) return null;
   const { deposits, loans, withdrawals } = positions;
   if (deposits.length === 0 && loans.length === 0 && withdrawals.length === 0) {
-    return <T variant="muted">Aucune position pour l'instant — déposez, empruntez ou retirez ci-dessus.</T>;
+    return (
+      <T variant="muted">
+        {t("Aucune position pour l'instant — déposez, empruntez ou retirez ci-dessus.", 'No positions yet — deposit, borrow, or withdraw above.')}
+      </T>
+    );
   }
   return (
     <View style={{ gap: 16 }}>
       {deposits.length > 0 && (
         <View style={{ gap: 8 }}>
-          <T variant="label">Dépôts</T>
+          <T variant="label">{t('Dépôts', 'Deposits')}</T>
           {deposits.map((d) => (
             <View key={d.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <T>{formatAmount(d.asset_id, d.amount_drops)}</T>
@@ -450,7 +506,7 @@ function PositionsSection({ positions }: { positions: LendingPositions | null })
       )}
       {loans.length > 0 && (
         <View style={{ gap: 8 }}>
-          <T variant="label">Prêts</T>
+          <T variant="label">{t('Prêts', 'Loans')}</T>
           {loans.map((l) => (
             <View key={l.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <T>
@@ -463,13 +519,16 @@ function PositionsSection({ positions }: { positions: LendingPositions | null })
       )}
       {withdrawals.length > 0 && (
         <View style={{ gap: 8 }}>
-          <T variant="label">Retraits</T>
+          <T variant="label">{t('Retraits', 'Withdrawals')}</T>
           {withdrawals.map((w) => (
             <View key={w.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <T>
-                {formatAmount(w.asset_id, w.fulfilled_amount_drops)} / {formatAmount(w.asset_id, w.requested_amount_drops)} demandés
+                {t(
+                  `${formatAmount(w.asset_id, w.fulfilled_amount_drops)} / ${formatAmount(w.asset_id, w.requested_amount_drops)} demandés`,
+                  `${formatAmount(w.asset_id, w.fulfilled_amount_drops)} / ${formatAmount(w.asset_id, w.requested_amount_drops)} requested`,
+                )}
               </T>
-              <Badge tone={withdrawalStatusTone(w.status, w.funded_from)}>{fundedFromLabel(w.funded_from)}</Badge>
+              <Badge tone={withdrawalStatusTone(w.status, w.funded_from)}>{fundedFromLabel(t, w.funded_from)}</Badge>
             </View>
           ))}
         </View>
@@ -484,6 +543,7 @@ function PositionsSection({ positions }: { positions: LendingPositions | null })
 // client, puis on rembourse ce montant exact (le seul qui fonctionne pour
 // clore le pret, voir packages/xrpl/src/lending-v1.ts).
 function LoanRepayRow({ loan, onRepaid }: { loan: LoanPosition; onRepaid: () => void }) {
+  const { t, language } = useSession();
   const api = useLendingApi();
   const [outstanding, setOutstanding] = useState<LoanOutstanding | null>(null);
   const [loading, setLoading] = useState(false);
@@ -496,7 +556,7 @@ function LoanRepayRow({ loan, onRepaid }: { loan: LoanPosition; onRepaid: () => 
     api
       .getLoanOutstanding(loan.id)
       .then(setOutstanding)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Unexpected error'))
+      .catch((err) => setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error')))
       .finally(() => setLoading(false));
   };
 
@@ -507,7 +567,7 @@ function LoanRepayRow({ loan, onRepaid }: { loan: LoanPosition; onRepaid: () => 
       await api.repay(loan.id);
       onRepaid();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unexpected error');
+      setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error'));
     } finally {
       setBusy(false);
     }
@@ -516,23 +576,32 @@ function LoanRepayRow({ loan, onRepaid }: { loan: LoanPosition; onRepaid: () => 
   return (
     <View style={{ gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.border }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <T>{formatAmount(loan.asset_id, loan.principal_drops)} emprunté</T>
-        <Badge tone="success">actif</Badge>
+        <T>{t(`${formatAmount(loan.asset_id, loan.principal_drops)} emprunté`, `${formatAmount(loan.asset_id, loan.principal_drops)} borrowed`)}</T>
+        <Badge tone="success">{t('actif', 'active')}</Badge>
       </View>
       {!outstanding ? (
         <Button variant="secondary" busy={loading} onPress={fetchOutstanding} style={{ minHeight: 40 }}>
-          Voir le montant dû
+          {t('Voir le montant dû', 'View amount due')}
         </Button>
       ) : (
         <>
           <T variant="muted">
-            Montant dû : {formatAmount(loan.asset_id, outstanding.total_value_outstanding)}
+            {t(
+              `Montant dû : ${formatAmount(loan.asset_id, outstanding.total_value_outstanding)}`,
+              `Amount due: ${formatAmount(loan.asset_id, outstanding.total_value_outstanding)}`,
+            )}
             {outstanding.next_payment_due_date
-              ? ` · échéance ${new Date(outstanding.next_payment_due_date).toLocaleDateString('fr-FR')}`
+              ? t(
+                  ` · échéance ${new Date(outstanding.next_payment_due_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US')}`,
+                  ` · due ${new Date(outstanding.next_payment_due_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US')}`,
+                )
               : ''}
           </T>
           <Button busy={busy} onPress={repay}>
-            Rembourser {formatAmount(loan.asset_id, outstanding.total_value_outstanding)}
+            {t(
+              `Rembourser ${formatAmount(loan.asset_id, outstanding.total_value_outstanding)}`,
+              `Repay ${formatAmount(loan.asset_id, outstanding.total_value_outstanding)}`,
+            )}
           </Button>
         </>
       )}
@@ -542,6 +611,7 @@ function LoanRepayRow({ loan, onRepaid }: { loan: LoanPosition; onRepaid: () => 
 }
 
 function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
+  const { t } = useSession();
   const api = useLendingApi();
   const [assets, setAssets] = useState<LendingAsset[]>([{ asset_id: NATIVE_ASSET_ID, vault_id: '' }]);
   const [asset, setAsset] = useState(NATIVE_ASSET_ID);
@@ -573,7 +643,7 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
       onDone();
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unexpected error');
+      setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error'));
     } finally {
       setBusy(null);
     }
@@ -585,19 +655,21 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
     <Card style={{ gap: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Icon name="coins" size={22} color={c.text} />
-        <T variant="title">Lending V1 — vault ouvert partagé</T>
+        <T variant="title">{t('Lending V1 — vault ouvert partagé', 'Lending V1 — shared open vault')}</T>
       </View>
       <T variant="muted">
-        Dépôts et prêts passent par le vault et le loan broker partagés de l'actif choisi (adaptateur XRPL déjà
-        vérifié en réel). Le retrait avance depuis le buffer de liquidité si le vault n'est pas encore liquide.
+        {t(
+          "Dépôts et prêts passent par le vault et le loan broker partagés de l'actif choisi (adaptateur XRPL déjà vérifié en réel). Le retrait avance depuis le buffer de liquidité si le vault n'est pas encore liquide.",
+          "Deposits and loans go through the shared vault and loan broker for the chosen asset (XRPL adapter already verified live). Withdrawals advance from the liquidity buffer if the vault isn't liquid yet.",
+        )}
       </T>
 
       <AssetSelector assets={assets} selected={asset} onSelect={setAsset} />
 
       <View style={{ gap: 8 }}>
-        <T variant="label">Lender — déposer dans le vault</T>
+        <T variant="label">{t('Lender — déposer dans le vault', 'Lender — deposit into the vault')}</T>
         <Field
-          label={`Montant (${unit})`}
+          label={t(`Montant (${unit})`, `Amount (${unit})`)}
           value={depositAmount}
           onChangeText={setDepositAmount}
           keyboardType="decimal-pad"
@@ -611,20 +683,20 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
               'deposit',
               () => api.deposit(asset, toLedgerAmount(asset, depositAmount)),
               () => {
-                setLastMessage(`Dépôt confirmé : ${depositAmount} ${unit}`);
+                setLastMessage(t(`Dépôt confirmé : ${depositAmount} ${unit}`, `Deposit confirmed: ${depositAmount} ${unit}`));
                 setDepositAmount('');
               },
             )
           }
         >
-          Déposer
+          {t('Déposer', 'Deposit')}
         </Button>
       </View>
 
       <View style={{ gap: 8 }}>
-        <T variant="label">Lender — retirer</T>
+        <T variant="label">{t('Lender — retirer', 'Lender — withdraw')}</T>
         <Field
-          label={`Montant (${unit})`}
+          label={t(`Montant (${unit})`, `Amount (${unit})`)}
           value={withdrawAmount}
           onChangeText={setWithdrawAmount}
           keyboardType="decimal-pad"
@@ -638,26 +710,28 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
               'withdraw',
               () => api.withdraw(asset, toLedgerAmount(asset, withdrawAmount)),
               () => {
-                setLastMessage(`Retrait demandé : ${withdrawAmount} ${unit}`);
+                setLastMessage(t(`Retrait demandé : ${withdrawAmount} ${unit}`, `Withdrawal requested: ${withdrawAmount} ${unit}`));
                 setWithdrawAmount('');
               },
             )
           }
         >
-          Retirer
+          {t('Retirer', 'Withdraw')}
         </Button>
       </View>
 
       <View style={{ gap: 8 }}>
-        <T variant="label">Borrower — emprunter un montant précis</T>
+        <T variant="label">{t('Borrower — emprunter un montant précis', 'Borrower — borrow a precise amount')}</T>
         {canBorrow && assessment && (
           <T variant="muted">
-            Plafond recommandé : {assessment.max_recommended_credit_line.amount_decimal} {unit} sur {assessment.term_months} mois
-            maximum. Choisissez le montant et la durée exacts de votre emprunt.
+            {t(
+              `Plafond recommandé : ${assessment.max_recommended_credit_line.amount_decimal} ${unit} sur ${assessment.term_months} mois maximum. Choisissez le montant et la durée exacts de votre emprunt.`,
+              `Recommended cap: ${assessment.max_recommended_credit_line.amount_decimal} ${unit} over ${assessment.term_months} months maximum. Choose the exact amount and term of your loan.`,
+            )}
           </T>
         )}
         <Field
-          label={`Montant demandé (${unit})`}
+          label={t(`Montant demandé (${unit})`, `Requested amount (${unit})`)}
           value={borrowAmount}
           onChangeText={setBorrowAmount}
           keyboardType="decimal-pad"
@@ -665,7 +739,7 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
           placeholder={assessment ? assessment.max_recommended_credit_line.amount_decimal : '0'}
         />
         <Field
-          label="Durée souhaitée (mois)"
+          label={t('Durée souhaitée (mois)', 'Desired term (months)')}
           value={borrowMonths}
           onChangeText={setBorrowMonths}
           keyboardType="number-pad"
@@ -680,22 +754,26 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
               'loan-request',
               () => api.requestLoan(asset, toLedgerAmount(asset, borrowAmount), Math.max(1, Math.floor(Number(borrowMonths)))),
               () => {
-                setLastMessage(`Prêt accordé : ${borrowAmount} ${unit} sur ${borrowMonths} mois.`);
+                setLastMessage(
+                  t(`Prêt accordé : ${borrowAmount} ${unit} sur ${borrowMonths} mois.`, `Loan granted: ${borrowAmount} ${unit} over ${borrowMonths} months.`),
+                );
                 setBorrowAmount('');
                 setBorrowMonths('');
               },
             )
           }
         >
-          Emprunter
+          {t('Emprunter', 'Borrow')}
         </Button>
-        {!assessment && <T variant="muted">Demandez d'abord une évaluation de crédit approuvée.</T>}
-        {assessment && !canBorrow && <T variant="muted">Votre dernière évaluation de crédit a été refusée.</T>}
+        {!assessment && <T variant="muted">{t("Demandez d'abord une évaluation de crédit approuvée.", 'Request an approved credit assessment first.')}</T>}
+        {assessment && !canBorrow && (
+          <T variant="muted">{t('Votre dernière évaluation de crédit a été refusée.', 'Your latest credit assessment was declined.')}</T>
+        )}
       </View>
 
       {positions && positions.loans.some((l) => l.status === 'active') && (
         <View style={{ gap: 8 }}>
-          <T variant="label">Borrower — rembourser un prêt actif</T>
+          <T variant="label">{t('Borrower — rembourser un prêt actif', 'Borrower — repay an active loan')}</T>
           {positions.loans
             .filter((l) => l.status === 'active')
             .map((loan) => (
@@ -708,7 +786,7 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
       {lastMessage && <Badge tone="success">{lastMessage}</Badge>}
 
       <View style={{ height: 1, backgroundColor: c.border }} />
-      <T variant="label">Vos positions</T>
+      <T variant="label">{t('Vos positions', 'Your positions')}</T>
       <PositionsSection positions={positions} />
     </Card>
   );
@@ -718,22 +796,32 @@ function transactionStatusTone(resultCode: string, validated: boolean): 'neutral
   if (!validated) return 'warning';
   return resultCode === 'tesSUCCESS' ? 'success' : 'error';
 }
-function directionLabel(direction: AccountTransaction['direction']): string {
-  return direction === 'incoming' ? 'Reçu' : direction === 'outgoing' ? 'Envoyé' : 'Interne';
+function directionLabel(t: (fr: string, en: string) => string, direction: AccountTransaction['direction']): string {
+  return direction === 'incoming' ? t('Reçu', 'Received') : direction === 'outgoing' ? t('Envoyé', 'Sent') : t('Interne', 'Internal');
 }
-function formatOccurredAt(iso: string | null): string {
+function formatOccurredAt(iso: string | null, language: 'fr' | 'en'): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // Une ligne = une transaction on-chain reelle (pas seulement une action
 // applicative deja loguee) — ouvre l'explorateur XRPL au tap.
 function TransactionRow({ tx }: { tx: AccountTransaction }) {
+  const { t, language } = useSession();
   return (
     <Pressable
       onPress={() => Linking.openURL(tx.explorer_url)}
       accessibilityRole="link"
-      accessibilityLabel={`${directionLabel(tx.direction)} · ${tx.tx_type} · voir sur l'explorateur`}
+      accessibilityLabel={t(
+        `${directionLabel(t, tx.direction)} · ${tx.tx_type} · voir sur l'explorateur`,
+        `${directionLabel(t, tx.direction)} · ${tx.tx_type} · view on the explorer`,
+      )}
       style={({ pressed }) => [
         { gap: 4, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border },
         pressed && { opacity: 0.65 },
@@ -741,15 +829,16 @@ function TransactionRow({ tx }: { tx: AccountTransaction }) {
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <Badge tone={tx.direction === 'incoming' ? 'success' : 'neutral'}>{directionLabel(tx.direction)}</Badge>
+          <Badge tone={tx.direction === 'incoming' ? 'success' : 'neutral'}>{directionLabel(t, tx.direction)}</Badge>
           <T variant="label">{tx.tx_type}</T>
         </View>
         <Badge tone={transactionStatusTone(tx.result_code, tx.validated)}>{tx.result_code}</Badge>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <T variant="muted" style={{ fontSize: 13 }}>
-          {formatOccurredAt(tx.occurred_at)}
-          {tx.counterparty ? ` · ${tx.direction === 'incoming' ? 'de' : 'vers'} ${tx.counterparty}` : ''}
+          {formatOccurredAt(tx.occurred_at, language)}
+          {tx.counterparty ? t(` · de ${tx.counterparty}`, ` · from ${tx.counterparty}`) : ''}
+          {tx.counterparty && tx.direction === 'outgoing' ? '' : ''}
         </T>
         {tx.delivered_amount && <T>{formatHumanAmount(tx.delivered_amount.asset_id, tx.delivered_amount.value)}</T>}
       </View>
@@ -761,6 +850,7 @@ function TransactionRow({ tx }: { tx: AccountTransaction }) {
 // tronquee), soldes reels par actif, historique de transactions on-chain —
 // remplace l'ancien badge d'adresse abregee qui ne montrait rien d'autre.
 function WalletOverview() {
+  const { t } = useSession();
   const api = useLendingApi();
   const [activity, setActivity] = useState<WalletActivity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -774,7 +864,7 @@ function WalletOverview() {
         setActivity(a);
         setError(null);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Unexpected error'))
+      .catch((err) => setError(err instanceof Error ? err.message : t('Erreur inattendue', 'Unexpected error')))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -786,20 +876,20 @@ function WalletOverview() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Icon name="wallet" size={22} color={c.text} />
-          <T variant="title">Votre wallet XRPL</T>
+          <T variant="title">{t('Votre wallet XRPL', 'Your XRPL wallet')}</T>
         </View>
         <Button busy={loading} variant="ghost" onPress={refresh} style={{ minHeight: 36, paddingVertical: 6, paddingHorizontal: 12 }}>
-          Actualiser
+          {t('Actualiser', 'Refresh')}
         </Button>
       </View>
 
       <ErrorNote message={error} />
-      {!activity && loading && <T variant="muted">Chargement du solde et de l'historique…</T>}
+      {!activity && loading && <T variant="muted">{t("Chargement du solde et de l'historique…", 'Loading balance and history…')}</T>}
 
       {activity && (
         <>
           <View style={{ gap: 4 }}>
-            <T variant="label">Adresse</T>
+            <T variant="label">{t('Adresse', 'Address')}</T>
             <T selectable style={{ fontSize: 15 }}>
               {activity.address}
             </T>
@@ -809,10 +899,10 @@ function WalletOverview() {
           </View>
 
           <View style={{ gap: 8 }}>
-            <T variant="label">Solde</T>
+            <T variant="label">{t('Solde', 'Balance')}</T>
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
               {activity.balances.length === 0 ? (
-                <T variant="muted">Compte pas encore financé sur le ledger.</T>
+                <T variant="muted">{t('Compte pas encore financé sur le ledger.', 'Account not yet funded on the ledger.')}</T>
               ) : (
                 activity.balances.map((b) => <Badge key={b.asset_id}>{formatHumanAmount(b.asset_id, b.value)}</Badge>)
               )}
@@ -821,9 +911,12 @@ function WalletOverview() {
 
           {activity.vault_shares.length > 0 && (
             <View style={{ gap: 8 }}>
-              <T variant="label">Parts de vault (MPToken)</T>
+              <T variant="label">{t('Parts de vault (MPToken)', 'Vault shares (MPToken)')}</T>
               <T variant="muted" style={{ fontSize: 12 }}>
-                Votre part réelle dans le vault partagé — croît avec le rendement accumulé, distincte d'un solde classique.
+                {t(
+                  "Votre part réelle dans le vault partagé — croît avec le rendement accumulé, distincte d'un solde classique.",
+                  'Your real share in the shared vault — grows with accrued yield, distinct from a plain balance.',
+                )}
               </T>
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                 {activity.vault_shares.map((s) => (
@@ -836,9 +929,9 @@ function WalletOverview() {
           )}
 
           <View style={{ gap: 4 }}>
-            <T variant="label">Transactions récentes</T>
+            <T variant="label">{t('Transactions récentes', 'Recent transactions')}</T>
             {activity.transactions.length === 0 ? (
-              <T variant="muted">Aucune transaction sur ce compte pour l'instant.</T>
+              <T variant="muted">{t('Aucune transaction sur ce compte pour l\'instant.', 'No transactions on this account yet.')}</T>
             ) : (
               <View>
                 {activity.transactions.map((tx) => (
@@ -883,8 +976,9 @@ function useAccountStatus(enabled: boolean) {
 // contenu. Distinct du commutateur d'etats de demo existant
 // (SessionProvider), jamais mele a lui.
 function AuthGate({ children }: { children: React.ReactNode }) {
+  const { t } = useSession();
   const { user, token, ready } = useAuth();
-  if (!ready) return <T>Chargement…</T>;
+  if (!ready) return <T>{t('Chargement…', 'Loading…')}</T>;
   if (!user) return <SignUpOrLogIn />;
   if (!user.email_verified_at) return <VerifyEmail />;
   if (!token) return <SignUpOrLogIn />;
@@ -892,24 +986,24 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function AccountHeader() {
+  const { t } = useSession();
   const { user, logout } = useAuth();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-      <T variant="title">Bonjour, {user?.email}</T>
+      <T variant="title">{t(`Bonjour, ${user?.email}`, `Hello, ${user?.email}`)}</T>
       <Button variant="ghost" onPress={logout} style={{ minHeight: 40, paddingVertical: 8, paddingHorizontal: 12 }}>
-        Se déconnecter
+        {t('Se déconnecter', 'Log out')}
       </Button>
     </View>
   );
 }
 
-// Accueil (Phase G) : identite -> KYC simule -> Odoo BYO -> credit. Le
-// wallet (solde/historique) vit desormais sur /transactions, le lending
 // Integration Credentials + Permissioned Domains (bonus) : verifie sur le
 // ledger qu'une attestation on-chain existe, en plus du statut KYC
 // applicatif — peut rester absente (wallet pas encore finance au moment de
 // la simulation), n'affiche alors rien plutot qu'un badge trompeur.
 function OnChainCredentialBadge() {
+  const { t } = useSession();
   const api = useLendingApi();
   const [allowed, setAllowed] = useState(false);
 
@@ -919,15 +1013,18 @@ function OnChainCredentialBadge() {
   }, []);
 
   if (!allowed) return null;
-  return <Badge tone="success">Attestation on-chain acceptée</Badge>;
+  return <Badge tone="success">{t('Attestation on-chain acceptée', 'On-chain attestation accepted')}</Badge>;
 }
 
+// Accueil (Phase G) : identite -> KYC simule -> Odoo BYO -> credit. Le
+// wallet (solde/historique) vit desormais sur /transactions, le lending
 // (depot/retrait/emprunt) sur /lending — chacun un onglet dedie plutot
 // qu'un unique ecran fourre-tout.
 function HomeScreenInner() {
+  const { t } = useSession();
   const { kyc, setKyc, assessment, setAssessment } = useAccountStatus(true);
 
-  if (!kyc) return <T>Chargement…</T>;
+  if (!kyc) return <T>{t('Chargement…', 'Loading…')}</T>;
 
   return (
     <View style={{ gap: 24 }}>
@@ -935,13 +1032,15 @@ function HomeScreenInner() {
       {kyc.status !== 'valid' && <KycGateModal onDecided={setKyc} />}
       {kyc.status === 'invalid' && (
         <Card style={{ gap: 8 }}>
-          <T style={{ color: c.error }}>KYC simulé invalide : aucun instrument financier accessible.</T>
+          <T style={{ color: c.error }}>
+            {t('KYC simulé invalide : aucun instrument financier accessible.', 'Simulated KYC invalid: no financial instrument accessible.')}
+          </T>
         </Card>
       )}
       {kyc.status === 'valid' && (
         <>
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-            <Badge tone="success">KYC simulé : valide</Badge>
+            <Badge tone="success">{t('KYC simulé : valide', 'Simulated KYC: valid')}</Badge>
             <OnChainCredentialBadge />
           </View>
           <CreditSetupSection assessment={assessment} onAssessed={setAssessment} />
@@ -982,22 +1081,25 @@ export function TransactionsScreen() {
 // (PER-11) — si ce n'est pas encore fait, renvoie vers l'accueil plutot que
 // de dupliquer la popup de simulation ici.
 function LendingScreenInner() {
+  const { t } = useSession();
   const { kyc, assessment } = useAccountStatus(true);
 
-  if (!kyc) return <T>Chargement…</T>;
+  if (!kyc) return <T>{t('Chargement…', 'Loading…')}</T>;
 
   if (kyc.status !== 'valid') {
     return (
       <View style={{ gap: 24 }}>
         <AccountHeader />
         <Card style={{ gap: 12 }}>
-          <T variant="title">Vérification requise</T>
+          <T variant="title">{t('Vérification requise', 'Verification required')}</T>
           <T variant="muted">
-            Le dépôt, l'emprunt et le retrait exigent d'abord une vérification d'identité (KYC simulé) sur la page
-            d'accueil.
+            {t(
+              "Le dépôt, l'emprunt et le retrait exigent d'abord une vérification d'identité (KYC simulé) sur la page d'accueil.",
+              'Deposits, loans, and withdrawals first require identity verification (simulated KYC) on the home page.',
+            )}
           </T>
           <Link href="/" asChild>
-            <Button>Aller à l'accueil</Button>
+            <Button>{t("Aller à l'accueil", 'Go to home')}</Button>
           </Link>
         </Card>
       </View>

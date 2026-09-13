@@ -27,6 +27,7 @@ export function Icon({ name, color = tokens.color.muted, size = 24 }: {
         logout: <><Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><Path d="m16 17 5-5-5-5"/><Path d="M21 12H9"/></>,
         wallet: <><Path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3"/><Path d="M3 7v10a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-4a2 2 0 1 0 0 4h5"/></>,
         coins: <><Circle cx="8" cy="8" r="6"/><Path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><Path d="M7 6h1v4"/></>,
+        info: <><Circle cx="12" cy="12" r="9"/><Line x1="12" y1="11" x2="12" y2="16"/><Line x1="12" y1="8" x2="12" y2="8"/></>,
     };
     return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" accessible={false}>{shapes[name] ?? shapes.circle}</Svg>;
 }

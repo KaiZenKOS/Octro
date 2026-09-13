@@ -20,7 +20,7 @@ export function SessionProvider({ children, source: provided }: {
 }) {
     const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }));
     const [source] = useState(() => provided ?? createFixtureSource());
-    const [language, setLanguage] = useState<'fr' | 'en'>('fr');
+    const [language, setLanguage] = useState<'fr' | 'en'>('en');
     const [state, setState] = useState<DemoState>('ready');
     const [persona, setPersona] = useState<Session['persona']>('personal');
     return <QueryClientProvider client={client}><Context.Provider value={{ language, setLanguage, state, setState, persona, setPersona, source, t: (fr, en) => language === 'fr' ? fr : en }}>{children}</Context.Provider></QueryClientProvider>;

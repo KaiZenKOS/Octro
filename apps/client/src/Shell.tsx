@@ -7,7 +7,7 @@ import { Icon } from './Icon';
 import { useSession } from './session';
 import type { DemoState } from './session';
 export function useDesktop() { return useWindowDimensions().width >= 1100; }
-const destinations = [['/', 'home', 'Accueil', 'Home'], ['/transactions', 'tracking', 'Transactions', 'Transactions'], ['/lending', 'coins', 'Lending', 'Lending']] as const;
+const destinations = [['/', 'home', 'Accueil', 'Home'], ['/transactions', 'tracking', 'Transactions', 'Transactions'], ['/lending', 'coins', 'Lending', 'Lending'], ['/info', 'info', 'Infos', 'Info']] as const;
 export function Shell({ children }: {
     children: React.ReactNode;
 }) {
@@ -20,7 +20,7 @@ export function Shell({ children }: {
     // Le compte reel (Phase G) n'a ni persona ni scenario de demonstration :
     // le selecteur "Personnel · Lina" et le badge "Donnees synthetiques"
     // n'ont pas de sens sur ces routes et resteraient une trace de maquette.
-    const isRealFlow = ['/', '/account', '/transactions', '/lending'].includes(path);
+    const isRealFlow = ['/', '/account', '/transactions', '/lending', '/info'].includes(path);
     useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); if (Platform.OS === 'web') {
         document.documentElement.lang = language;
         document.title = `Octro — ${t('vos prévisions', 'your forecast')}`;
