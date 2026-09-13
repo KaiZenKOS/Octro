@@ -16,6 +16,7 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.json tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
+COPY infra ./infra
 # Certificat public (pas une cle privee) epingle pour la verification TLS du
 # Postgres distant (PGSSLROOTCERT dans .env) — sans lui l'API ne peut pas
 # ouvrir de connexion chiffree verifiee au demarrage en conteneur.
