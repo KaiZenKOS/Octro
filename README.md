@@ -10,44 +10,48 @@ the XRPL Lending Protocol Hackathon (DeVinci Blockchain × Ripple).
 
 ## What it does
 
-Octro serves three kinds of users — individuals, freelancers and businesses — and
-splits cleanly into two layers:
+Octro is a financial planning and lending platform. Individuals, freelancers and
+businesses all get the same forecasting layer — log income and expenses, see upcoming
+deadlines, compare what-if scenarios including debt-free options, no wallet or KYC or
+credit check required for any of that.
 
-- **Forecasting, for everyone.** Log income and expenses, see upcoming deadlines, and
-  compare what-if scenarios (including debt-free options) without ever touching a
-  wallet, a KYC provider or a credit check. This layer works standalone; nothing
-  financial is gated behind it.
-- **Real lending, once you're onboarded.** Sign up, clear a KYC step, connect your own
-  Odoo instance so Octro can assess your credit from your actual accounting data, and
-  you can deposit into a shared XRPL vault as a lender or draw against your credit line
-  as a borrower. Deposit, loan origination, drawdown, repayment, withdrawal — every one
-  of those is a real signed XRPL transaction.
+Real lending sits on top, and today it's built for **businesses borrowing against
+their own financials**. The whole reason it exists is to cut down default risk before
+a loan ever goes out: a company connects its own Odoo instance, Octro pulls its actual
+sales, invoicing and accounting data straight from it, and only once that data clears
+a real underwriting check does the company get to draw a loan, sized to what it can
+plausibly repay. Anyone can be a lender and deposit capital into the shared XRPL vault;
+being a borrower means being a business with real books behind it. From there, deposit,
+loan origination, drawdown, repayment, withdrawal are all real signed XRPL
+transactions.
 
 Track 1 means the vault is open-ended: it stays open for deposits and withdrawals for
 its whole life, only the loans inside it have a term.
 
 ### KYC and credit scoring
 
-These are two different things, worth telling apart:
+These are two different checks, both aimed at the same goal — knowing who a borrower
+is and whether they can actually repay, before capital goes out the door:
 
-- **KYC is a sandboxed decision.** There's no real identity-verification provider
-  wired up yet (the plan is Didit, currently dormant) — a user just picks
+- **KYC is a sandboxed decision today.** There's no real identity-verification
+  provider wired up yet (the plan is Didit, currently dormant) — a user picks
   approve/reject and the app follows the same downstream path a real provider's
-  answer would. That said, an approval isn't just a flag in a database: it mints a
+  answer would. An approval still isn't just a flag in a database, though: it mints a
   real on-chain `Credential` between the platform and the user's wallet
-  (`CredentialCreate` + `CredentialAccept`), which you can check against the ledger.
-- **Credit scoring is fully real.** A user connects their own Odoo instance (BYO,
-  Odoo's External JSON-2 API), and Octro pulls their actual sales orders, invoices,
-  vendor bills and general-ledger lines through that API — no mock data, no canned
-  score. `packages/credit` then runs a proper underwriting model on it: revenue scale,
-  profitability, growth and volatility, collections, balance-sheet health, customer
-  concentration and operating history, each scored and weighted into a composite score,
-  mapped to a letter grade, which drives a recommended credit line sized three
-  independent ways (cash-flow capacity, a revenue-based cap, and a DSCR-based cap) —
-  whichever is tightest wins — plus an approve / approve-with-conditions / decline
-  call. Odoo is currently the only ERP connector; the underwriting engine itself
-  doesn't assume that, it's written against a plain data shape, not against Odoo's API
-  directly.
+  (`CredentialCreate` + `CredentialAccept`), checkable against the ledger.
+- **Credit scoring is fully real, and it's what actually decides whether a business
+  can borrow.** A company connects its own Odoo instance (BYO, Odoo's External JSON-2
+  API), and Octro pulls its real sales orders, invoices, vendor bills and
+  general-ledger lines through that API — no mock data, no canned score. `packages/credit`
+  runs a proper underwriting model on it: revenue scale, profitability, growth and
+  volatility, collections, balance-sheet health, customer concentration and operating
+  history, each scored and weighted into a composite score, mapped to a letter grade,
+  which drives a recommended credit line sized three independent ways (cash-flow
+  capacity, a revenue-based cap, a DSCR-based cap — whichever is tightest wins), plus
+  an approve / approve-with-conditions / decline call. That call is what stands between
+  a business and a loan it can't service. Odoo is currently the only ERP connector;
+  the underwriting engine itself is written against a plain data shape, not against
+  Odoo's API directly, so adding another ERP later is a new adapter, not a rewrite.
 
 ### Loaded extensions, already working end to end
 
