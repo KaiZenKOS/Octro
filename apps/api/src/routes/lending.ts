@@ -10,8 +10,12 @@ import { sendError } from "../http-errors.js";
 // flottant. asset_id est optionnel partout : "xrpl:XRP" par defaut, garde
 // la compatibilite avec les clients existants qui ne l'envoient pas encore.
 const DepositBody = z.object({ amount_drops: PositiveDecimalStringSchema, asset_id: AssetIdSchema.optional() });
+// Le borrower choisit desormais explicitement le montant et la duree —
+// jamais implicitement le plafond recommande par l'evaluation de credit
+// (decision actee) ; l'un et l'autre restent plafonnes cote use-case.
 const LoanRequestBody = z.object({
-  requested_principal_drops: PositiveDecimalStringSchema.optional(),
+  requested_principal_drops: PositiveDecimalStringSchema,
+  requested_term_months: z.number().int().min(1).max(600),
   asset_id: AssetIdSchema.optional(),
 });
 const RepayBody = z.object({ loan_id: z.string().uuid(), amount_drops: PositiveDecimalStringSchema });
@@ -69,7 +73,8 @@ export async function lendingRoutes(app: FastifyInstance, deps: AppDependencies)
       const body = LoanRequestBody.parse(request.body);
       const loan = await deps.borrowerLoanRequest.execute({
         userId,
-        ...(body.requested_principal_drops !== undefined ? { requestedPrincipalDrops: body.requested_principal_drops } : {}),
+        requestedPrincipalDrops: body.requested_principal_drops,
+        requestedTermMonths: body.requested_term_months,
         ...(body.asset_id !== undefined ? { assetId: body.asset_id } : {}),
       });
       return reply.code(201).send(loan);

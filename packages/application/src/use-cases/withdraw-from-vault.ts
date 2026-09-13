@@ -1,5 +1,5 @@
 import type { WithdrawalFundedFrom, WithdrawalRequest } from "@octro/contracts";
-import type { BufferDisbursementPort, LendingV1Port } from "@octro/xrpl";
+import type { BufferDisbursementPort, IouSetupPort, LendingV1Port } from "@octro/xrpl";
 import { AccessDeniedError, assertAdvanceWithinBalance, assertKycValid } from "@octro/domain";
 import { addDecimal, compareDecimal, isPositiveDecimal, minDecimal, subtractDecimal } from "../decimal-support.js";
 import { NotFoundError } from "../errors.js";
@@ -14,6 +14,7 @@ import type { LendingPoolRepository } from "../ports/lending-pool-repository.js"
 import type { TxEvidenceRepository } from "../ports/tx-evidence-repository.js";
 import type { WalletRepository } from "../ports/wallet-repository.js";
 import type { WithdrawalRequestRepository } from "../ports/withdrawal-request-repository.js";
+import { ensureTrustline } from "../trustline-support.js";
 import { assertReady } from "../xrpl-support.js";
 
 const DEFAULT_ASSET_ID = "xrpl:XRP";
@@ -56,6 +57,7 @@ export class WithdrawFromVaultUseCase {
     private readonly bufferLedger: BufferLedgerRepository,
     private readonly lending: LendingV1Port,
     private readonly bufferDisbursement: BufferDisbursementPort,
+    private readonly iouSetup: IouSetupPort,
     private readonly walletCrypto: CryptoPort,
     private readonly txEvidence: TxEvidenceRepository,
     private readonly bufferWalletSeed: string,
@@ -86,6 +88,7 @@ export class WithdrawFromVaultUseCase {
     }
 
     const withdrawerSeed = await this.walletCrypto.decrypt(wallet.seedCiphertext);
+    await ensureTrustline(asset, withdrawerSeed, this.iouSetup);
     const vaultResult = await this.lending.withdrawFromVault({
       withdrawerSeed,
       vaultId: pool.vaultId,

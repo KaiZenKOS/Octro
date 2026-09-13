@@ -1,5 +1,5 @@
 import type { LenderDeposit } from "@octro/contracts";
-import type { LendingV1Port } from "@octro/xrpl";
+import type { IouSetupPort, LendingV1Port } from "@octro/xrpl";
 import { assertKycValid } from "@octro/domain";
 import { NotFoundError } from "../errors.js";
 import { parseLendingAssetId } from "../lending-asset.js";
@@ -11,6 +11,7 @@ import type { LenderDepositRepository } from "../ports/lender-deposit-repository
 import type { LendingPoolRepository } from "../ports/lending-pool-repository.js";
 import type { TxEvidenceRepository } from "../ports/tx-evidence-repository.js";
 import type { WalletRepository } from "../ports/wallet-repository.js";
+import { ensureTrustline } from "../trustline-support.js";
 import { assertReady } from "../xrpl-support.js";
 
 export interface LenderDepositCommand {
@@ -33,6 +34,7 @@ export class LenderDepositUseCase {
     private readonly pools: LendingPoolRepository,
     private readonly deposits: LenderDepositRepository,
     private readonly lending: LendingV1Port,
+    private readonly iouSetup: IouSetupPort,
     private readonly crypto: CryptoPort,
     private readonly txEvidence: TxEvidenceRepository,
     private readonly clock: Clock,
@@ -52,6 +54,7 @@ export class LenderDepositUseCase {
     if (!pool) throw new NotFoundError("LendingPool", assetId);
 
     const depositorSeed = await this.crypto.decrypt(wallet.seedCiphertext);
+    await ensureTrustline(asset, depositorSeed, this.iouSetup);
     const { evidence } = assertReady(
       await this.lending.depositToVault({
         depositorSeed,

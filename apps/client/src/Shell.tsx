@@ -7,7 +7,7 @@ import { Icon } from './Icon';
 import { useSession } from './session';
 import type { DemoState } from './session';
 export function useDesktop() { return useWindowDimensions().width >= 1100; }
-const destinations = [['/', 'home', 'Accueil', 'Home'], ['/calendar', 'calendar', 'Calendrier', 'Calendar'], ['/sources', 'sources', 'Sources', 'Sources'], ['/tracking', 'tracking', 'Suivi', 'Tracking']] as const;
+const destinations = [['/', 'home', 'Accueil', 'Home'], ['/transactions', 'tracking', 'Transactions', 'Transactions'], ['/lending', 'coins', 'Lending', 'Lending']] as const;
 export function Shell({ children }: {
     children: React.ReactNode;
 }) {
@@ -16,11 +16,11 @@ export function Shell({ children }: {
     const { language, setLanguage, t, state, setState, persona, setPersona } = useSession();
     const [settings, setSettings] = useState(false);
     const scroll = useRef<ScrollView>(null);
-    const activePath = ['/proposal', '/options'].includes(path) ? '/calendar' : ['/add', '/import'].includes(path) ? '/sources' : path;
+    const activePath = path;
     // Le compte reel (Phase G) n'a ni persona ni scenario de demonstration :
     // le selecteur "Personnel · Lina" et le badge "Donnees synthetiques"
     // n'ont pas de sens sur ces routes et resteraient une trace de maquette.
-    const isRealFlow = path === '/' || path === '/account';
+    const isRealFlow = ['/', '/account', '/transactions', '/lending'].includes(path);
     useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); if (Platform.OS === 'web') {
         document.documentElement.lang = language;
         document.title = `Octro — ${t('vos prévisions', 'your forecast')}`;

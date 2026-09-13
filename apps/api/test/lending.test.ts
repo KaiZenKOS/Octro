@@ -123,7 +123,7 @@ describe("Octro API — lending V1 sur vault/broker partage (Phase E, FakeLendin
       method: "POST",
       url: "/v1/lending/loan-request",
       headers: { authorization: `Bearer ${token}` },
-      payload: {},
+      payload: { requested_principal_drops: "1000000", requested_term_months: 6 },
     });
     expect(res.statusCode).toBe(404);
   });

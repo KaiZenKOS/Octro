@@ -1,5 +1,6 @@
 import type { AccountActivityPort, AccountBalance, AccountTransactionSummary } from "@octro/xrpl";
 import { NotFoundError } from "../errors.js";
+import type { LendingPoolRepository } from "../ports/lending-pool-repository.js";
 import type { WalletRepository } from "../ports/wallet-repository.js";
 
 export interface GetWalletActivityQuery {
@@ -23,6 +24,7 @@ export class GetWalletActivityUseCase {
   constructor(
     private readonly wallets: WalletRepository,
     private readonly accountActivity: AccountActivityPort,
+    private readonly pools: LendingPoolRepository,
   ) {}
 
   async execute(query: GetWalletActivityQuery): Promise<WalletActivityResult> {
@@ -30,14 +32,28 @@ export class GetWalletActivityUseCase {
     if (!wallet) {
       throw new NotFoundError("Wallet", query.userId);
     }
-    const [balances, transactions] = await Promise.all([
+    const [balances, transactions, pools] = await Promise.all([
       this.accountActivity.getBalances(wallet.address),
       this.accountActivity.getTransactions(wallet.address),
+      this.pools.listAll(),
     ]);
+
+    // Affiche aussi un solde "0" pour chaque actif de lending connu (ex.
+    // RLUSD simule) sans ligne de confiance encore etablie — l'utilisateur
+    // doit voir que l'actif existe, pas seulement ceux qu'il detient deja.
+    const knownBalances = balances.outcome === "ready" ? [...balances.data] : [];
+    const seenAssetIds = new Set(knownBalances.map((b) => b.asset_id));
+    for (const pool of pools) {
+      if (!seenAssetIds.has(pool.assetId)) {
+        knownBalances.push({ asset_id: pool.assetId, value: "0" });
+        seenAssetIds.add(pool.assetId);
+      }
+    }
+
     return {
       address: wallet.address,
       network: wallet.network,
-      balances: balances.outcome === "ready" ? balances.data : [],
+      balances: knownBalances,
       transactions: transactions.outcome === "ready" ? transactions.data : [],
     };
   }

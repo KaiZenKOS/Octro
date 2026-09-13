@@ -38,3 +38,31 @@ export function parseLendingAssetId(assetId: string): ParsedLendingAsset {
 export function buildLendingAssetId(code: "XRP" | string, issuer?: string): string {
   return code === "XRP" ? "xrpl:XRP" : `xrpl:${code}:${issuer}`;
 }
+
+const XRP_DROPS_PER_UNIT = 1_000_000n;
+
+// Convertit un montant humain en XRP (ex. "5000" ou "12.5") en drops, chaine
+// via BigInt (jamais un flottant) — meme convention que apps/client/src/
+// lending-data.ts#toLedgerAmount cote client.
+function humanXrpToDrops(humanAmount: string): string {
+  const trimmed = humanAmount.trim();
+  const negative = trimmed.startsWith("-");
+  const unsigned = negative ? trimmed.slice(1) : trimmed;
+  const [intPart, fracPart = ""] = unsigned.split(".");
+  const paddedFrac = (fracPart + "000000").slice(0, 6);
+  const drops = BigInt(intPart || "0") * XRP_DROPS_PER_UNIT + BigInt(paddedFrac || "0");
+  return (negative ? -drops : drops).toString();
+}
+
+// Convertit un montant "humain, echelle credit" (ex. le plafond recommande
+// d'une evaluation de credit, deja en unites de l'actif — "5000" veut dire
+// 5000 XRP ou 5000 RLUSD simule) en unite native ledger : drops pour XRP,
+// valeur decimale inchangee pour un IOU (deja native, jamais mise a
+// l'echelle). Distinct de ParsedLendingAsset.toLedgerAmount, qui suppose
+// deja son entree en unite native (convention deposit/retrait existante) —
+// ce garde-fou etait manquant et faisait passer un plafond RLUSD par une
+// mise a l'echelle *1e6 propre a XRP uniquement.
+export function toNativeAmount(assetId: string, humanAmount: string): string {
+  const asset = parseLendingAssetId(assetId);
+  return asset.ledgerAsset.currency === "XRP" ? humanXrpToDrops(humanAmount) : humanAmount;
+}

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'expo-router';
 import { Linking, Modal, Pressable, View } from 'react-native';
 import { Badge, Button, Card, Field, Typography as T, tokens } from '@octro/ui';
 import { Icon } from './Icon';
@@ -301,6 +302,85 @@ function CreditAssessmentPanel({
   );
 }
 
+function creditDecisionTone(decision: CreditAssessment['decision']): 'success' | 'warning' | 'error' {
+  return decision === 'approve' ? 'success' : decision === 'approve_with_conditions' ? 'warning' : 'error';
+}
+function creditDecisionLabel(decision: CreditAssessment['decision']): string {
+  return decision === 'approve' ? 'Approuvé' : decision === 'approve_with_conditions' ? 'Approuvé sous conditions' : 'Refusé';
+}
+
+// Une fois une evaluation obtenue, le bloc de connexion Odoo se reduit a un
+// resume compact (decision explicite : il n'a plus de raison d'occuper
+// toute la page une fois le score valide) — "Réévaluer" le rouvre sans
+// perdre la connexion Odoo deja etablie.
+function CreditSetupSection({
+  assessment,
+  onAssessed,
+}: {
+  assessment: CreditAssessment | null;
+  onAssessed: (assessment: CreditAssessment) => void;
+}) {
+  const [odooConnection, setOdooConnection] = useState<OdooConnection | null>(null);
+  const [companyId, setCompanyId] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(!assessment);
+
+  if (!expanded && assessment) {
+    return (
+      <Card style={{ gap: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Badge tone={creditDecisionTone(assessment.decision)}>Grade {assessment.grade}</Badge>
+            <Badge tone={creditDecisionTone(assessment.decision)}>{creditDecisionLabel(assessment.decision)}</Badge>
+            <T variant="muted">
+              Plafond : {assessment.max_recommended_credit_line.amount_decimal} {assessment.max_recommended_credit_line.asset_id} sur{' '}
+              {assessment.term_months} mois max
+            </T>
+          </View>
+          <Button variant="ghost" onPress={() => setExpanded(true)} style={{ minHeight: 36, paddingVertical: 6, paddingHorizontal: 12 }}>
+            Réévaluer
+          </Button>
+        </View>
+      </Card>
+    );
+  }
+
+  return (
+    <View style={{ gap: 16 }}>
+      {!odooConnection ? (
+        <OdooConnectForm onConnected={setOdooConnection} />
+      ) : companyId === null ? (
+        <CompanySelector connection={odooConnection} onSelected={setCompanyId} />
+      ) : (
+        <>
+          <CreditAssessmentPanel
+            connection={odooConnection}
+            companyId={companyId}
+            assessment={assessment}
+            onAssessed={(a) => {
+              onAssessed(a);
+              setExpanded(false);
+            }}
+          />
+          <Button
+            variant="ghost"
+            onPress={() => {
+              setOdooConnection(null);
+              setCompanyId(null);
+            }}
+          >
+            Changer de connexion Odoo
+          </Button>
+        </>
+      )}
+      {assessment && (
+        <Button variant="ghost" onPress={() => setExpanded(false)}>
+          Annuler
+        </Button>
+      )}
+    </View>
+  );
+}
+
 // Selecteur d'actif (integration xrpl-lending-sim) : n'affiche des boutons
 // que s'il existe reellement plus d'un pool amorce — jamais un choix
 // factice quand un seul actif (XRP) est disponible.
@@ -403,6 +483,8 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
   const [positions, setPositions] = useState<LendingPositions | null>(null);
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [borrowAmount, setBorrowAmount] = useState('');
+  const [borrowMonths, setBorrowMonths] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
@@ -502,19 +584,45 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
       </View>
 
       <View style={{ gap: 8 }}>
-        <T variant="label">Borrower — emprunter jusqu'au plafond recommandé</T>
+        <T variant="label">Borrower — emprunter un montant précis</T>
+        {canBorrow && assessment && (
+          <T variant="muted">
+            Plafond recommandé : {assessment.max_recommended_credit_line.amount_decimal} {unit} sur {assessment.term_months} mois
+            maximum. Choisissez le montant et la durée exacts de votre emprunt.
+          </T>
+        )}
+        <Field
+          label={`Montant demandé (${unit})`}
+          value={borrowAmount}
+          onChangeText={setBorrowAmount}
+          keyboardType="decimal-pad"
+          editable={Boolean(canBorrow)}
+          placeholder={assessment ? assessment.max_recommended_credit_line.amount_decimal : '0'}
+        />
+        <Field
+          label="Durée souhaitée (mois)"
+          value={borrowMonths}
+          onChangeText={setBorrowMonths}
+          keyboardType="number-pad"
+          editable={Boolean(canBorrow)}
+          placeholder={assessment ? String(assessment.term_months) : '12'}
+        />
         <Button
           busy={busy === 'loan-request'}
-          disabled={!canBorrow}
+          disabled={!canBorrow || !borrowAmount || !borrowMonths}
           onPress={() =>
             run(
               'loan-request',
-              () => api.requestLoan(asset),
-              () => setLastMessage('Prêt accordé.'),
+              () => api.requestLoan(asset, toLedgerAmount(asset, borrowAmount), Math.max(1, Math.floor(Number(borrowMonths)))),
+              () => {
+                setLastMessage(`Prêt accordé : ${borrowAmount} ${unit} sur ${borrowMonths} mois.`);
+                setBorrowAmount('');
+                setBorrowMonths('');
+              },
             )
           }
         >
-          Demander un prêt
+          Emprunter
         </Button>
         {!assessment && <T variant="muted">Demandez d'abord une évaluation de crédit approuvée.</T>}
         {assessment && !canBorrow && <T variant="muted">Votre dernière évaluation de crédit a été refusée.</T>}
@@ -653,20 +761,17 @@ function WalletOverview() {
   );
 }
 
-// Ecran compose (Phase G) : compte reel -> KYC simule -> Odoo BYO -> credit
-// -> lending. Distinct des ecrans de fixture Lina (src/screens.tsx),
-// composes a cote via une route separee (app/account.tsx), sans passer par
-// le commutateur d'etats de demo existant (SessionProvider).
-export function AccountScreen() {
-  const { user, token, ready, logout } = useAuth();
+// Statut partage (KYC + derniere evaluation de credit) entre les ecrans
+// Accueil et Lending — chacun le recharge independamment (pas de cache
+// inter-pages, coherent avec le reste de l'app : pas de conteneur DI cote
+// client non plus).
+function useAccountStatus(enabled: boolean) {
   const api = useLendingApi();
   const [kyc, setKyc] = useState<KycStatus | null>(null);
-  const [odooConnection, setOdooConnection] = useState<OdooConnection | null>(null);
-  const [companyId, setCompanyId] = useState<number | null>(null);
   const [assessment, setAssessment] = useState<CreditAssessment | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!enabled) return;
     api
       .getKycStatus()
       .then(setKyc)
@@ -676,30 +781,49 @@ export function AccountScreen() {
       .then(setAssessment)
       .catch(() => setAssessment(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [enabled]);
 
+  return { kyc, setKyc, assessment, setAssessment };
+}
+
+// Garde d'authentification commune aux trois ecrans reels (Accueil,
+// Transactions, Lending) : inscription/connexion -> verification email ->
+// contenu. Distinct du commutateur d'etats de demo existant
+// (SessionProvider), jamais mele a lui.
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { user, token, ready } = useAuth();
   if (!ready) return <T>Chargement…</T>;
   if (!user) return <SignUpOrLogIn />;
   if (!user.email_verified_at) return <VerifyEmail />;
   if (!token) return <SignUpOrLogIn />;
+  return <>{children}</>;
+}
+
+function AccountHeader() {
+  const { user, logout } = useAuth();
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <T variant="title">Bonjour, {user?.email}</T>
+      <Button variant="ghost" onPress={logout} style={{ minHeight: 40, paddingVertical: 8, paddingHorizontal: 12 }}>
+        Se déconnecter
+      </Button>
+    </View>
+  );
+}
+
+// Accueil (Phase G) : identite -> KYC simule -> Odoo BYO -> credit. Le
+// wallet (solde/historique) vit desormais sur /transactions, le lending
+// (depot/retrait/emprunt) sur /lending — chacun un onglet dedie plutot
+// qu'un unique ecran fourre-tout.
+function HomeScreenInner() {
+  const { kyc, setKyc, assessment, setAssessment } = useAccountStatus(true);
+
   if (!kyc) return <T>Chargement…</T>;
 
   return (
     <View style={{ gap: 24 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <T variant="title">Bonjour, {user.email}</T>
-        <Button variant="ghost" onPress={logout} style={{ minHeight: 40, paddingVertical: 8, paddingHorizontal: 12 }}>
-          Se déconnecter
-        </Button>
-      </View>
-      <WalletOverview />
-      {kyc.status !== 'valid' && (
-        <KycGateModal
-          onDecided={(status) => {
-            setKyc(status);
-          }}
-        />
-      )}
+      <AccountHeader />
+      {kyc.status !== 'valid' && <KycGateModal onDecided={setKyc} />}
       {kyc.status === 'invalid' && (
         <Card style={{ gap: 8 }}>
           <T style={{ color: c.error }}>KYC simulé invalide : aucun instrument financier accessible.</T>
@@ -708,16 +832,77 @@ export function AccountScreen() {
       {kyc.status === 'valid' && (
         <>
           <Badge tone="success">KYC simulé : valide</Badge>
-          {!odooConnection ? (
-            <OdooConnectForm onConnected={setOdooConnection} />
-          ) : companyId === null ? (
-            <CompanySelector connection={odooConnection} onSelected={setCompanyId} />
-          ) : (
-            <CreditAssessmentPanel connection={odooConnection} companyId={companyId} assessment={assessment} onAssessed={setAssessment} />
-          )}
-          <LendingPanel assessment={assessment} />
+          <CreditSetupSection assessment={assessment} onAssessed={setAssessment} />
         </>
       )}
     </View>
+  );
+}
+export function HomeScreen() {
+  return (
+    <AuthGate>
+      <HomeScreenInner />
+    </AuthGate>
+  );
+}
+
+// Transactions : adresse complete, soldes reels (dont RLUSD), historique
+// on-chain — accessible des la connexion, sans exiger le KYC (ce n'est
+// jamais qu'une lecture du propre wallet de l'utilisateur, pas un
+// instrument financier).
+function TransactionsScreenInner() {
+  return (
+    <View style={{ gap: 24 }}>
+      <AccountHeader />
+      <WalletOverview />
+    </View>
+  );
+}
+export function TransactionsScreen() {
+  return (
+    <AuthGate>
+      <TransactionsScreenInner />
+    </AuthGate>
+  );
+}
+
+// Lending : depot/retrait/emprunt sur le vault partage. Le KYC reste requis
+// (PER-11) — si ce n'est pas encore fait, renvoie vers l'accueil plutot que
+// de dupliquer la popup de simulation ici.
+function LendingScreenInner() {
+  const { kyc, assessment } = useAccountStatus(true);
+
+  if (!kyc) return <T>Chargement…</T>;
+
+  if (kyc.status !== 'valid') {
+    return (
+      <View style={{ gap: 24 }}>
+        <AccountHeader />
+        <Card style={{ gap: 12 }}>
+          <T variant="title">Vérification requise</T>
+          <T variant="muted">
+            Le dépôt, l'emprunt et le retrait exigent d'abord une vérification d'identité (KYC simulé) sur la page
+            d'accueil.
+          </T>
+          <Link href="/" asChild>
+            <Button>Aller à l'accueil</Button>
+          </Link>
+        </Card>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ gap: 24 }}>
+      <AccountHeader />
+      <LendingPanel assessment={assessment} />
+    </View>
+  );
+}
+export function LendingScreen() {
+  return (
+    <AuthGate>
+      <LendingScreenInner />
+    </AuthGate>
   );
 }

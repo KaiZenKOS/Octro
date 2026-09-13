@@ -229,12 +229,18 @@ export function useLendingApi() {
         ),
       [authed],
     ),
+    // Montant et duree sont desormais des choix explicites du borrower
+    // (decision actee) — jamais implicitement le plafond recommande.
     requestLoan: useCallback(
-      async (assetId: string, requestedPrincipalDrops?: string): Promise<LoanPosition> =>
+      async (assetId: string, requestedPrincipalDrops: string, requestedTermMonths: number): Promise<LoanPosition> =>
         parseJsonOrThrow(
           await authed('/v1/lending/loan-request', {
             method: 'POST',
-            body: JSON.stringify({ asset_id: assetId, ...(requestedPrincipalDrops ? { requested_principal_drops: requestedPrincipalDrops } : {}) }),
+            body: JSON.stringify({
+              asset_id: assetId,
+              requested_principal_drops: requestedPrincipalDrops,
+              requested_term_months: requestedTermMonths,
+            }),
           }),
         ),
       [authed],

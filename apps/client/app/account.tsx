@@ -1,5 +1,5 @@
-import { AccountScreen } from '../src/account-screens';
+import { HomeScreen } from '../src/account-screens';
 
 export default function AccountPage() {
-  return <AccountScreen />;
+  return <HomeScreen />;
 }

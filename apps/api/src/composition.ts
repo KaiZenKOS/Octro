@@ -23,6 +23,7 @@ import {
   GetCurrentUserUseCase,
   GetKycStatusUseCase,
   FakeAccountActivityAdapter,
+  FakeIouSetupAdapter,
   GetLatestCreditAssessmentUseCase,
   GetLendingPositionsUseCase,
   GetWalletActivityUseCase,
@@ -98,10 +99,12 @@ import {
   type AccountActivityPort,
   type BufferDisbursementPort,
   HACKATHON_DEVNET,
+  type IouSetupPort,
   type LendingV1Port,
   type WalletProvisioningPort,
   XrplAccountActivityAdapter,
   XrplBufferDisbursementAdapter,
+  XrplIouSetupAdapter,
   XrplLendingV1Adapter,
   XrplWalletProvisioningAdapter,
 } from "@octro/xrpl";
@@ -270,6 +273,17 @@ function buildAccountActivityPort(): AccountActivityPort {
   return new FakeAccountActivityAdapter();
 }
 
+// Meme bascule : etablissement automatique de trustline (TrustSet) avant un
+// depot/retrait/emprunt sur un actif IOU (RLUSD simule, integration
+// xrpl-lending-sim) — l'utilisateur ne doit jamais avoir a la creer
+// lui-meme.
+function buildIouSetupPort(): IouSetupPort {
+  if (process.env["LENDING_V1_ENABLED"] === "true") {
+    return new XrplIouSetupAdapter(HACKATHON_DEVNET.wss);
+  }
+  return new FakeIouSetupAdapter();
+}
+
 // Cle reelle (env) si presente ; sinon cle ephemere generee pour ce process
 // uniquement (tests, dev sans Postgres) — jamais persistee, jamais reutilisee
 // au redemarrage. infra/config/environment.mjs exige la vraie cle des que
@@ -309,6 +323,7 @@ export function buildDependencies(): AppDependencies {
   const lending: LendingV1Port = buildLendingV1Port();
   const bufferDisbursement: BufferDisbursementPort = buildBufferDisbursementPort();
   const accountActivity: AccountActivityPort = buildAccountActivityPort();
+  const iouSetup: IouSetupPort = buildIouSetupPort();
   // Secret plateforme unique (pas par utilisateur, jamais chiffre en base —
   // il n'existe qu'une fois, fourni via l'environnement, SEC-04).
   const bufferWalletSeed = process.env["BUFFER_WALLET_SEED"] ?? "";
@@ -344,13 +359,14 @@ export function buildDependencies(): AppDependencies {
     listLendingAssets: new ListLendingAssetsUseCase(lendingPools),
     getLendingPositions: new GetLendingPositionsUseCase(lenderDeposits, loanPositions, withdrawalRequests),
     getWallet: new GetWalletUseCase(wallets),
-    getWalletActivity: new GetWalletActivityUseCase(wallets, accountActivity),
+    getWalletActivity: new GetWalletActivityUseCase(wallets, accountActivity, lendingPools),
     lenderDeposit: new LenderDepositUseCase(
       kycStatuses,
       wallets,
       lendingPools,
       lenderDeposits,
       lending,
+      iouSetup,
       walletSeedCrypto,
       txEvidence,
       clock,
@@ -363,6 +379,7 @@ export function buildDependencies(): AppDependencies {
       lendingPools,
       loanPositions,
       lending,
+      iouSetup,
       walletSeedCrypto,
       txEvidence,
       clock,
@@ -378,6 +395,7 @@ export function buildDependencies(): AppDependencies {
       bufferLedger,
       lending,
       bufferDisbursement,
+      iouSetup,
       walletSeedCrypto,
       txEvidence,
       bufferWalletSeed,
