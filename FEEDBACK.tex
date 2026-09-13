@@ -1,0 +1,133 @@
+% Octro — Developer feedback report
+% XRPL Lending Protocol Hackathon, Paris, 12-13 September 2026
+% Build: xelatex FEEDBACK.tex  (or lualatex). Two passes are not needed.
+\documentclass[10pt,a4paper]{article}
+\usepackage{fontspec}
+\IfFontExistsTF{Arial}{\setmainfont{Arial}}{\setmainfont{Liberation Sans}}
+\IfFontExistsTF{Georgia}{\newfontfamily\displayfont{Georgia}}{\newfontfamily\displayfont{Caladea}}
+\IfFontExistsTF{Consolas}{\setmonofont[Scale=0.88]{Consolas}}{\setmonofont[Scale=0.84]{Liberation Mono}}
+\usepackage[top=16mm,bottom=15mm,left=18mm,right=18mm,headheight=12pt,headsep=6mm]{geometry}
+\usepackage{xcolor,array,ragged2e,longtable}
+\usepackage[hidelinks]{hyperref}
+\definecolor{forest}{HTML}{304B35}
+\definecolor{ink}{HTML}{20271F}
+\definecolor{cream}{HTML}{F5F2E8}
+\definecolor{matcha}{HTML}{B8C98A}
+\definecolor{muted}{HTML}{626B5D}
+\definecolor{line}{HTML}{D6DCCD}
+\definecolor{alert}{HTML}{8C3A2B}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlength{\emergencystretch}{4em}
+\widowpenalty=10000\clubpenalty=10000
+\raggedbottom
+\sloppy
+\makeatletter
+\def\ps@octro{\def\@oddhead{\fontsize{8}{10}\selectfont\color{muted}OCTRO\hfill Developer feedback\hfill Track 1 Loaded}\let\@evenhead\@oddhead
+\def\@oddfoot{\fontsize{8}{10}\selectfont\color{muted}13 September 2026\hfill\color{forest}\thepage}\let\@evenfoot\@oddfoot}
+\makeatother
+\pagestyle{octro}
+
+% Finding card: {number}{title}{category}{severity}
+\newcommand{\finding}[4]{%
+\par\vspace{7pt}\noindent\colorbox{forest}{\parbox{\dimexpr\linewidth-16pt\relax}{%
+\vspace{5pt}\hspace{6pt}{\color{matcha}\bfseries\fontsize{8.5}{10}\selectfont FRICTION #1\hfill CATEGORY: #3\hspace{6pt}/\hspace{6pt}SEVERITY: #4\hspace{6pt}}\par
+\vspace{4pt}\hspace{6pt}\parbox{\dimexpr\linewidth-14pt\relax}{\color{cream}\displayfont\fontsize{13}{16}\selectfont #2}\par\vspace{6pt}}}\par\vspace{3pt}}
+
+\newcommand{\lbl}[1]{{\color{forest}\bfseries #1}\hspace{4pt}}
+\newcommand{\fix}[1]{\par\vspace{3pt}\noindent\colorbox{cream}{\parbox{\dimexpr\linewidth-16pt\relax}{\vspace{5pt}\hspace{5pt}\parbox{\dimexpr\linewidth-14pt\relax}{{\color{forest}\bfseries Proposed fix.}\hspace{3pt}#1}\par\vspace{5pt}}}\par}
+\newcommand{\txs}[2]{\href{https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/#1}{\texttt{\fontsize{7.4}{9}\selectfont #2\ldots}}}
+\newcommand{\tx}[1]{\href{https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/#1}{\texttt{\fontsize{7.4}{9}\selectfont #1}}}
+
+\begin{document}
+\color{ink}\fontsize{9.6}{12.6}\selectfont
+
+{\displayfont\fontsize{24}{28}\selectfont\color{forest}Developer feedback\par}
+\vspace{1mm}
+{\fontsize{11}{14}\selectfont Octro — XRPL Lending Protocol Hackathon, Paris, 12--13 September 2026\par}
+\vspace{3mm}
+
+\noindent\begin{tabular}{@{}>{\color{muted}\fontsize{8.4}{10}\selectfont\RaggedRight}p{24mm}@{}>{\fontsize{8.8}{11}\selectfont\RaggedRight}p{54mm}@{}>{\color{muted}\fontsize{8.4}{10}\selectfont\RaggedRight}p{26mm}@{}>{\fontsize{8.8}{11}\selectfont\RaggedRight}p{56mm}@{}}
+TRACK & 1 --- open-ended vault & NETWORK & Custom Hackathon Devnet\\
+FLAVOUR & Loaded --- Credentials, Domains & NETWORK ID & 4001\\
+PROTOCOL & Lending Protocol V1 & RIPPLED & 3.4.0-rc1\\
+LIBRARY & \texttt{xrpl@5.2.0} (stable), Node v22.23.1 & TEAM & Kevin, Samet, Augustin\\
+\end{tabular}
+\par\vspace{2mm}
+{\color{line}\rule{\linewidth}{0.6pt}}
+\vspace{1mm}
+
+All observations below come from real work sessions on 12 September 2026. Each one has a transaction hash, or a recorded absence of one. The mandatory DevEx hook captured the retry loops. We kept only the items that we could confirm against the ledger. We report three frictions, because these three cost the most time and can hit every Track 1 team.
+
+\finding{1}{A new account can create a dead transaction, and the network reports no error}{sdk}{high}
+
+\lbl{What we did.} We funded a new account through the event faucet. We then built a \texttt{PermissionedDomainSet} with \texttt{autofill} and submitted it at once.
+
+\lbl{Expected.} The transaction validates, or it fails with a result code.
+
+\lbl{Observed.} \texttt{submit} answered \texttt{engine\_result: tesSUCCESS}. The transaction never validated. It stayed unknown to the ledger for minutes, with a large \texttt{LastLedgerSequence} margin. There is no hash to show, because nothing was ever included. This is the point: the failure leaves no trace.
+
+\lbl{Cause.} \texttt{autofill} read the \texttt{Sequence} with \texttt{account\_info} before the faucet's own funding \texttt{Payment} was validated. It therefore chose a \texttt{Sequence} one below the real starting value. The account can never use that value. We confirmed the real starting \texttt{Sequence} with \texttt{account\_tx}.
+
+\lbl{Repro.} Fund an account through \texttt{https://lending-hackathon-faucet.dev.ripplex.io/accounts}. Immediately call \texttt{autofill} and \texttt{submit} for any transaction from that account. Do not wait for the funding payment.
+
+\lbl{Cost.} About 15 minutes, plus a debug script. The hook recorded two \texttt{retry\_resolved} events, at 14:08 and 14:14.
+
+\fix{Make \texttt{fundWallet()} wait for its own funding transaction to validate before it returns. Make \texttt{autofill} refuse to guess a \texttt{Sequence} for an account that is not yet on the validated ledger, instead of guessing one. A refusal with a clear message is better than a silent dead transaction. Our workaround is to poll \texttt{account\_info} with \texttt{ledger\_index: 'validated'} until it answers.}
+
+\finding{2}{\texttt{LoanSet} needs the broker owner's signature, but \texttt{temBAD\_SIGNER} does not say so}{client libraries}{high}
+
+\lbl{What we did.} We created a vault, deposited capital and set a loan broker. All three validated. We then submitted a \texttt{LoanSet} signed by the borrower only, with a valid \texttt{LoanBrokerID} and a valid \texttt{PrincipalRequested}.
+
+\lbl{Expected.} The transaction reaches consensus. If it fails, it fails for a financial reason, for example insufficient cover.
+
+\lbl{Observed.} The node refused it before inclusion with \texttt{temBAD\_SIGNER}. The response names no field and no missing party. Rejected attempt: \tx{B9A12BE23AAF37771569A6B46AD22A964E4A9D35D6157D06A05AEA1C39A75447}.
+
+\lbl{Cause.} \texttt{LoanSet} is a two-party transaction. It needs the loan broker owner's \texttt{CounterpartySignature}. The name \texttt{temBAD\_SIGNER} suggests a wrong signature, not a missing second party. The SDK's runtime warning speaks about the fee for the counterparty's signers. It does not say that a signature is missing.
+
+\lbl{How we solved it.} We read \texttt{loanSet.d.ts} in the installed package. We found the \texttt{Counterparty} and \texttt{CounterpartySignature} fields, and the helpers \texttt{signLoanSetByCounterparty} and \texttt{combineLoanSetCounterpartySigners}. The borrower signs with \texttt{wallet.sign()}. The broker owner then co-signs the same \texttt{tx\_blob}. For one counterparty signer, no combine step is necessary. Result: \tx{693C846FF98C75E74FDF147E549500101320EDF1A193E95E19592660929B6FE2} (ledger 65045).
+
+\lbl{Cost.} About 20 minutes. We think every Track 1 team meets this before it reads the SDK source.
+
+\fix{Add a specific code, for example \texttt{temMISSING\_COUNTERPARTY\_SIG}, or name the missing field in the error message. Publish one worked example of the two-party signature in the Lending Protocol documentation. The SDK already ships the helpers; the documentation does not show them together.}
+
+\finding{3}{\texttt{tfLoanFullPayment} asks for an amount that a client cannot express}{missing primitive}{high}
+
+\lbl{What we did.} We repaid a loan in full. We read \texttt{TotalValueOutstanding} from the \texttt{Loan} ledger entry, which showed \texttt{10001370} drops. We submitted a \texttt{LoanPay} with that \texttt{Amount} and \texttt{Flags: tfLoanFullPayment}.
+
+\lbl{Expected.} The loan closes.
+
+\lbl{Observed.} The transaction entered a validated ledger, then rolled back with \texttt{tecKILLED}, ``No funds transferred and no offer created''. The network still charged the fee. Attempt: \tx{28343EEE820EB27EEC7A1B5CC02E22005E6CD87E37E05365BF85ED3869B546BD} (ledger 65064).
+
+\lbl{Cause.} The real payoff is the unrounded \texttt{PeriodicPayment}, which the ledger holds as \texttt{10001369.86301369963}. That value is not an integer number of drops. The flag appears to demand an exact match. The ledger shows the rounded figure, so the exact figure is not available to the client. We repaid with the same \texttt{Amount} and \texttt{Flags: 0}, and the loan closed: \tx{EA2B4816AE06E08DA64FD8C6131C0410691951D3350A21A387ED092334A3C1F1}.
+
+\lbl{Why this matters.} The values that the ledger publishes cannot satisfy the flag. A developer can only find this by trial and error, and each trial costs a fee.
+
+\fix{Publish an exact \texttt{PayoffAmount} in the loan object, in a form that a client can submit. Or let \texttt{tfLoanFullPayment} ignore \texttt{Amount} and settle the true balance. Or round the required amount in the borrower's favour. Also make \texttt{tecKILLED} name the expected amount.}
+
+\vspace{4pt}
+{\color{line}\rule{\linewidth}{0.6pt}}
+\vspace{1pt}
+
+{\displayfont\fontsize{13}{16}\selectfont\color{forest}Other observations, in short\par}
+\nopagebreak\vspace{1mm}
+\nopagebreak\noindent\begin{longtable}{@{}>{\fontsize{8.6}{11}\selectfont\RaggedRight}p{58mm}@{\hspace{5mm}}>{\fontsize{8.6}{11}\selectfont\RaggedRight}p{105mm}@{}}
+\textbf{The faucet breaks \texttt{fundWallet()}.} It answers with an \texttt{account} object that holds \texttt{address} and \texttt{secret}. The helper does not parse that shape. It throws \texttt{XRPLFaucetError: The faucet account is undefined}, which reads like an outage. & \emph{Fix:} return the standard shape, or publish the parser in the event README. We POST to the faucet directly and build the wallet with \texttt{Wallet.fromSeed()}.\\[3pt]
+\textbf{The SDK's own minimum is below what rippled accepts.} \texttt{validateLoanSet} enforces \texttt{MIN\_PAYMENT\_INTERVAL = 60}. The node then refuses \texttt{PaymentInterval: 60} with a generic \texttt{temINVALID} that names no field. \texttt{3600} works. & \emph{Fix:} align the SDK constant with the deployed rule, and name the rejected field in \texttt{temINVALID}. Cost us about 15 minutes and one full rebuild of a loan scenario.\\[3pt]
+\textbf{\texttt{submitAndWait} fails with a message that contradicts itself} on this fast devnet: ``\ldots greater than the transaction's LastLedgerSequence \ldots Preliminary result: tesSUCCESS''. & \emph{Fix:} derive the default \texttt{LastLedgerSequence} margin from the observed close cadence, and reword the message.\\[3pt]
+\textbf{\texttt{VaultCreate.DomainID} is not on the vault.} It is stored on the share \texttt{MPTokenIssuance}, at \texttt{vault\_info.shares.DomainID}. We found it by dumping the full response. & \emph{Fix:} document this, and mirror \texttt{DomainID} at the top level of \texttt{vault\_info}. Domain-gating a vault really gates who may hold its share MPT.\\[3pt]
+\textbf{\texttt{VaultSet} with a \texttt{DomainID} needs a vault that is already private.} A public vault answers \texttt{tecNO\_PERMISSION}, which names no reason: \txs{6C50EA54AC253A56B94E77AFE8B6CD06E64C9A171700523767CC5A02BE783E9C}{6C50EA54AC253A56}. The same call on a private vault succeeded. & \emph{Fix:} document the pre-condition, or allow the transition, or return a code that names it.\\[3pt]
+\textbf{\texttt{DIDSet} has an undocumented maximum length.} A full W3C document gives \texttt{temMALFORMED}. A short JSON object works. & \emph{Fix:} publish the limit for \texttt{DIDDocument} and \texttt{URI}.\\[3pt]
+\textbf{The DevEx hook records false transactions.} Its text matcher read our own Python constant \texttt{INFEASIBLE\_NO\_DEBT} as a result code, and a \texttt{grep} over \texttt{.ts} imports as a \texttt{Payment}. Its duplicate check uses the text only, so a reflection sent with a wrong \texttt{session\_id} cannot be sent again under the correct one. & \emph{Fix:} accept a match only from output that looks like a submit response, or only near a transaction hash. Key the duplicate check on the text and the \texttt{session\_id} together.\\[3pt]
+\textbf{The amendment set was not announced.} This ledger enables \texttt{LendingProtocol} and \texttt{LendingProtocolV1\_1} together. The event page warns that V1.1 restricts new loans to closed-ended vaults. & \emph{Fix:} state the final amendment set in writing before the event, and show the \texttt{feature} command in the quickstart.\\
+\end{longtable}
+
+\vspace{3pt}
+{\displayfont\fontsize{13}{16}\selectfont\color{forest}What worked well\par}
+\vspace{0.5mm}
+Credentials and Permissioned Domains behaved exactly as their names suggest. The deny, accept and deny-after-expiry cycle gave legible codes, \texttt{tecNO\_AUTH} and \texttt{tecEXPIRED}, on the first attempt. Native fee sponsorship worked at once with \texttt{addPreFundedSponsor} and \texttt{signAsSponsor}; the balance deltas confirm that the sponsor paid the fee and the sponsee paid none. DID replay protection refused the wrong network with \texttt{telWRONG\_NETWORK} and the wrong signer with \texttt{tefBAD\_AUTH}. \texttt{VaultCreate}, \texttt{VaultDeposit}, \texttt{LoanBrokerSet} and \texttt{VaultWithdraw} all validated on the first correct submission.
+
+\vspace{2pt}
+{\fontsize{8.2}{10.5}\selectfont\color{muted}Full transaction records, with hashes and explorer links: \texttt{docs/progress/augustin/evidence/}. Session captures: \texttt{.xrpl-devex/reports/}.\par}
+
+\end{document}
