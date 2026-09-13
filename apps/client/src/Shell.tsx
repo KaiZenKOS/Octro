@@ -17,10 +17,10 @@ export function Shell({ children }: {
     const [settings, setSettings] = useState(false);
     const scroll = useRef<ScrollView>(null);
     const activePath = ['/proposal', '/options'].includes(path) ? '/calendar' : ['/add', '/import'].includes(path) ? '/sources' : path;
-    // Le compte reel (Phase G) n'a ni persona ni scenario de demonstration :
+    // Le compte reel (Phase G) et l'admin ops n'ont ni persona ni scenario de demonstration :
     // le selecteur "Personnel · Lina" et le badge "Donnees synthetiques"
     // n'ont pas de sens sur ces routes et resteraient une trace de maquette.
-    const isRealFlow = path === '/' || path === '/account';
+    const isRealFlow = path === '/' || path === '/account' || Boolean(path?.startsWith('/admin'));
     useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); if (Platform.OS === 'web') {
         document.documentElement.lang = language;
         document.title = `Octro — ${t('vos prévisions', 'your forecast')}`;

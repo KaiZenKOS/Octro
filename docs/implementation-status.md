@@ -15,6 +15,7 @@
 | **Validation Config Fail-Closed** | **Opérationnel** | `apps/api/src/index.ts` valide l'environnement au démarrage (`SEC-04`, `OPS-02`) via `validateBackendEnvironment`. Zéro secret dans Git. Chiffrement AES-256-GCM au repos (`SEC-LOAD-01`). |
 | **Parcours XRPL Track 1 Loaded & Vault** | **Opérationnel** | Endpoints `/v1/kyc`, `/v1/credit`, `/v1/lending/deposit`, `/v1/lending/borrower/request-loan`, `/v1/lending/withdraw` fonctionnels. Écrans client `Compte & Vault` intégrés dans `apps/client/src/account-screens.tsx` et accessibles via `apps/client/src/Shell.tsx`. |
 | **Agent & Ordonnancement Déterministe** | **Opérationnel** | Route serveur `POST /v1/agent/explain` sécurisée (`apps/api/src/routes/agent.ts`, `apps/api/test/agent.test.ts`). Zéro fuite de clé LLM côté client (`SEC-04`). Recommandation financière 100% issue du plan déterministe (`AGT-02`). |
+| **Observabilité Orchestrateur & MCP Tools** | **Opérationnel** | Endpoints d'administration `GET /v1/admin/agent/orchestration` (ring buffer RAM 20 items, politiques, mode provider) et `GET /v1/admin/mcp/tools` (`@octro/mcp`). Vue frontend `/admin/ops`. Sécurisation par `x-admin-key` et garde-fou `ADMIN_INSIGHTS_DISABLED` (`AGT-01/02`, `MCP-02`, `SEC-04`). |
 | **Moteur Financier Personnel & Pro** | **Opérationnel** | Horizon 30 jours (personnel) et 72 heures (pro) avec pas horaire (`STEP_MS.hour = 3600000`). Moteur Python CVaR/MPC (`test_cvar.py`, `test_financing.py`, `test_personal_no_debt.py`, `test_schema.py`) 100% vert. |
 | **Résilience Hors-Ligne & Accessibilité** | **Opérationnel** | Prévisions disponibles sans wallet, DID, KYC ni connexion internet (`ACC-01`, `ACC-02`, `PER-11`, `NET-02`). Conformité ARIA et typographie accessible `@octro/ui`. |
 
@@ -98,10 +99,10 @@
   - @octro/application: 3 suites, 7 tests PASS
   - @octro/credit: 1 suite, 2 tests PASS
   - @octro/agents: 1 suite, 1 test PASS
-  - @octro/mcp: 1 suite, 1 test PASS
-  - @octro/api: 8 suites, 32 tests PASS (dont E2E session workspace & agent)
+  - @octro/mcp: 1 suite, 1 test PASS (renforcé avec validation complète des 3 outils)
+  - @octro/api: 9 suites, 33 tests PASS (dont admin-ops, agent explainer, et E2E session workspace)
   - @octro/client: 1 suite, 5 tests PASS
-  TOTAL TS: 25 suites, 83 tests PASS (100% verts)
+  TOTAL TS: 26 suites, 84 tests PASS (100% verts)
 
 ✓ Python Financial Optimizer (pytest services/optimizer/tests/)
   - test_cvar.py: 5 tests PASS
