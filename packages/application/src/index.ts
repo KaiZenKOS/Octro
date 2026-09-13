@@ -45,6 +45,7 @@ export * from "./adapters/http/octro-mail-adapter.js";
 // Extension Lending/KYC/Credit — Phase B (KYC simule).
 export * from "./ports/kyc-status-repository.js";
 export * from "./use-cases/simulate-kyc.js";
+export * from "./use-cases/get-kyc-credential-status.js";
 export * from "./use-cases/get-kyc-status.js";
 export * from "./adapters/in-memory/in-memory-kyc-status-repository.js";
 
@@ -118,6 +119,7 @@ export * from "./use-cases/get-wallet.js";
 export * from "./use-cases/get-wallet-activity.js";
 export * from "./use-cases/get-loan-outstanding.js";
 export * from "./adapters/in-memory/fake-loan-query-adapter.js";
+export * from "./adapters/in-memory/fake-credentials-and-domains-adapter.js";
 export * from "./adapters/in-memory/fake-account-activity-adapter.js";
 export * from "./adapters/in-memory/fake-iou-setup-adapter.js";
 export * from "./trustline-support.js";

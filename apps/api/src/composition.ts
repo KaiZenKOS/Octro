@@ -84,6 +84,8 @@ import {
   SaveOdooConnectionUseCase,
   type SessionRepository,
   SignUpUseCase,
+  FakeCredentialsAndDomainsAdapter,
+  GetKycCredentialStatusUseCase,
   SimulateKycUseCase,
   SimulatedOptimizerAdapter,
   StaticNetworkCapabilitiesAdapter,
@@ -100,6 +102,7 @@ import {
 import {
   type AccountActivityPort,
   type BufferDisbursementPort,
+  type CredentialsAndDomainsPort,
   HACKATHON_DEVNET,
   type IouSetupPort,
   type LendingV1Port,
@@ -107,6 +110,7 @@ import {
   type WalletProvisioningPort,
   XrplAccountActivityAdapter,
   XrplBufferDisbursementAdapter,
+  XrplCredentialsAndDomainsAdapter,
   XrplIouSetupAdapter,
   XrplLendingV1Adapter,
   XrplLoanQueryAdapter,
@@ -126,6 +130,7 @@ export interface AppDependencies {
   getCurrentUser: GetCurrentUserUseCase;
   simulateKyc: SimulateKycUseCase;
   getKycStatus: GetKycStatusUseCase;
+  getKycCredentialStatus: GetKycCredentialStatusUseCase;
   saveOdooConnection: SaveOdooConnectionUseCase;
   listOdooCompanies: ListOdooCompaniesUseCase;
   requestCreditAssessment: RequestCreditAssessmentUseCase;
@@ -278,6 +283,16 @@ function buildAccountActivityPort(): AccountActivityPort {
   return new FakeAccountActivityAdapter();
 }
 
+// Meme bascule : Credentials + Permissioned Domains (LOAD-01), extension
+// Loaded primaire — CredentialCreate/Accept + PermissionedDomainSet reels,
+// verifies en reel sur ce devnet (voir credentials-domains.ts).
+function buildCredentialsAndDomainsPort(): CredentialsAndDomainsPort {
+  if (process.env["LENDING_V1_ENABLED"] === "true") {
+    return new XrplCredentialsAndDomainsAdapter(HACKATHON_DEVNET.wss);
+  }
+  return new FakeCredentialsAndDomainsAdapter();
+}
+
 // Meme bascule : etablissement automatique de trustline (TrustSet) avant un
 // depot/retrait/emprunt sur un actif IOU (RLUSD simule, integration
 // xrpl-lending-sim) — l'utilisateur ne doit jamais avoir a la creer
@@ -339,8 +354,10 @@ export function buildDependencies(): AppDependencies {
   const accountActivity: AccountActivityPort = buildAccountActivityPort();
   const iouSetup: IouSetupPort = buildIouSetupPort();
   const loanQuery: LoanQueryPort = buildLoanQueryPort();
+  const credentialsAndDomains: CredentialsAndDomainsPort = buildCredentialsAndDomainsPort();
   // Secret plateforme unique (pas par utilisateur, jamais chiffre en base —
   // il n'existe qu'une fois, fourni via l'environnement, SEC-04).
+  const bufferWalletAddress = process.env["BUFFER_WALLET_ADDRESS"] ?? "";
   const bufferWalletSeed = process.env["BUFFER_WALLET_SEED"] ?? "";
   const bufferInitialBalanceDrops = process.env["BUFFER_INITIAL_BALANCE_DROPS"] ?? "1000000000";
 
@@ -357,8 +374,19 @@ export function buildDependencies(): AppDependencies {
     login: new LoginUseCase(users, sessions, clock),
     validateSession: new ValidateSessionUseCase(sessions, clock),
     getCurrentUser: new GetCurrentUserUseCase(users),
-    simulateKyc: new SimulateKycUseCase(kycStatuses, clock, ids),
+    simulateKyc: new SimulateKycUseCase(
+      kycStatuses,
+      wallets,
+      credentialsAndDomains,
+      walletSeedCrypto,
+      txEvidence,
+      bufferWalletAddress,
+      bufferWalletSeed,
+      clock,
+      ids,
+    ),
     getKycStatus: new GetKycStatusUseCase(kycStatuses),
+    getKycCredentialStatus: new GetKycCredentialStatusUseCase(wallets, credentialsAndDomains),
     saveOdooConnection: new SaveOdooConnectionUseCase(odooConnections, kycStatuses, odooApiKeyCrypto, clock, ids),
     listOdooCompanies: new ListOdooCompaniesUseCase(odooConnections, kycStatuses, odoo, odooApiKeyCrypto),
     requestCreditAssessment: new RequestCreditAssessmentUseCase(

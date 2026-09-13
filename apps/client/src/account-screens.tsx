@@ -819,6 +819,22 @@ function WalletOverview() {
             </View>
           </View>
 
+          {activity.vault_shares.length > 0 && (
+            <View style={{ gap: 8 }}>
+              <T variant="label">Parts de vault (MPToken)</T>
+              <T variant="muted" style={{ fontSize: 12 }}>
+                Votre part réelle dans le vault partagé — croît avec le rendement accumulé, distincte d'un solde classique.
+              </T>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                {activity.vault_shares.map((s) => (
+                  <Badge key={s.asset_id} tone="success">
+                    {formatHumanAmount(s.asset_id, s.shares)}
+                  </Badge>
+                ))}
+              </View>
+            </View>
+          )}
+
           <View style={{ gap: 4 }}>
             <T variant="label">Transactions récentes</T>
             {activity.transactions.length === 0 ? (
@@ -889,6 +905,23 @@ function AccountHeader() {
 
 // Accueil (Phase G) : identite -> KYC simule -> Odoo BYO -> credit. Le
 // wallet (solde/historique) vit desormais sur /transactions, le lending
+// Integration Credentials + Permissioned Domains (bonus) : verifie sur le
+// ledger qu'une attestation on-chain existe, en plus du statut KYC
+// applicatif — peut rester absente (wallet pas encore finance au moment de
+// la simulation), n'affiche alors rien plutot qu'un badge trompeur.
+function OnChainCredentialBadge() {
+  const api = useLendingApi();
+  const [allowed, setAllowed] = useState(false);
+
+  useEffect(() => {
+    api.getKycCredentialStatus().then((s) => setAllowed(s.allowed)).catch(() => setAllowed(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!allowed) return null;
+  return <Badge tone="success">Attestation on-chain acceptée</Badge>;
+}
+
 // (depot/retrait/emprunt) sur /lending — chacun un onglet dedie plutot
 // qu'un unique ecran fourre-tout.
 function HomeScreenInner() {
@@ -907,7 +940,10 @@ function HomeScreenInner() {
       )}
       {kyc.status === 'valid' && (
         <>
-          <Badge tone="success">KYC simulé : valide</Badge>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            <Badge tone="success">KYC simulé : valide</Badge>
+            <OnChainCredentialBadge />
+          </View>
           <CreditSetupSection assessment={assessment} onAssessed={setAssessment} />
         </>
       )}

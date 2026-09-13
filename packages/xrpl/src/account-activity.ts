@@ -1,5 +1,5 @@
 import { Client } from "xrpl";
-import type { AccountActivityPort, AccountBalance, AccountTransactionSummary } from "./ports.js";
+import type { AccountActivityPort, AccountBalance, AccountTransactionSummary, VaultShareBalance } from "./ports.js";
 import type { QueryResult } from "./ports.js";
 
 const EXPLORER_TX_PREFIX = "https://custom.xrpl.org/lending-hackathon.dev.ripplex.io:51233/transactions/";
@@ -116,6 +116,52 @@ export class XrplAccountActivityAdapter implements AccountActivityPort {
           });
         }
         return { outcome: "ready" as const, data: summaries };
+      });
+    } catch (err) {
+      return { outcome: "unavailable", reason: err instanceof Error ? err.message : "unknown error" };
+    }
+  }
+
+  // Integration MPToken (bonus) : chaque Vault (XLS-65) represente la part
+  // d'un lender par un MPToken (XLS-33) sous son propre pseudo-compte
+  // (Vault.ShareMPTID). Verifie en reel : le MPTAmount detenu croit avec le
+  // rendement accumule, jamais fige au montant depose.
+  async getVaultShares(
+    address: string,
+    knownVaults: Array<{ assetId: string; vaultId: string }>,
+  ): Promise<QueryResult<VaultShareBalance[]>> {
+    try {
+      return await this.withClient(async (client) => {
+        const shareIdToAsset = new Map<string, { assetId: string; assetScale: number }>();
+        for (const vault of knownVaults) {
+          try {
+            const { result } = await client.request({ command: "ledger_entry", index: vault.vaultId } as any);
+            const node = (result as any).node;
+            const shareMptId = node?.ShareMPTID as string | undefined;
+            if (!shareMptId) continue;
+            // AssetScale n'est fiable que pour un Vault IOU (nos deux pools
+            // l'ont verifie : RLUSD -> 6, coherent avec sa valeur decimale ;
+            // XRP -> absent/0 alors que ses MPTAmount restent en DROPS,
+            // jamais mis a l'echelle par le Vault) — jamais s'y fier pour
+            // XRP, toujours utiliser la conversion drops->XRP standard.
+            const isNativeXrp = vault.assetId === "xrpl:XRP";
+            const assetScale = isNativeXrp ? 6 : ((await client.request({ command: "ledger_entry", mpt_issuance: shareMptId } as any)).result as any).node?.AssetScale ?? 0;
+            shareIdToAsset.set(shareMptId, { assetId: vault.assetId, assetScale });
+          } catch {
+            // Un vault connu introuvable/injoignable est ignore, jamais
+            // bloquant pour les autres.
+          }
+        }
+
+        const holdings = await client.request({ command: "account_objects", account: address, type: "mptoken" } as any);
+        const shares: VaultShareBalance[] = [];
+        for (const holding of (holdings.result as any).account_objects ?? []) {
+          const match = shareIdToAsset.get(holding.MPTokenIssuanceID);
+          if (!match) continue;
+          const scaled = Number(holding.MPTAmount) / 10 ** match.assetScale;
+          shares.push({ asset_id: match.assetId, shares: scaled.toString() });
+        }
+        return { outcome: "ready" as const, data: shares };
       });
     } catch (err) {
       return { outcome: "unavailable", reason: err instanceof Error ? err.message : "unknown error" };

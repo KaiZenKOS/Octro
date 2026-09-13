@@ -31,4 +31,20 @@ export async function kycRoutes(app: FastifyInstance, deps: AppDependencies): Pr
       return sendError(reply, err);
     }
   });
+
+  // Integration Credentials + Permissioned Domains (LOAD-01) : verifie sur
+  // le ledger (pas seulement en base) qu'une attestation on-chain existe —
+  // complementaire au statut KYC applicatif ci-dessus, jamais un
+  // remplacement. Peut renvoyer allowed=false meme si le KYC est "valid" en
+  // base (wallet pas encore finance au moment de la simulation).
+  app.get("/v1/kyc/credential", async (request, reply) => {
+    const userId = await requireSession(request, reply, deps);
+    if (!userId) return reply;
+    try {
+      const status = await deps.getKycCredentialStatus.execute({ userId });
+      return reply.send(status);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
 }

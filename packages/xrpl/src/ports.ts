@@ -48,9 +48,28 @@ export interface AccountTransactionSummary {
  * WithdrawalRequest, ...), mais tout ce que le ledger a reellement vu
  * passer sur cette adresse.
  */
+export interface VaultShareBalance {
+  asset_id: string;
+  // Chaine decimale (deja mise a l'echelle par AssetScale du Vault, jamais
+  // le MPTAmount brut) : la part de l'utilisateur dans le vault, en unite
+  // du meme actif que asset_id — pas un solde de portefeuille classique,
+  // mais la valeur de ses parts (MPToken XLS-33) dans le vault partage.
+  shares: string;
+}
+
 export interface AccountActivityPort {
   getBalances(address: string): Promise<QueryResult<AccountBalance[]>>;
   getTransactions(address: string, limit?: number): Promise<QueryResult<AccountTransactionSummary[]>>;
+  // Integration MPToken (bonus) : chaque Vault (XLS-65) represente la part
+  // d'un lender par un MPToken (XLS-33) emis sous son propre pseudo-compte
+  // (Vault.ShareMPTID). known_vaults vient de LendingPoolRepository (asset_id
+  // + vault_id) — le port lit le ShareMPTID de chaque vault connu puis les
+  // MPToken effectivement detenus par address, et ne renvoie que ceux qui
+  // matchent.
+  getVaultShares(
+    address: string,
+    knownVaults: Array<{ assetId: string; vaultId: string }>,
+  ): Promise<QueryResult<VaultShareBalance[]>>;
 }
 
 export interface LoanOutstanding {

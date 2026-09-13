@@ -1,4 +1,4 @@
-import type { AccountActivityPort, AccountBalance, AccountTransactionSummary } from "@octro/xrpl";
+import type { AccountActivityPort, AccountBalance, AccountTransactionSummary, VaultShareBalance } from "@octro/xrpl";
 import { NotFoundError } from "../errors.js";
 import type { LendingPoolRepository } from "../ports/lending-pool-repository.js";
 import type { WalletRepository } from "../ports/wallet-repository.js";
@@ -12,6 +12,10 @@ export interface WalletActivityResult {
   network: string;
   balances: AccountBalance[];
   transactions: AccountTransactionSummary[];
+  // Integration MPToken (bonus) : parts de vault reellement detenues (XLS-33
+  // MPToken sous le pseudo-compte du Vault, XLS-65) — distinct d'un solde de
+  // portefeuille classique, croit avec le rendement accumule.
+  vault_shares: VaultShareBalance[];
 }
 
 // Vue "compte" (Phase G, correction UX) : le client n'affichait jusqu'ici
@@ -32,10 +36,13 @@ export class GetWalletActivityUseCase {
     if (!wallet) {
       throw new NotFoundError("Wallet", query.userId);
     }
-    const [balances, transactions, pools] = await Promise.all([
+    const pools = await this.pools.listAll();
+    const knownVaults = pools.map((pool) => ({ assetId: pool.assetId, vaultId: pool.vaultId }));
+
+    const [balances, transactions, vaultShares] = await Promise.all([
       this.accountActivity.getBalances(wallet.address),
       this.accountActivity.getTransactions(wallet.address),
-      this.pools.listAll(),
+      this.accountActivity.getVaultShares(wallet.address, knownVaults),
     ]);
 
     // Affiche aussi un solde "0" pour chaque actif de lending connu (ex.
@@ -55,6 +62,7 @@ export class GetWalletActivityUseCase {
       network: wallet.network,
       balances: knownBalances,
       transactions: transactions.outcome === "ready" ? transactions.data : [],
+      vault_shares: vaultShares.outcome === "ready" ? vaultShares.data : [],
     };
   }
 }

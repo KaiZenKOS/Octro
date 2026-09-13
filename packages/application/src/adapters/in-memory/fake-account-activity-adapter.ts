@@ -11,4 +11,8 @@ export class FakeAccountActivityAdapter implements AccountActivityPort {
   async getTransactions(): ReturnType<AccountActivityPort["getTransactions"]> {
     return { outcome: "ready", data: [] };
   }
+
+  async getVaultShares(): ReturnType<AccountActivityPort["getVaultShares"]> {
+    return { outcome: "ready", data: [] };
+  }
 }

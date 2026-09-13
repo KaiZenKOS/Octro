@@ -111,11 +111,20 @@ export interface AccountTransaction {
   explorer_url: string;
 }
 
+// Integration MPToken (bonus) : part reelle detenue dans un vault (XLS-33
+// MPToken sous le pseudo-compte du Vault, XLS-65) — croit avec le rendement
+// accumule, distinct d'un solde de portefeuille classique.
+export interface VaultShareBalance {
+  asset_id: string;
+  shares: string;
+}
+
 export interface WalletActivity {
   address: string;
   network: string;
   balances: AccountBalance[];
   transactions: AccountTransaction[];
+  vault_shares: VaultShareBalance[];
 }
 
 export const NATIVE_ASSET_ID = 'xrpl:XRP';
@@ -198,6 +207,13 @@ export function useLendingApi() {
       [authed],
     ),
     getKycStatus: useCallback(async (): Promise<KycStatus> => parseJsonOrThrow(await authed('/v1/kyc/status')), [authed]),
+    // Integration Credentials + Permissioned Domains (bonus) : verifie sur
+    // le ledger qu'une attestation on-chain existe, en plus du statut KYC
+    // applicatif ci-dessus.
+    getKycCredentialStatus: useCallback(
+      async (): Promise<{ allowed: boolean; reasonCode: string }> => parseJsonOrThrow(await authed('/v1/kyc/credential')),
+      [authed],
+    ),
     saveOdooConnection: useCallback(
       async (odooUrl: string, odooApiKey: string): Promise<OdooConnection> =>
         parseJsonOrThrow(
