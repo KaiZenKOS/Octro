@@ -16,6 +16,7 @@
     "@octro/application": "0.1.0",
     "@octro/contracts": "0.1.0",
     "@octro/domain": "0.1.0",
+    "@octro/mcp": "0.1.0",
     "@octro/xrpl": "0.1.0",
     "fastify": "^5.1.0",
     "zod": "^3.23.8"
