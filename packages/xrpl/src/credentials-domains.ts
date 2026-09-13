@@ -33,6 +33,7 @@ interface SubmitOutcome {
   validated: boolean;
   resultCode: string | null;
   ledgerIndex: number | null;
+  affectedNodes: unknown[];
 }
 
 async function pollForValidation(client: Client, hash: string, submitPreliminary: string, timeoutMs = 60000): Promise<SubmitOutcome> {
@@ -42,10 +43,31 @@ async function pollForValidation(client: Client, hash: string, submitPreliminary
     const txResp = await client.request({ command: "tx", transaction: hash } as any);
     if ((txResp.result as any).validated) {
       const result = txResp.result as any;
-      return { hash, submitPreliminary, validated: true, resultCode: result.meta.TransactionResult, ledgerIndex: result.ledger_index };
+      return {
+        hash,
+        submitPreliminary,
+        validated: true,
+        resultCode: result.meta.TransactionResult,
+        ledgerIndex: result.ledger_index,
+        affectedNodes: result.meta.AffectedNodes ?? [],
+      };
     }
   }
-  return { hash, submitPreliminary, validated: false, resultCode: null, ledgerIndex: null };
+  return { hash, submitPreliminary, validated: false, resultCode: null, ledgerIndex: null, affectedNodes: [] };
+}
+
+// Meme technique que packages/xrpl/src/lending-v1.ts#findCreatedIndex :
+// identifie sans ambiguite le ledger entry CREE PAR CETTE TRANSACTION,
+// jamais un account_objects[0] qui suppose a tort qu'un compte ne
+// possede qu'un seul objet d'un type donne.
+function findCreatedIndex(affectedNodes: unknown[], ledgerEntryType: string): string | null {
+  for (const node of affectedNodes) {
+    const created = (node as { CreatedNode?: { LedgerEntryType?: string; LedgerIndex?: string } }).CreatedNode;
+    if (created && created.LedgerEntryType === ledgerEntryType && created.LedgerIndex) {
+      return created.LedgerIndex;
+    }
+  }
+  return null;
 }
 
 async function submitAndConfirm(client: Client, wallet: Wallet, tx: Record<string, unknown>): Promise<SubmitOutcome> {
@@ -160,14 +182,9 @@ export class XrplCredentialsAndDomainsAdapter implements CredentialsAndDomainsPo
       if (outcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence };
       }
-      const objects = await client.request({
-        command: "account_objects",
-        account: owner.classicAddress,
-        type: "permissioned_domain",
-      } as any);
-      const domainId = ((objects.result as any).account_objects ?? [])[0]?.index ?? null;
+      const domainId = findCreatedIndex(outcome.affectedNodes, "PermissionedDomain");
       if (!domainId) {
-        return { outcome: "degraded", reason: "PermissionedDomainSet validated but no domain object found" };
+        return { outcome: "degraded", reason: "PermissionedDomainSet validated but no PermissionedDomain CreatedNode found in the transaction metadata" };
       }
       return { outcome: "ready", data: { domainId }, evidence };
     });

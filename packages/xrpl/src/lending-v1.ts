@@ -42,6 +42,14 @@ interface SubmitOutcome {
   validated: boolean;
   resultCode: string | null;
   ledgerIndex: number | null;
+  // AffectedNodes de la transaction validee — permet de retrouver
+  // l'index du ledger entry CREE PAR CETTE TRANSACTION PRECISE (voir
+  // findNewlyCreatedIndex ci-dessous), jamais un account_objects[0] qui
+  // suppose a tort qu'un compte ne possede qu'un seul objet d'un type
+  // donne (faux des qu'un borrower prend un deuxieme pret : un Loan deja
+  // rembourse reste sur le ledger, seuls ses champs "outstanding"
+  // disparaissent — verifie en reel).
+  affectedNodes: unknown[];
 }
 
 async function pollForValidation(
@@ -62,10 +70,25 @@ async function pollForValidation(
         validated: true,
         resultCode: result.meta.TransactionResult,
         ledgerIndex: result.ledger_index,
+        affectedNodes: result.meta.AffectedNodes ?? [],
       };
     }
   }
-  return { hash, submitPreliminary, validated: false, resultCode: null, ledgerIndex: null };
+  return { hash, submitPreliminary, validated: false, resultCode: null, ledgerIndex: null, affectedNodes: [] };
+}
+
+// Meme technique que xrpl-lending-sim/lib.js#findCreatedIndex, verifiee en
+// reel : identifie sans ambiguite le ledger entry CREE PAR CETTE
+// TRANSACTION (jamais un account_objects[0] sur le compte, qui peut
+// retourner un objet plus ancien du meme type).
+function findCreatedIndex(affectedNodes: unknown[], ledgerEntryType: string): string | null {
+  for (const node of affectedNodes) {
+    const created = (node as { CreatedNode?: { LedgerEntryType?: string; LedgerIndex?: string } }).CreatedNode;
+    if (created && created.LedgerEntryType === ledgerEntryType && created.LedgerIndex) {
+      return created.LedgerIndex;
+    }
+  }
+  return null;
 }
 
 async function submitAndConfirm(
@@ -124,14 +147,9 @@ export class XrplLendingV1Adapter implements LendingV1Port {
       if (outcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence };
       }
-      const objects = await client.request({
-        command: "account_objects",
-        account: owner.classicAddress,
-        type: "vault",
-      } as any);
-      const vaultId = (objects.result as any).account_objects[0]?.index ?? null;
+      const vaultId = findCreatedIndex(outcome.affectedNodes, "Vault");
       if (!vaultId) {
-        return { outcome: "degraded", reason: "VaultCreate validated but no vault object found by account_objects" };
+        return { outcome: "degraded", reason: "VaultCreate validated but no Vault CreatedNode found in the transaction metadata" };
       }
       return { outcome: "ready", data: { vaultId }, evidence };
     });
@@ -184,14 +202,12 @@ export class XrplLendingV1Adapter implements LendingV1Port {
       if (outcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence };
       }
-      const objects = await client.request({
-        command: "account_objects",
-        account: owner.classicAddress,
-        type: "loan_broker",
-      } as any);
-      const loanBrokerId = (objects.result as any).account_objects[0]?.index ?? null;
+      // Cas de creation uniquement (loanBrokerId absent en entree) : sur une
+      // mise a jour, l'appelant connait deja l'id, pas de CreatedNode a
+      // chercher.
+      const loanBrokerId = params.loanBrokerId ?? findCreatedIndex(outcome.affectedNodes, "LoanBroker");
       if (!loanBrokerId) {
-        return { outcome: "degraded", reason: "LoanBrokerSet validated but no loan_broker object found" };
+        return { outcome: "degraded", reason: "LoanBrokerSet validated but no LoanBroker CreatedNode found in the transaction metadata" };
       }
       return { outcome: "ready", data: { loanBrokerId }, evidence };
     });
@@ -254,14 +270,9 @@ export class XrplLendingV1Adapter implements LendingV1Port {
       if (outcome.resultCode !== "tesSUCCESS") {
         return { outcome: "rejected", evidence };
       }
-      const objects = await client.request({
-        command: "account_objects",
-        account: borrower.classicAddress,
-        type: "loan",
-      } as any);
-      const loanId = (objects.result as any).account_objects[0]?.index ?? null;
+      const loanId = findCreatedIndex(outcome.affectedNodes, "Loan");
       if (!loanId) {
-        return { outcome: "degraded", reason: "LoanSet validated but no loan object found by account_objects" };
+        return { outcome: "degraded", reason: "LoanSet validated but no Loan CreatedNode found in the transaction metadata" };
       }
       return { outcome: "ready", data: { loanId }, evidence };
     });
