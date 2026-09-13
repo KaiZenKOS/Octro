@@ -69,7 +69,7 @@ function SignUpOrLogIn() {
       <T variant="muted">
         {t(
           "Un wallet XRPL est provisionné automatiquement à l'inscription (keypair seul, non fondé pour l'instant).",
-          'An XRPL wallet is provisioned automatically at sign-up (keypair only, not funded yet).',
+          "We create an XRPL wallet for you at sign-up (just a keypair for now, not funded).",
         )}
       </T>
       <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
@@ -166,7 +166,7 @@ function KycGateModal({ onDecided }: { onDecided: (status: KycStatus) => void })
           <T variant="muted">
             {t(
               "Simulation pour le hackathon — aucun vrai fournisseur d'identité n'est appelé. Cette décision détermine l'accès aux instruments financiers (dépôt, prêt, retrait).",
-              'Simulation for the hackathon — no real identity provider is called. This decision determines access to financial instruments (deposit, loan, withdrawal).',
+              "Simulated for the hackathon — no real identity provider is involved. This is what decides whether you can deposit, borrow, or withdraw.",
             )}
           </T>
           <ErrorNote message={error} />
@@ -209,7 +209,7 @@ function OdooConnectForm({ onConnected }: { onConnected: (connection: OdooConnec
       <T variant="muted">
         {t(
           "Le score de crédit est calculé depuis vos propres données Odoo (Ventes, Facturation, Comptabilité) — un seul fournisseur pour l'instant. Votre clé API n'est jamais réaffichée. Odoo on-premise : pas besoin du nom de la base de données.",
-          "Your credit score is computed from your own Odoo data (Sales, Invoicing, Accounting) — only one provider for now. Your API key is never shown again. On-premise Odoo: no database name needed.",
+          "Your credit score comes from your own Odoo data (Sales, Invoicing, Accounting) — only Odoo for now. Your API key is never shown again, and on-premise Odoo doesn't need a database name.",
         )}
       </T>
       <Field
@@ -660,7 +660,7 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
       <T variant="muted">
         {t(
           "Dépôts et prêts passent par le vault et le loan broker partagés de l'actif choisi (adaptateur XRPL déjà vérifié en réel). Le retrait avance depuis le buffer de liquidité si le vault n'est pas encore liquide.",
-          "Deposits and loans go through the shared vault and loan broker for the chosen asset (XRPL adapter already verified live). Withdrawals advance from the liquidity buffer if the vault isn't liquid yet.",
+          "Deposits and loans go through the shared vault and loan broker for the asset you pick. If the vault doesn't have enough liquidity, withdrawals are advanced from the buffer instead.",
         )}
       </T>
 
@@ -726,7 +726,7 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
           <T variant="muted">
             {t(
               `Plafond recommandé : ${assessment.max_recommended_credit_line.amount_decimal} ${unit} sur ${assessment.term_months} mois maximum. Choisissez le montant et la durée exacts de votre emprunt.`,
-              `Recommended cap: ${assessment.max_recommended_credit_line.amount_decimal} ${unit} over ${assessment.term_months} months maximum. Choose the exact amount and term of your loan.`,
+              `You can borrow up to ${assessment.max_recommended_credit_line.amount_decimal} ${unit} over ${assessment.term_months} months. Pick the exact amount and term you want.`,
             )}
           </T>
         )}
@@ -915,7 +915,7 @@ function WalletOverview() {
               <T variant="muted" style={{ fontSize: 12 }}>
                 {t(
                   "Votre part réelle dans le vault partagé — croît avec le rendement accumulé, distincte d'un solde classique.",
-                  'Your real share in the shared vault — grows with accrued yield, distinct from a plain balance.',
+                  "Your actual share of the shared vault. It grows with yield, unlike a plain balance.",
                 )}
               </T>
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
@@ -1095,7 +1095,7 @@ function LendingScreenInner() {
           <T variant="muted">
             {t(
               "Le dépôt, l'emprunt et le retrait exigent d'abord une vérification d'identité (KYC simulé) sur la page d'accueil.",
-              'Deposits, loans, and withdrawals first require identity verification (simulated KYC) on the home page.',
+              'You need to complete identity verification (simulated KYC) on the home page before you can deposit, borrow, or withdraw.',
             )}
           </T>
           <Link href="/" asChild>
