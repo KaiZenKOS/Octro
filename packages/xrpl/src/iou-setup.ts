@@ -5,7 +5,7 @@
  * l'issuer, TrustSet du holder vers l'issuer, Payment initial de l'issuer.
  * N'a aucun effet sur le chemin XRP natif.
  */
-import { Client, Wallet } from "xrpl";
+import { Client, SponsorFlags, Wallet, signAsSponsor } from "xrpl";
 import { IouSetupPort } from "./ports.js";
 import { PortResult, TransactionEvidence } from "./types.js";
 
@@ -41,6 +41,28 @@ async function submitAndConfirm(client: Client, wallet: Wallet, tx: Record<strin
   const signed = wallet.sign(prepared as any);
   const submitResp = await client.submit(signed.tx_blob);
   return pollForValidation(client, signed.hash, submitResp.result.engine_result as string);
+}
+
+// Integration Sponsorship (XLS-68/69) : le holder signe normalement, puis
+// le sponsor cosigne (xrpl.js signAsSponsor) avant soumission — meme
+// principe de coordination que signLoanSetByCounterparty pour LoanSet.
+async function submitSponsoredAndConfirm(
+  client: Client,
+  holder: Wallet,
+  sponsor: Wallet,
+  tx: Record<string, unknown>,
+): Promise<SubmitOutcome> {
+  (tx as { Account?: string }).Account = holder.classicAddress;
+  (tx as { Sponsor?: string }).Sponsor = sponsor.classicAddress;
+  // eslint-disable-next-line no-bitwise -- combinaison de flags XRPL standard
+  (tx as { SponsorFlags?: number }).SponsorFlags = SponsorFlags.spfSponsorReserve | SponsorFlags.spfSponsorFee;
+  const currentLedger = await client.getLedgerIndex();
+  const prepared = await client.autofill(tx as any);
+  (prepared as any).LastLedgerSequence = currentLedger + 2000;
+  const holderSigned = holder.sign(prepared as any);
+  const sponsored = signAsSponsor(sponsor, holderSigned.tx_blob);
+  const submitResp = await client.submit(sponsored.tx_blob);
+  return pollForValidation(client, sponsored.hash, submitResp.result.engine_result as string);
 }
 
 function toEvidence(stepId: string, txType: string, outcome: SubmitOutcome): TransactionEvidence {
@@ -91,6 +113,24 @@ export class XrplIouSetupAdapter implements IouSetupPort {
         LimitAmount: { currency: params.currency, issuer: params.issuerAddress, value: params.limit },
       });
       return toResult(outcome, "trustline", "TrustSet");
+    });
+  }
+
+  async createSponsoredTrustline(params: {
+    holderSeed: string;
+    currency: string;
+    issuerAddress: string;
+    limit: string;
+    sponsorSeed: string;
+  }): Promise<PortResult<{}>> {
+    return this.withClient(async (client) => {
+      const holder = Wallet.fromSeed(params.holderSeed);
+      const sponsor = Wallet.fromSeed(params.sponsorSeed);
+      const outcome = await submitSponsoredAndConfirm(client, holder, sponsor, {
+        TransactionType: "TrustSet",
+        LimitAmount: { currency: params.currency, issuer: params.issuerAddress, value: params.limit },
+      });
+      return toResult(outcome, "sponsored_trustline", "TrustSet");
     });
   }
 

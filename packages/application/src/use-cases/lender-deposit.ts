@@ -37,6 +37,10 @@ export class LenderDepositUseCase {
     private readonly iouSetup: IouSetupPort,
     private readonly crypto: CryptoPort,
     private readonly txEvidence: TxEvidenceRepository,
+    // Integration Sponsorship (XLS-68/69) : sponsorise la reserve/les frais
+    // de la trustline IOU (jamais requis pour XRP) — vide => comportement
+    // inchange (createTrustline classique, holder paye).
+    private readonly trustlineSponsorSeed: string,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
   ) {}
@@ -54,7 +58,7 @@ export class LenderDepositUseCase {
     if (!pool) throw new NotFoundError("LendingPool", assetId);
 
     const depositorSeed = await this.crypto.decrypt(wallet.seedCiphertext);
-    await ensureTrustline(asset, depositorSeed, this.iouSetup);
+    await ensureTrustline(asset, depositorSeed, this.iouSetup, this.trustlineSponsorSeed || undefined);
     const { evidence } = assertReady(
       await this.lending.depositToVault({
         depositorSeed,

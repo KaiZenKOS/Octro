@@ -242,6 +242,21 @@ export interface IouSetupPort {
     currency: string;
     value: string;
   }): Promise<PortResult<{}>>;
+  /**
+   * Integration Sponsorship (XLS-68/69) : meme TrustSet que createTrustline,
+   * mais la plateforme (sponsorSeed) prend en charge la reserve
+   * additionnelle (SponsorFlags.spfSponsorReserve) plutot que le holder —
+   * verifie en reel (Wallet.sign puis xrpl.js signAsSponsor). Reduit ce que
+   * l'utilisateur doit lui-meme detenir en XRP pour utiliser un actif IOU
+   * (ex. RLUSD simule).
+   */
+  createSponsoredTrustline(params: {
+    holderSeed: string;
+    currency: string;
+    issuerAddress: string;
+    limit: string;
+    sponsorSeed: string;
+  }): Promise<PortResult<{}>>;
 }
 
 /** Credentials + Permissioned Domains, the primary Loaded extension (LOAD-01, LOAD-03). */

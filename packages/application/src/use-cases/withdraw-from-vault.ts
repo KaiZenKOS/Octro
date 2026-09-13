@@ -88,7 +88,10 @@ export class WithdrawFromVaultUseCase {
     }
 
     const withdrawerSeed = await this.walletCrypto.decrypt(wallet.seedCiphertext);
-    await ensureTrustline(asset, withdrawerSeed, this.iouSetup);
+    // Integration Sponsorship (XLS-68/69) : reutilise le wallet buffer
+    // (deja finance, deja un role plateforme) comme sponsor de la reserve/
+    // des frais de la trustline IOU — jamais requis pour XRP.
+    await ensureTrustline(asset, withdrawerSeed, this.iouSetup, this.bufferWalletSeed || undefined);
     const vaultResult = await this.lending.withdrawFromVault({
       withdrawerSeed,
       vaultId: pool.vaultId,

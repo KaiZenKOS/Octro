@@ -27,6 +27,10 @@ export class FakeIouSetupAdapter implements IouSetupPort {
     return { outcome: "ready", data: {}, evidence: this.evidence("trustline", "TrustSet") };
   }
 
+  async createSponsoredTrustline(): ReturnType<IouSetupPort["createSponsoredTrustline"]> {
+    return { outcome: "ready", data: {}, evidence: this.evidence("sponsored_trustline", "TrustSet") };
+  }
+
   async sendIouPayment(): ReturnType<IouSetupPort["sendIouPayment"]> {
     return { outcome: "ready", data: {}, evidence: this.evidence("iou_payment", "Payment") };
   }

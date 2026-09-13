@@ -57,6 +57,10 @@ export class BorrowerLoanRequestUseCase {
     private readonly iouSetup: IouSetupPort,
     private readonly crypto: CryptoPort,
     private readonly txEvidence: TxEvidenceRepository,
+    // Integration Sponsorship (XLS-68/69) : sponsorise la reserve/les frais
+    // de la trustline IOU (jamais requis pour XRP) — vide => comportement
+    // inchange (createTrustline classique, holder paye).
+    private readonly trustlineSponsorSeed: string,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
   ) {}
@@ -95,7 +99,7 @@ export class BorrowerLoanRequestUseCase {
     const borrowerSeed = await this.crypto.decrypt(wallet.seedCiphertext);
     // Le principal est verse au borrower : la trustline doit exister avant
     // le LoanSet pour un actif IOU (integration xrpl-lending-sim).
-    await ensureTrustline(asset, borrowerSeed, this.iouSetup);
+    await ensureTrustline(asset, borrowerSeed, this.iouSetup, this.trustlineSponsorSeed || undefined);
 
     const { data, evidence } = assertReady(
       await this.lending.acceptLoan({
