@@ -24,7 +24,9 @@ import {
   GetKycStatusUseCase,
   FakeAccountActivityAdapter,
   FakeIouSetupAdapter,
+  FakeLoanQueryAdapter,
   GetLatestCreditAssessmentUseCase,
+  GetLoanOutstandingUseCase,
   GetLendingPositionsUseCase,
   GetWalletActivityUseCase,
   GetWalletUseCase,
@@ -101,11 +103,13 @@ import {
   HACKATHON_DEVNET,
   type IouSetupPort,
   type LendingV1Port,
+  type LoanQueryPort,
   type WalletProvisioningPort,
   XrplAccountActivityAdapter,
   XrplBufferDisbursementAdapter,
   XrplIouSetupAdapter,
   XrplLendingV1Adapter,
+  XrplLoanQueryAdapter,
   XrplWalletProvisioningAdapter,
 } from "@octro/xrpl";
 
@@ -133,6 +137,7 @@ export interface AppDependencies {
   lenderDeposit: LenderDepositUseCase;
   borrowerLoanRequest: BorrowerLoanRequestUseCase;
   repayLoan: RepayLoanUseCase;
+  getLoanOutstanding: GetLoanOutstandingUseCase;
   withdrawFromVault: WithdrawFromVaultUseCase;
   // Pas de route HTTP publique (operation d'administration hors trafic
   // public, voir infra/scripts/bootstrap-lending-pool.mjs) — expose ici,
@@ -284,6 +289,15 @@ function buildIouSetupPort(): IouSetupPort {
   return new FakeIouSetupAdapter();
 }
 
+// Meme bascule : lecture seule du solde reel d'un pret (TotalValueOutstanding,
+// accru par les interets) — necessaire pour un remboursement exact.
+function buildLoanQueryPort(): LoanQueryPort {
+  if (process.env["LENDING_V1_ENABLED"] === "true") {
+    return new XrplLoanQueryAdapter(HACKATHON_DEVNET.wss);
+  }
+  return new FakeLoanQueryAdapter();
+}
+
 // Cle reelle (env) si presente ; sinon cle ephemere generee pour ce process
 // uniquement (tests, dev sans Postgres) — jamais persistee, jamais reutilisee
 // au redemarrage. infra/config/environment.mjs exige la vraie cle des que
@@ -324,6 +338,7 @@ export function buildDependencies(): AppDependencies {
   const bufferDisbursement: BufferDisbursementPort = buildBufferDisbursementPort();
   const accountActivity: AccountActivityPort = buildAccountActivityPort();
   const iouSetup: IouSetupPort = buildIouSetupPort();
+  const loanQuery: LoanQueryPort = buildLoanQueryPort();
   // Secret plateforme unique (pas par utilisateur, jamais chiffre en base —
   // il n'existe qu'une fois, fourni via l'environnement, SEC-04).
   const bufferWalletSeed = process.env["BUFFER_WALLET_SEED"] ?? "";
@@ -385,7 +400,8 @@ export function buildDependencies(): AppDependencies {
       clock,
       ids,
     ),
-    repayLoan: new RepayLoanUseCase(kycStatuses, wallets, loanPositions, lending, walletSeedCrypto, txEvidence, clock),
+    repayLoan: new RepayLoanUseCase(kycStatuses, wallets, loanPositions, lending, loanQuery, walletSeedCrypto, txEvidence, clock),
+    getLoanOutstanding: new GetLoanOutstandingUseCase(loanPositions, loanQuery),
     withdrawFromVault: new WithdrawFromVaultUseCase(
       kycStatuses,
       wallets,

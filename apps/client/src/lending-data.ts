@@ -62,6 +62,16 @@ export interface LoanPosition {
   created_at: string;
 }
 
+// Solde reel a rembourser (GET /v1/lending/loans/outstanding) — accroit
+// continuement avec les interets, jamais calculable cote client.
+export interface LoanOutstanding {
+  total_value_outstanding: string;
+  principal_outstanding: string;
+  payment_remaining: number;
+  next_payment_due_date: string | null;
+  defaulted: boolean;
+}
+
 export interface WithdrawalRequest {
   id: string;
   asset_id: string;
@@ -245,11 +255,18 @@ export function useLendingApi() {
         ),
       [authed],
     ),
+    getLoanOutstanding: useCallback(
+      async (loanId: string): Promise<LoanOutstanding> =>
+        parseJsonOrThrow(await authed(`/v1/lending/loans/outstanding?loan_id=${loanId}`)),
+      [authed],
+    ),
+    // Aucun montant a fournir : le serveur relit TotalValueOutstanding
+    // juste avant de soumettre, le seul montant qui fonctionne pour clore
+    // un pret (voir GET /v1/lending/loans/outstanding pour l'afficher
+    // avant de valider).
     repay: useCallback(
-      async (loanId: string, amountDrops: string): Promise<LoanPosition> =>
-        parseJsonOrThrow(
-          await authed('/v1/lending/repay', { method: 'POST', body: JSON.stringify({ loan_id: loanId, amount_drops: amountDrops }) }),
-        ),
+      async (loanId: string): Promise<LoanPosition> =>
+        parseJsonOrThrow(await authed('/v1/lending/repay', { method: 'POST', body: JSON.stringify({ loan_id: loanId }) })),
       [authed],
     ),
     withdraw: useCallback(

@@ -116,6 +116,8 @@ export * from "./use-cases/list-lending-assets.js";
 export * from "./use-cases/get-lending-positions.js";
 export * from "./use-cases/get-wallet.js";
 export * from "./use-cases/get-wallet-activity.js";
+export * from "./use-cases/get-loan-outstanding.js";
+export * from "./adapters/in-memory/fake-loan-query-adapter.js";
 export * from "./adapters/in-memory/fake-account-activity-adapter.js";
 export * from "./adapters/in-memory/fake-iou-setup-adapter.js";
 export * from "./trustline-support.js";

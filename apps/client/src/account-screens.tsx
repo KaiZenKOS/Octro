@@ -19,6 +19,8 @@ import type {
   KycStatus,
   LendingAsset,
   LendingPositions,
+  LoanOutstanding,
+  LoanPosition,
   OdooCompany,
   OdooConnection,
   WalletActivity,
@@ -476,6 +478,69 @@ function PositionsSection({ positions }: { positions: LendingPositions | null })
   );
 }
 
+// Une ligne = un pret actif du borrower. Le montant a rembourser n'est
+// jamais saisi : c'est TotalValueOutstanding, qui accroit continuement
+// avec les interets — on le relit a la demande, jamais calcule cote
+// client, puis on rembourse ce montant exact (le seul qui fonctionne pour
+// clore le pret, voir packages/xrpl/src/lending-v1.ts).
+function LoanRepayRow({ loan, onRepaid }: { loan: LoanPosition; onRepaid: () => void }) {
+  const api = useLendingApi();
+  const [outstanding, setOutstanding] = useState<LoanOutstanding | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchOutstanding = () => {
+    setLoading(true);
+    setError(null);
+    api
+      .getLoanOutstanding(loan.id)
+      .then(setOutstanding)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Unexpected error'))
+      .finally(() => setLoading(false));
+  };
+
+  const repay = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.repay(loan.id);
+      onRepaid();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unexpected error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={{ gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.border }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <T>{formatAmount(loan.asset_id, loan.principal_drops)} emprunté</T>
+        <Badge tone="success">actif</Badge>
+      </View>
+      {!outstanding ? (
+        <Button variant="secondary" busy={loading} onPress={fetchOutstanding} style={{ minHeight: 40 }}>
+          Voir le montant dû
+        </Button>
+      ) : (
+        <>
+          <T variant="muted">
+            Montant dû : {formatAmount(loan.asset_id, outstanding.total_value_outstanding)}
+            {outstanding.next_payment_due_date
+              ? ` · échéance ${new Date(outstanding.next_payment_due_date).toLocaleDateString('fr-FR')}`
+              : ''}
+          </T>
+          <Button busy={busy} onPress={repay}>
+            Rembourser {formatAmount(loan.asset_id, outstanding.total_value_outstanding)}
+          </Button>
+        </>
+      )}
+      <ErrorNote message={error} />
+    </View>
+  );
+}
+
 function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
   const api = useLendingApi();
   const [assets, setAssets] = useState<LendingAsset[]>([{ asset_id: NATIVE_ASSET_ID, vault_id: '' }]);
@@ -627,6 +692,17 @@ function LendingPanel({ assessment }: { assessment: CreditAssessment | null }) {
         {!assessment && <T variant="muted">Demandez d'abord une évaluation de crédit approuvée.</T>}
         {assessment && !canBorrow && <T variant="muted">Votre dernière évaluation de crédit a été refusée.</T>}
       </View>
+
+      {positions && positions.loans.some((l) => l.status === 'active') && (
+        <View style={{ gap: 8 }}>
+          <T variant="label">Borrower — rembourser un prêt actif</T>
+          {positions.loans
+            .filter((l) => l.status === 'active')
+            .map((loan) => (
+              <LoanRepayRow key={loan.id} loan={loan} onRepaid={refresh} />
+            ))}
+        </View>
+      )}
 
       <ErrorNote message={error} />
       {lastMessage && <Badge tone="success">{lastMessage}</Badge>}

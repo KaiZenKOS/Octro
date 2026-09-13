@@ -18,3 +18,7 @@ export * from "./iou-setup.js";
 // Vue "compte" du client (soldes reels + historique de transactions
 // on-chain), lecture seule.
 export * from "./account-activity.js";
+
+// Solde reel d'un pret (TotalValueOutstanding, accru par les interets),
+// lecture seule — necessaire pour un remboursement exact (repay-loan.ts).
+export * from "./loan-query.js";

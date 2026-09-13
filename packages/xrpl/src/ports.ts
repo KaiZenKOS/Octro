@@ -53,6 +53,30 @@ export interface AccountActivityPort {
   getTransactions(address: string, limit?: number): Promise<QueryResult<AccountTransactionSummary[]>>;
 }
 
+export interface LoanOutstanding {
+  // Chaine native (drops pour XRP, valeur decimale pour un IOU) — meme
+  // convention que les champs XRPLNumber du Loan (PrincipalRequested,
+  // DebtMaximum, ...). C'est EXACTEMENT ce montant, jamais un arrondi
+  // manuel, qui doit etre envoye a LendingV1Port.repayLoan avec Flags=0
+  // pour clore le pret (verifie en reel : tfLoanFullPayment echoue en
+  // tecKILLED, voir packages/xrpl/src/lending-v1.ts).
+  totalValueOutstanding: string;
+  principalOutstanding: string;
+  paymentRemaining: number;
+  nextPaymentDueDate: string | null; // ISO
+  defaulted: boolean;
+}
+
+/**
+ * Lecture seule du solde reel d'un pret sur le ledger (Loan ledger entry)
+ * — necessaire car TotalValueOutstanding accroit continuement avec les
+ * interets ; ni l'application ni le borrower ne peuvent le calculer sans
+ * relire le ledger.
+ */
+export interface LoanQueryPort {
+  getOutstanding(loanId: string): Promise<QueryResult<LoanOutstanding>>;
+}
+
 export interface PaymentPort {
   sendTestPayment(params: {
     sourceSeed: string; // test-only; never accepted from an LLM tool call

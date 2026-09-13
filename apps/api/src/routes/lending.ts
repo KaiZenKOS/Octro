@@ -18,7 +18,8 @@ const LoanRequestBody = z.object({
   requested_term_months: z.number().int().min(1).max(600),
   asset_id: AssetIdSchema.optional(),
 });
-const RepayBody = z.object({ loan_id: z.string().uuid(), amount_drops: PositiveDecimalStringSchema });
+const RepayBody = z.object({ loan_id: z.string().uuid() });
+const LoanIdQuery = z.object({ loan_id: z.string().uuid() });
 const WithdrawBody = z.object({ amount_drops: PositiveDecimalStringSchema, asset_id: AssetIdSchema.optional() });
 
 export async function lendingRoutes(app: FastifyInstance, deps: AppDependencies): Promise<void> {
@@ -83,12 +84,39 @@ export async function lendingRoutes(app: FastifyInstance, deps: AppDependencies)
     }
   });
 
+  // Solde reel a rembourser (TotalValueOutstanding, accroit avec les
+  // interets) — le client l'affiche avant de valider, plutot que de
+  // demander un montant que le borrower ne peut pas connaitre lui-meme.
+  app.get("/v1/lending/loans/outstanding", async (request, reply) => {
+    const userId = await requireSession(request, reply, deps);
+    if (!userId) return reply;
+    try {
+      const query = LoanIdQuery.parse(request.query);
+      const outstanding = await deps.getLoanOutstanding.execute({ userId, loanId: query.loan_id });
+      // snake_case, comme le reste de l'API — le port @octro/xrpl renvoie
+      // du camelCase (vocabulaire ledger), jamais expose tel quel au client.
+      return reply.send({
+        total_value_outstanding: outstanding.totalValueOutstanding,
+        principal_outstanding: outstanding.principalOutstanding,
+        payment_remaining: outstanding.paymentRemaining,
+        next_payment_due_date: outstanding.nextPaymentDueDate,
+        defaulted: outstanding.defaulted,
+      });
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  // Aucun montant fourni par l'appelant : le pret reste un remboursement
+  // en une fois, et TotalValueOutstanding est relu juste avant de
+  // soumettre (RepayLoanUseCase) — elimine tout risque de montant errone
+  // ou perime.
   app.post("/v1/lending/repay", async (request, reply) => {
     const userId = await requireSession(request, reply, deps);
     if (!userId) return reply;
     try {
       const body = RepayBody.parse(request.body);
-      const loan = await deps.repayLoan.execute({ userId, loanId: body.loan_id, amountDrops: body.amount_drops });
+      const loan = await deps.repayLoan.execute({ userId, loanId: body.loan_id });
       return reply.send(loan);
     } catch (err) {
       return sendError(reply, err);
