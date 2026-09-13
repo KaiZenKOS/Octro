@@ -63,6 +63,10 @@ export function InfoScreen() {
             <Badge tone="success">{t('Implémenté', 'Implemented')}</Badge>
             <T>{t('Parts de vault (MPToken)', 'Vault shares (MPToken)')}</T>
           </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Badge tone="success">{t('Implémenté', 'Implemented')}</Badge>
+            <T>{t('RLUSD (stablecoin simulé) en second actif de prêt', 'RLUSD (simulated stablecoin) as a second lending asset')}</T>
+          </View>
         </View>
       </Card>
     </View>
