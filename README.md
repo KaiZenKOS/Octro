@@ -5,7 +5,7 @@ get underwritten against your actual numbers, borrow against it or lend into the
 shared vault. Built for the XRPL Lending Protocol Hackathon (DeVinci Blockchain ×
 Ripple).
 
-**Developer feedback from the hackathon:** [docs/FEEDBACK.md](docs/FEEDBACK.md)
+**Developer feedback from the hackathon:** [FEEDBACK.md](FEEDBACK.md)
 **Full proof of execution (every real transaction, with explorer links):** [docs/progress/samet/evidence/PROOF_OF_EXECUTION.md](docs/progress/samet/evidence/PROOF_OF_EXECUTION.md)
 
 ## What it does
@@ -18,14 +18,6 @@ only once that check passes does the business get to draw a loan, sized to what 
 plausibly repay. Anyone can be a lender and deposit capital into the shared XRPL vault;
 being a borrower means being a business with real books behind it. Deposit, loan
 origination, drawdown, repayment, withdrawal are all real signed XRPL transactions.
-
-The wider plan — a shared forecasting layer for individuals, freelancers and
-businesses, with no wallet or KYC required to just see your own numbers — is designed
-into the domain and application layers (`GetPersonalProjectionUseCase`, a real
-`POST /v1/projections` route) but isn't wired to a real user's own data yet. Today it
-only shows through a fixed demo scenario (a synthetic persona, "Lina") on a separate,
-unauthenticated part of the client. Don't read it as a working feature for individuals
-right now — the lending side is what's actually built and proven.
 
 Track 1 means the vault is open-ended: it stays open for deposits and withdrawals for
 its whole life, only the loans inside it have a term.
@@ -70,32 +62,6 @@ is and whether they can actually repay, before capital goes out the door:
 - **A liquidity buffer** — if the vault can't cover a withdrawal yet because the
   borrower hasn't repaid, a platform wallet advances it, capped at its own balance.
 
-## How it's built
-
-A TypeScript monorepo, one package per concern, plumbed together by hand in
-`apps/api/src/composition.ts` (no DI container):
-
-| Path | What lives there |
-| --- | --- |
-| `apps/client/` | React Native / Expo app, web-first |
-| `apps/api/` | Fastify HTTP API — the only place use cases get exposed |
-| `apps/worker/` | Reserved for async jobs; not used yet |
-| `packages/domain/` | Pure business rules and guards, no I/O |
-| `packages/application/` | Use cases and ports; Postgres and in-memory adapters live here |
-| `packages/contracts/` | Shared zod schemas and types |
-| `packages/xrpl/` | XRPL adapters: Lending V1, Credentials/Domains, Sponsorship, wallet provisioning |
-| `packages/credit/` | Pure credit-scoring math (revenue, AR/AP, balance sheet, composite score → grade → sizing), no I/O |
-| `packages/agents/`, `packages/mcp/` | Bounded LLM orchestration and tool access — never signs or submits a transaction itself |
-| `packages/ui/` | Shared components and design tokens |
-| `services/optimizer/` | Deterministic Python forecasting engine, independent of the API and the XRPL SDK |
-| `infra/` | Environment config, database migrations, deployment scripts |
-
-A request only ever reaches XRPL or Postgres through a port defined in
-`packages/application`; the API layer has no business logic or authorization of its
-own, and the same holds for the worker and MCP entry points. See
-[docs/architecture.md](docs/architecture.md) for the full picture and
-[docs/v2.2/Octro_CDC_v2.2.md](docs/v2.2/Octro_CDC_v2.2.md) for the underlying spec this
-was built against.
 
 ## Network
 
