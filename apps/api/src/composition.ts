@@ -362,6 +362,13 @@ export function buildDependencies(): AppDependencies {
   const bufferWalletAddress = process.env["BUFFER_WALLET_ADDRESS"] ?? "";
   const bufferWalletSeed = process.env["BUFFER_WALLET_SEED"] ?? "";
   const bufferInitialBalanceDrops = process.env["BUFFER_INITIAL_BALANCE_DROPS"] ?? "1000000000";
+  // Reserve de base (10 XRP) + reserve incrementale d'un objet possede (2
+  // XRP, verifie via server_state sur le Hackathon Devnet) + une marge pour
+  // les frais de transaction. Verifie en reel : sans la reserve
+  // incrementale, CredentialAccept echoue tecINSUFFICIENT_RESERVE des que
+  // le credential accepte devient un objet possede par ce compte (memes
+  // reserve_base/reserve_inc que pour une trustline).
+  const walletActivationAmountDrops = process.env["WALLET_ACTIVATION_AMOUNT_DROPS"] ?? "13000000";
 
   const provisionWallet = new ProvisionWalletUseCase(wallets, walletProvisioning, walletSeedCrypto, clock, ids);
 
@@ -371,7 +378,18 @@ export function buildDependencies(): AppDependencies {
     recordDeclaredEvent: new RecordDeclaredEventUseCase(workspaces, events, clock, ids),
     getPersonalProjection: new GetPersonalProjectionUseCase(workspaces, events, optimizer, clock),
     approveFinancingAction: new ApproveFinancingActionUseCase(workspaces, capabilities),
-    signUp: new SignUpUseCase(users, emailVerifications, mail, provisionWallet, clock, ids),
+    signUp: new SignUpUseCase(
+      users,
+      emailVerifications,
+      mail,
+      provisionWallet,
+      bufferDisbursement,
+      bufferWalletSeed,
+      walletActivationAmountDrops,
+      txEvidence,
+      clock,
+      ids,
+    ),
     confirmEmail: new ConfirmEmailUseCase(users, emailVerifications, clock),
     login: new LoginUseCase(users, sessions, clock),
     validateSession: new ValidateSessionUseCase(sessions, clock),
